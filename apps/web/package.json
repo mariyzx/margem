@@ -1,0 +1,14 @@
+{
+  "name": "@margem/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"no tests yet\""
+  },
+  "devDependencies": {
+    "@margem/config": "workspace:*"
+  }
+}
