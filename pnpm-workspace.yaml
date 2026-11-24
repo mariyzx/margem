@@ -28,4 +28,5 @@ trustPolicyExclude:
 overrides:
   deepmerge-ts: "^8.0.0"
   effect: "^3.22.1"
+  postcss: "^8.5.18"
   typescript: "5.9.3"
