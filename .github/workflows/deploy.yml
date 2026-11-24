@@ -1,0 +1,80 @@
+name: Deploy
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    env:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_PORT: ${{ secrets.VPS_PORT }}
+      VPS_APP_DIR: ${{ secrets.VPS_APP_DIR }}
+    steps:
+      - name: Configurar SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host vps
+            HostName $VPS_HOST
+            User $VPS_USER
+            Port ${VPS_PORT:-22}
+            IdentityFile ~/.ssh/id_ed25519
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            ServerAliveInterval 30
+            ServerAliveCountMax 10
+          EOF
+
+      - name: Enviar .env de produção
+        env:
+          ENV_PRODUCTION: ${{ secrets.ENV_PRODUCTION }}
+        run: |
+          if [ -z "$ENV_PRODUCTION" ]; then
+            echo "::error::Secret ENV_PRODUCTION está vazio ou não existe"
+            exit 1
+          fi
+          printf '%s\n' "$ENV_PRODUCTION" | ssh vps \
+            "umask 077 && cat > '$VPS_APP_DIR/.env.tmp' && mv '$VPS_APP_DIR/.env.tmp' '$VPS_APP_DIR/.env'"
+
+      - name: Atualizar código e subir containers
+        run: |
+          ssh vps "
+            set -euo pipefail
+            cd '$VPS_APP_DIR'
+            git fetch origin main
+            git checkout main
+            git pull --ff-only origin main
+            docker compose --env-file .env -f infra/docker-compose.prod.yml up -d --build --remove-orphans
+            docker image prune -f
+          "
+
+      - name: Health check
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+        run: |
+          for i in $(seq 1 20); do
+            if curl -fsS --max-time 5 "$APP_URL/api/health/ready"; then
+              echo; echo "✅ API pronta"; exit 0
+            fi
+            echo "Tentativa $i falhou, aguardando 15s..."
+            sleep 15
+          done
+          echo "::error::Health check falhou em $APP_URL/api/health/ready"
+          exit 1

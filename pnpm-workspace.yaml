@@ -1,0 +1,32 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+allowBuilds:
+  "@prisma/client": false
+  "@prisma/engines": false
+  "@swc/core": false
+  esbuild: false
+  prisma: false
+
+blockExoticSubdeps: true
+minimumReleaseAge: 10080
+minimumReleaseAgeExclude:
+  - "@turbo/darwin-64@2.11.13"
+  - "@turbo/darwin-arm64@2.11.13"
+  - "@turbo/linux-64@2.11.13"
+  - "@turbo/linux-arm64@2.11.13"
+  - "@turbo/windows-64@2.11.13"
+  - "@turbo/windows-arm64@2.11.13"
+  - "@vitest/mocker@5.1.1"
+  - "@vitest/spy@5.1.1"
+  - turbo@2.11.13
+  - vitest@5.1.1
+trustPolicy: no-downgrade
+trustPolicyExclude:
+  - chokidar@4.0.3
+overrides:
+  deepmerge-ts: "^8.0.0"
+  effect: "^3.22.1"
+  postcss: "^8.5.18"
+  typescript: "5.9.3"
