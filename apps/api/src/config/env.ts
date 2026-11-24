@@ -7,6 +7,10 @@ export const envSchema = z.object({
   DATABASE_URL: z.string().url(),
   REDIS_URL: z.string().url(),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
+  SMTP_HOST: z.string().min(1).default("localhost"),
+  SMTP_PORT: z.coerce.number().int().positive().default(1025),
+  MAIL_FROM: z.string().min(1).default("Margem <no-reply@margem.local>"),
+  SESSION_TTL_DAYS: z.coerce.number().int().positive().default(14),
 });
 
 export type Env = z.infer<typeof envSchema>;

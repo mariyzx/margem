@@ -4,6 +4,7 @@ import { Logger } from "nestjs-pino";
 import { AppModule } from "./app.module";
 import { loadEnv } from "./config/env";
 import helmet from "helmet";
+import cookieParser from "cookie-parser";
 
 async function bootstrap() {
   const env = loadEnv();
@@ -21,6 +22,7 @@ async function bootstrap() {
       hsts: env.NODE_ENV === "production",
     }),
   );
+  app.use(cookieParser());
   app.enableCors({
     origin: env.APP_URL,
     credentials: true,
