@@ -5,6 +5,7 @@ import { createLoggerParams } from "./config/logger.config";
 import { HealthModule } from "./health/health.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { SecurityModule } from "./security/security.module";
+import { PoliciesModule } from "./policies/policies.module";
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { SecurityModule } from "./security/security.module";
     HealthModule,
     PrismaModule,
     SecurityModule,
+    PoliciesModule,
   ],
 })
 export class AppModule {}
