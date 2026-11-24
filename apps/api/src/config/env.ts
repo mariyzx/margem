@@ -9,6 +9,8 @@ export const envSchema = z.object({
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
   SMTP_HOST: z.string().min(1).default("localhost"),
   SMTP_PORT: z.coerce.number().int().positive().default(1025),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASSWORD: z.string().optional(),
   MAIL_FROM: z.string().min(1).default("Margem <no-reply@margem.local>"),
   SESSION_TTL_DAYS: z.coerce.number().int().positive().default(14),
   SENTRY_DSN: z.string().url().optional().or(z.literal("")),
