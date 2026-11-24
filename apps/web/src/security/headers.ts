@@ -4,9 +4,10 @@ export function buildCsp(
   apiUrl = "http://localhost:3001",
   sentryDsn?: string,
 ): string {
-  const apiOrigin = new URL(apiUrl).origin;
-  const connectSources = ["'self'", apiOrigin];
-
+  const connectSources = ["'self'"];
+  if (apiUrl && !apiUrl.startsWith("/")) {
+    connectSources.push(new URL(apiUrl).origin);
+  }
   if (sentryDsn) {
     try {
       connectSources.push(new URL(sentryDsn).origin);
