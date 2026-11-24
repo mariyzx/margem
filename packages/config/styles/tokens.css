@@ -1,0 +1,45 @@
+@theme {
+  --color-ground: #eceef3;
+  --color-paper: #ffffff;
+  --color-margin: #f8f9fc;
+  --color-margin-rule: #dce3f5;
+  --color-ink: #1a1d29;
+  --color-ink-muted: #5b6070;
+  --color-bic: #2747d9;
+  --color-marker: #ffe45c;
+  --color-marker-soft: #fff6c2;
+  --color-correct: #12805c;
+  --color-turma: #7b3fb0;
+  --color-danger: #b42318;
+
+  --font-serif: var(--font-literata), Georgia, serif;
+  --font-sans: var(--font-instrument-sans), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), monospace;
+
+  --dur-instant: 80ms;
+  --dur-fast: 140ms;
+  --dur-base: 220ms;
+  --dur-slow: 320ms;
+  --dur-reveal: 700ms;
+
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --transition-duration-instant: var(--dur-instant);
+  --transition-duration-fast: var(--dur-fast);
+  --transition-duration-base: var(--dur-base);
+  --transition-duration-slow: var(--dur-slow);
+  --transition-duration-reveal: var(--dur-reveal);
+  --ease-margem-out: var(--ease-out);
+  --ease-margem-in-out: var(--ease-in-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-instant: 0ms;
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+    --dur-slow: 0ms;
+    --dur-reveal: 0ms;
+  }
+}
