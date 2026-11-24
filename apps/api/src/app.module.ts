@@ -8,6 +8,7 @@ import { PoliciesModule } from "./policies/policies.module";
 import { AuthModule } from "./auth/auth.module";
 import { type MiddlewareConsumer, Module, type NestModule } from "@nestjs/common";
 import { SessionMiddleware } from "./auth/session.middleware";
+import { SentryModule } from "@sentry/nestjs/setup";
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { SessionMiddleware } from "./auth/session.middleware";
     SecurityModule,
     PoliciesModule,
     AuthModule,
+    SentryModule.forRoot(),
   ],
 })
 export class AppModule implements NestModule {

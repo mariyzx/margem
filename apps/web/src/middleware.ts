@@ -5,7 +5,7 @@ export function middleware(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const isProd = process.env.NODE_ENV === "production";
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
-  const csp = buildCsp(nonce, !isProd, apiUrl);
+  const csp = buildCsp(nonce, !isProd, apiUrl, process.env.NEXT_PUBLIC_SENTRY_DSN);
 
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
