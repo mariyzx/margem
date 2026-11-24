@@ -1,7 +1,12 @@
 {
   "extends": "@margem/config/tsconfig.base.json",
   "compilerOptions": {
-    "noEmit": true
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "outDir": "./dist",
+    "noEmit": false
   },
   "include": ["src"]
 }
