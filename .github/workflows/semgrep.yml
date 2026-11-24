@@ -11,7 +11,7 @@ jobs:
     name: SAST (Semgrep)
     runs-on: ubuntu-latest
     container:
-      image: semgrep/semgrep:1.115.0
+      image: semgrep/semgrep:1.186.0
     steps:
       - uses: actions/checkout@v4
       - name: Run Semgrep
