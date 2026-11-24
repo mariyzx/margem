@@ -3,6 +3,7 @@ import { TerminusModule } from "@nestjs/terminus";
 import Redis from "ioredis";
 import { HealthController } from "./health.controller";
 import { REDIS_CLIENT, RedisHealthIndicator } from "./redis.health";
+import { PrismaHealthIndicator } from "./prisma.health";
 
 @Module({
   imports: [TerminusModule],
@@ -16,6 +17,7 @@ import { REDIS_CLIENT, RedisHealthIndicator } from "./redis.health";
       },
     },
     RedisHealthIndicator,
+    PrismaHealthIndicator,
   ],
 })
 export class HealthModule implements OnModuleDestroy {

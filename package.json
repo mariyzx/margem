@@ -13,7 +13,9 @@
     "test": "turbo run test",
     "test:e2e": "turbo run test:e2e",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "db:generate": "pnpm --filter @margem/api db:generate",
+    "db:migrate": "pnpm --filter @margem/api db:migrate"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
