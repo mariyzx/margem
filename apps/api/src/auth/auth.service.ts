@@ -29,7 +29,8 @@ export class AuthService {
   async requestMagicLink(email: string): Promise<{ ok: true; message: string }> {
     const emailKey = `auth:magic:email:${hashToken(email)}`;
     const count = await this.redis.incr(emailKey);
-    if (count === 1) {
+    const ttl = await this.redis.ttl(emailKey);
+    if (count === 1 || ttl < 0) {
       await this.redis.expire(emailKey, MAGIC_LINK_EMAIL_WINDOW_SEC);
     }
     if (count > MAGIC_LINK_EMAIL_LIMIT) {

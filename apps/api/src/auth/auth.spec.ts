@@ -139,6 +139,7 @@ describe("Magic link authentication", () => {
         redisCounters.set(key, next);
         return next;
       }),
+      ttl: vi.fn(async () => 3600),
       expire: vi.fn(async () => 1),
     };
 
