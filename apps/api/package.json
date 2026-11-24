@@ -3,10 +3,12 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "build": "nest build -p tsconfig.build.json",
+    "build": "prisma generate && tsc -p tsconfig.build.json",
+    "typecheck": "prisma generate && tsc --noEmit",
     "dev": "nest start --watch --exec \"node --env-file=../../.env\"",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
     "test": "vitest run"
   },
   "devDependencies": {
@@ -15,6 +17,7 @@
     "@nestjs/testing": "^12.5.1",
     "@swc/core": "^1.16.22",
     "@types/express": "^5.0.6",
+    "prisma": "^6.19.3",
     "tsx": "^4.23.15",
     "unplugin-swc": "^2.0.0"
   },
@@ -24,6 +27,7 @@
     "@nestjs/core": "^12.5.1",
     "@nestjs/platform-express": "^12.5.1",
     "@nestjs/terminus": "^12.2.0",
+    "@prisma/client": "^6.19.3",
     "ioredis": "^6.0.0",
     "nestjs-pino": "^5.3.2",
     "pino": "^10.4.0",

@@ -3,8 +3,11 @@ packages:
   - "packages/*"
 
 allowBuilds:
+  "@prisma/client": false
+  "@prisma/engines": false
   "@swc/core": false
   esbuild: false
+  prisma: false
 
 blockExoticSubdeps: true
 minimumReleaseAge: 10080
@@ -20,3 +23,8 @@ minimumReleaseAgeExclude:
   - turbo@2.11.13
   - vitest@5.1.1
 trustPolicy: no-downgrade
+trustPolicyExclude:
+  - chokidar@4.0.3
+overrides:
+  deepmerge-ts: "^8.0.0"
+  effect: "^3.22.1"
