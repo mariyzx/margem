@@ -4,8 +4,14 @@ import { loadEnv } from "./config/env";
 import { createLoggerParams } from "./config/logger.config";
 import { HealthModule } from "./health/health.module";
 import { PrismaModule } from "./prisma/prisma.module";
+import { SecurityModule } from "./security/security.module";
 
 @Module({
-  imports: [LoggerModule.forRoot(createLoggerParams(loadEnv())), HealthModule, PrismaModule],
+  imports: [
+    LoggerModule.forRoot(createLoggerParams(loadEnv())),
+    HealthModule,
+    PrismaModule,
+    SecurityModule,
+  ],
 })
 export class AppModule {}
