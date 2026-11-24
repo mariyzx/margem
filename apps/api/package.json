@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "build": "prisma generate && nest build -p tsconfig.build.json",
+    "build": "prisma generate && tsc -p tsconfig.build.json",
     "typecheck": "prisma generate && tsc --noEmit",
     "dev": "nest start --watch --exec \"node --env-file=../../.env\"",
     "lint": "eslint .",

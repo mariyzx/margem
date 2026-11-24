@@ -5,6 +5,7 @@
     "moduleResolution": "Node",
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
+    "rootDir": "./src",
     "outDir": "./dist",
     "noEmit": false
   },

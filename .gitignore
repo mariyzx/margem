@@ -12,4 +12,4 @@ coverage/
 !.env.example
 
 *:Zone.Identifier
-.DS_Store
+.DS_Storenext-env.d.ts
