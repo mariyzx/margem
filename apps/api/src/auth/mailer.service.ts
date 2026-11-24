@@ -15,6 +15,9 @@ export class MailerService {
       host: env.SMTP_HOST,
       port: env.SMTP_PORT,
       secure: env.SMTP_PORT === 465,
+      ...(env.SMTP_USER && env.SMTP_PASSWORD
+        ? { auth: { user: env.SMTP_USER, pass: env.SMTP_PASSWORD } }
+        : {}),
     });
   }
 

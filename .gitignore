@@ -12,6 +12,7 @@ coverage/
 !.env.example
 
 *:Zone.Identifier
-.DS_Storenext-env.d.ts
+.DS_Store
+next-env.d.ts
 test-results/
 playwright-report/
