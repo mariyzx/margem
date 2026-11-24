@@ -1,4 +1,5 @@
-export function buildCsp(nonce: string, isDev: boolean): string {
+export function buildCsp(nonce: string, isDev: boolean, apiUrl = "http://localhost:3001"): string {
+  const apiOrigin = new URL(apiUrl).origin;
   const scriptSrc = [
     "'self'",
     `'nonce-${nonce}'`,
@@ -12,7 +13,7 @@ export function buildCsp(nonce: string, isDev: boolean): string {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self'",
-    "connect-src 'self'",
+    `connect-src 'self' ${apiOrigin}`,
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",

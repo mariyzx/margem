@@ -4,7 +4,8 @@ import { buildCsp } from "./security/headers";
 export function middleware(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const isProd = process.env.NODE_ENV === "production";
-  const csp = buildCsp(nonce, !isProd);
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+  const csp = buildCsp(nonce, !isProd, apiUrl);
 
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
