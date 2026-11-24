@@ -1,6 +1,7 @@
 import { Logger } from "@nestjs/common";
 import nodemailer from "nodemailer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { renderMagicLinkEmail } from "./magic-link.template";
 import { MailerService } from "./mailer.service";
 
 const { sendMailMock, createTransportMock } = vi.hoisted(() => {
@@ -52,7 +53,21 @@ describe("MailerService", () => {
       greetingTimeout: 10_000,
       socketTimeout: 15_000,
     });
-    expect(sendMailMock).toHaveBeenCalledTimes(1);
+    expect(sendMailMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "user@margem.local",
+        subject: "Seu link de entrada no Margem",
+        html: expect.stringContaining("#2747d9"),
+      }),
+    );
+  });
+
+  it("escapes HTML special characters in renderMagicLinkEmail", () => {
+    const html = renderMagicLinkEmail('https://margem.app/entrar/verificar?token=a&b="x"<script>');
+    expect(html).toContain(
+      "https://margem.app/entrar/verificar?token=a&amp;b=&quot;x&quot;&lt;script&gt;",
+    );
+    expect(html).not.toContain("<script>");
   });
 
   it("creates transport with auth when SMTP_USER and SMTP_PASSWORD are set", async () => {
@@ -79,7 +94,21 @@ describe("MailerService", () => {
         pass: "dummy-test-password",
       },
     });
-    expect(sendMailMock).toHaveBeenCalledTimes(1);
+    expect(sendMailMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "user@margem.local",
+        subject: "Seu link de entrada no Margem",
+        html: expect.stringContaining("#2747d9"),
+      }),
+    );
+  });
+
+  it("escapes HTML special characters in renderMagicLinkEmail", () => {
+    const html = renderMagicLinkEmail('https://margem.app/entrar/verificar?token=a&b="x"<script>');
+    expect(html).toContain(
+      "https://margem.app/entrar/verificar?token=a&amp;b=&quot;x&quot;&lt;script&gt;",
+    );
+    expect(html).not.toContain("<script>");
   });
 
   it("logs safe SMTP diagnostics without leaking password or email on failure", async () => {

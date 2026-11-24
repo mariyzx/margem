@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import nodemailer, { type Transporter } from "nodemailer";
 import { loadEnv } from "../config/env";
+import { renderMagicLinkEmail } from "./magic-link.template";
 
 interface SmtpErrorDetails {
   code?: string;
@@ -52,6 +53,7 @@ export class MailerService {
         to: email,
         subject: "Seu link de entrada no Margem",
         text: `Entre no Margem usando este link (válido por 15 minutos, uso único):\n\n${magicUrl}\n`,
+        html: renderMagicLinkEmail(magicUrl),
       })) as { messageId?: string } | undefined;
 
       this.logger.log({ ...this.meta, messageId: info?.messageId }, "auth.magic_link_sent");
