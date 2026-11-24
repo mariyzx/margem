@@ -1,8 +1,22 @@
 export const messages = {
   appName: "Margem",
   tagline: "Um caderno que te faz lembrar, não só reler.",
-  home: {
-    status: "Base do app configurada.",
-    primaryAction: "Entrar",
+  auth: {
+    title: "Entrar no Margem",
+    subtitle: "Enviamos um link de uso único para o seu e-mail.",
+    emailLabel: "E-mail",
+    emailPlaceholder: "voce@exemplo.com",
+    submitButton: "Enviar link de entrada",
+    sendingButton: "Enviando link",
+    sentTitle: "Link enviado",
+    sentDescription: "Se o endereço existir, enviamos um link válido por 15 minutos.",
+    genericError: "Não foi possível enviar o link agora. Tente novamente.",
+    verifying: "Confirmando seu acesso",
+    invalidLinkTitle: "Link inválido ou expirado",
+    invalidLinkDescription: "Peça um novo link para entrar.",
+    requestNewLink: "Pedir novo link",
+    signedInAs: "Conectado como",
+    logout: "Sair",
+    logoutAll: "Sair de todos os aparelhos",
   },
 } as const;
