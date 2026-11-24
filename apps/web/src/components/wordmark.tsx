@@ -19,28 +19,75 @@ export function Wordmark() {
     }
   }, [prefersReduced]);
 
-  const transition = {
-    duration: MOTION_DURATIONS.reveal,
-    ease: [...MOTION_EASINGS.out] as [number, number, number, number],
+  const easeOut = [...MOTION_EASINGS.out] as [number, number, number, number];
+  const easeInOut = [...MOTION_EASINGS.inOut] as [number, number, number, number];
+
+  const letterVariants = {
+    hidden: { opacity: 0, scale: 0.92 },
+    visible: {
+      opacity: 1,
+      scale: 1,
+      transition: { duration: 0.28, ease: easeOut },
+    },
+  };
+
+  const bottomCornerVariants = {
+    hidden: { x: 6, y: -3, opacity: 0 },
+    visible: {
+      x: 0,
+      y: 0,
+      opacity: 1,
+      transition: { delay: 0.15, duration: 0.4, ease: easeOut },
+    },
+  };
+
+  const topCornerVariants = {
+    hidden: { x: -6, y: 3, opacity: 0 },
+    visible: {
+      x: 0,
+      y: 0,
+      opacity: 1,
+      transition: { delay: 0.15, duration: 0.4, ease: easeOut },
+    },
+  };
+
+  const restVariants = {
+    hidden: { maxWidth: 0, opacity: 0 },
+    visible: {
+      maxWidth: "3.4em",
+      opacity: 1,
+      transition: {
+        delay: 0.35,
+        duration: MOTION_DURATIONS.reveal,
+        ease: easeInOut,
+      },
+    },
   };
 
   return (
-    <span className="relative inline-flex items-center px-[0.45em] py-[0.15em] font-serif text-3xl font-semibold tracking-tight text-ink">
+    <m.span
+      key={animateIntro ? "intro" : "static"}
+      initial={animateIntro ? "hidden" : false}
+      animate="visible"
+      className="relative inline-flex items-baseline px-[0.45em] py-[0.15em] font-serif text-3xl font-semibold tracking-tight text-ink"
+    >
       <m.span
         aria-hidden="true"
-        initial={animateIntro ? { x: 8, y: -4, opacity: 0 } : false}
-        animate={{ x: 0, y: 0, opacity: 1 }}
-        transition={transition}
+        variants={bottomCornerVariants}
         className="pointer-events-none absolute bottom-0 left-0 h-[0.34em] w-[0.34em] border-b-[0.055em] border-l-[0.055em] border-bic"
       />
-      <span>Margem</span>
+      <m.span variants={letterVariants}>M</m.span>
+      <m.span
+        variants={restVariants}
+        className="-mb-[0.18em] inline-block overflow-hidden pb-[0.18em] whitespace-nowrap"
+      >
+        argem
+      </m.span>
       <m.span
         aria-hidden="true"
-        initial={animateIntro ? { x: -8, y: 4, opacity: 0 } : false}
-        animate={{ x: 0, y: 0, opacity: 1 }}
-        transition={transition}
+        variants={topCornerVariants}
         className="pointer-events-none absolute top-0 right-0 h-[0.34em] w-[0.34em] border-t-[0.055em] border-r-[0.055em] border-bic"
       />
-    </span>
+    </m.span>
   );
 }
