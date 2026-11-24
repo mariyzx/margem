@@ -11,6 +11,12 @@ async function bootstrap() {
   const env = loadEnv();
   initApiSentry(env);
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  if (env.NODE_ENV === "production") {
+    const httpAdapter = app.getHttpAdapter().getInstance() as {
+      set?: (k: string, v: unknown) => void;
+    };
+    httpAdapter.set?.("trust proxy", 1);
+  }
   app.use(
     helmet({
       contentSecurityPolicy: {

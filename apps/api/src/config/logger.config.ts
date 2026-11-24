@@ -4,6 +4,8 @@ import type { Params } from "nestjs-pino";
 import type { Env } from "./env";
 
 export function createLoggerParams(env: Env): Params {
+  const isDev = env.NODE_ENV === "development";
+
   return {
     pinoHttp: {
       level: env.LOG_LEVEL,
@@ -19,6 +21,20 @@ export function createLoggerParams(env: Env): Params {
           trace_id: typeof req.id === "string" ? req.id : undefined,
         };
       },
+      serializers: {
+        req(req: IncomingMessage & { id?: unknown; method?: string; url?: string }) {
+          return {
+            id: req.id,
+            method: req.method,
+            url: req.url,
+          };
+        },
+        res(res: { statusCode?: number }) {
+          return {
+            statusCode: res.statusCode,
+          };
+        },
+      },
       redact: {
         paths: [
           "req.headers.authorization",
@@ -32,11 +48,25 @@ export function createLoggerParams(env: Env): Params {
         ],
         censor: "[REDACTED]",
       },
-      formatters: {
-        level(label: string) {
-          return { level: label };
-        },
-      },
+      ...(isDev
+        ? {
+            transport: {
+              target: "pino-pretty",
+              options: {
+                colorize: true,
+                singleLine: true,
+                translateTime: "SYS:HH:MM:ss",
+                ignore: "pid,hostname",
+              },
+            },
+          }
+        : {
+            formatters: {
+              level(label: string) {
+                return { level: label };
+              },
+            },
+          }),
     },
   };
 }

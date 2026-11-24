@@ -20,6 +20,7 @@
     "@types/express": "^5.0.6",
     "@types/nodemailer": "^8.0.2",
     "@types/supertest": "^7.2.1",
+    "pino-pretty": "^13.2.0",
     "prisma": "^6.19.3",
     "supertest": "^7.3.2",
     "tsx": "^4.23.15",
