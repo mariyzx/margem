@@ -1,5 +1,20 @@
-export function buildCsp(nonce: string, isDev: boolean, apiUrl = "http://localhost:3001"): string {
+export function buildCsp(
+  nonce: string,
+  isDev: boolean,
+  apiUrl = "http://localhost:3001",
+  sentryDsn?: string,
+): string {
   const apiOrigin = new URL(apiUrl).origin;
+  const connectSources = ["'self'", apiOrigin];
+
+  if (sentryDsn) {
+    try {
+      connectSources.push(new URL(sentryDsn).origin);
+    } catch {
+      // ignora DSN malformado
+    }
+  }
+
   const scriptSrc = [
     "'self'",
     `'nonce-${nonce}'`,
@@ -13,7 +28,7 @@ export function buildCsp(nonce: string, isDev: boolean, apiUrl = "http://localho
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self'",
-    `connect-src 'self' ${apiOrigin}`,
+    `connect-src ${connectSources.join(" ")}`,
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",

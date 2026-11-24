@@ -5,9 +5,11 @@ import { AppModule } from "./app.module";
 import { loadEnv } from "./config/env";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
+import { initApiSentry } from "./observability/sentry";
 
 async function bootstrap() {
   const env = loadEnv();
+  initApiSentry(env);
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   app.use(
     helmet({

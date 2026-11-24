@@ -11,6 +11,8 @@ export const envSchema = z.object({
   SMTP_PORT: z.coerce.number().int().positive().default(1025),
   MAIL_FROM: z.string().min(1).default("Margem <no-reply@margem.local>"),
   SESSION_TTL_DAYS: z.coerce.number().int().positive().default(14),
+  SENTRY_DSN: z.string().url().optional().or(z.literal("")),
+  APP_VERSION: z.string().default("0.0.0"),
 });
 
 export type Env = z.infer<typeof envSchema>;
