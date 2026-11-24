@@ -19,6 +19,7 @@ import { PrismaHealthIndicator } from "./prisma.health";
     RedisHealthIndicator,
     PrismaHealthIndicator,
   ],
+  exports: [REDIS_CLIENT],
 })
 export class HealthModule implements OnModuleDestroy {
   constructor(@Inject(REDIS_CLIENT) private readonly redis: Redis) {}
