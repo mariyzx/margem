@@ -28,3 +28,4 @@ trustPolicyExclude:
 overrides:
   deepmerge-ts: "^8.0.0"
   effect: "^3.22.1"
+  typescript: "5.9.3"
