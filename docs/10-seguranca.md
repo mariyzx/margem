@@ -1,0 +1,115 @@
+# Segurança
+
+Análise de ameaças e controles do Margem. Leia antes de mexer em auth, permissões, IA, upload, links, tempo real ou infra. Os itens marcados como **obrigatório** entram antes de qualquer pessoa além da Mari usar o app.
+
+## O que protegemos
+
+| Ativo | Por que importa |
+| --- | --- |
+| Notas, fontes e perguntas | Conteúdo pessoal de estudo; pode ter dados de terceiros (aulas, material do trabalho). Dado pessoal pela LGPD. |
+| Chaves de IA dos usuários | Dão acesso à conta e à cota de cada pessoa num provedor. Vazou, alguém gasta no nome dela. |
+| Sessões e contas | Quem entra na conta vê tudo e entra nas turmas. |
+| Turmas | Notas de uma turma não podem vazar pra quem não é membro, nem antes da hora ("publique antes de ver"). |
+| A VPS | Um servidor comprometido expõe tudo acima e pode ser usado pra atacar outros. |
+
+## Principais riscos, em ordem de prioridade
+
+1. **Acesso a dado de outra pessoa (IDOR/BOLA)** por um endpoint que busca por id sem conferir dono ou turma.
+2. **SSRF** pelo recurso "colar link": o servidor busca a URL e pode ser levado a acessar Redis, Elasticsearch, Ollama ou o endereço de metadados da nuvem.
+3. **Serviços internos expostos na internet** (Redis, Elasticsearch, Postgres, Ollama sem senha numa porta pública).
+4. **Vazamento de chave de IA** por log, resposta de API ou banco.
+5. **XSS** pelo conteúdo da nota, por HTML colado ou pelo texto devolvido pela IA.
+6. **Prompt injection** por instruções escondidas em PDFs, páginas ou notas da turma.
+7. **Abuso de login por link mágico** (spam de e-mail, enumeração de contas, link reaproveitado).
+8. **Upload malicioso** (PDF que trava o parser, arquivo gigante, tipo falso).
+9. **Segredo commitado** ou dependência comprometida, mais provável num projeto escrito com agentes de IA.
+
+## Controles por área
+
+### Autenticação — obrigatório
+- [ ] Token do link mágico com 32 bytes aleatórios, guardado **só como hash**, uso único, expira em 15 minutos.
+- [ ] Resposta igual pra e-mail cadastrado ou não ("se a conta existir, mandamos o link"), pra não revelar quem usa o app.
+- [ ] Limite de pedidos de link por e-mail e por IP (ex.: 5 por hora).
+- [ ] OAuth com `state` e PKCE.
+- [ ] Sessão em cookie `HttpOnly`, `Secure`, `SameSite=Lax`, rotacionada no login. "Sair de todos os aparelhos" disponível.
+- [ ] Proteção CSRF nas rotas que mudam dados (token ou checagem de `Origin`), já que a sessão é por cookie.
+- [ ] Convites de turma com expiração e revogação; o código é aleatório e longo.
+
+### Autorização — obrigatório
+- [ ] Toda query de dado de usuário filtra por dono **ou** por associação à turma, no service (não só no controller).
+- [ ] Uma camada de políticas centralizada (guards do NestJS com algo como CASL) em vez de `if` espalhado.
+- [ ] A regra "publique antes de ver" fica no back: a API não devolve notas dos outros antes do `publishedAt` do solicitante.
+- [ ] Hocuspocus autentica a conexão e confere permissão **por documento**. Socket.IO só entra em sala de turma de quem é membro.
+- [ ] Ids não sequenciais (cuid), mas sem depender disso como segurança.
+- [ ] Teste e2e pra cada recurso: usuário B tentando ler, editar e apagar recurso do usuário A recebe 404.
+
+### Chaves de IA — obrigatório
+- [ ] AES-256-GCM, IV aleatório por registro, chave mestra em variável de ambiente fora do repositório.
+- [ ] Descriptografar só dentro do `AiService`, na hora da chamada. Nunca em log, erro, resposta, analytics ou fila (o job leva o `userId`, não a chave).
+- [ ] API devolve só `keyLast4`. "Remover" apaga o registro.
+- [ ] Plano de rotação da chave mestra documentado (re-criptografar em lote).
+- [ ] Login do OpenRouter com OAuth PKCE; o token recebido tem o mesmo tratamento de uma chave.
+
+### Busca de links (SSRF) — obrigatório antes de liberar "colar link"
+- [ ] Só `http` e `https`.
+- [ ] Resolver o DNS e **bloquear** loopback, redes privadas, link-local (inclui `169.254.169.254`), CGNAT e IPv6 equivalentes. Conferir de novo a cada redirect (no máximo 3).
+- [ ] Conectar no IP já validado, pra evitar troca de DNS entre checagem e acesso.
+- [ ] Timeout curto, limite de tamanho da resposta e só tipos de conteúdo esperados.
+- [ ] O worker que busca links roda num container **sem acesso à rede interna** do Compose (rede própria, só saída pra internet).
+
+### Conteúdo e XSS — obrigatório
+- [ ] Nota guardada como JSON do TipTap e renderizada pelo schema, nunca como HTML cru.
+- [ ] HTML colado passa pelo parser do editor (só nós e marcas permitidos).
+- [ ] Texto da IA renderizado como texto ou como Markdown com sanitização (sem HTML, sem `javascript:`).
+- [ ] Nada de `dangerouslySetInnerHTML` sem sanitização explícita e revisada.
+- [ ] Links com `rel="noopener noreferrer"`.
+- [ ] Cabeçalhos: CSP restritiva (sem `unsafe-inline` em script), `X-Content-Type-Options`, `Referrer-Policy`, `frame-ancestors 'none'`, HSTS.
+
+### Prompt injection e saída da IA
+- [ ] Texto da nota, da fonte e da turma entra no prompt **delimitado e marcado como dado**, nunca como instrução.
+- [ ] A IA não tem ferramentas nem ações: só devolve texto ou JSON.
+- [ ] Toda saída estruturada é validada com Zod; o que não passa é descartado.
+- [ ] Citações de "Pergunte ao caderno" são conferidas contra os ids que estavam no contexto.
+- [ ] Saída da IA nunca vira escrita direta na nota (ADR-001) e sugestões passam por aprovação.
+- [ ] Busca no RAG sempre filtrada pelo caderno e pelas permissões de quem pergunta, pra que trechos de outro usuário nunca entrem no contexto.
+
+### Upload de arquivos — obrigatório
+- [ ] Limite de tamanho (ex.: 25 MB) e cota de armazenamento por usuário (o Object Storage gratuito é pequeno).
+- [ ] Tipo conferido pelo conteúdo, não pela extensão.
+- [ ] Bucket privado; download só por URL assinada de curta duração, depois de checar permissão.
+- [ ] Nome original guardado como metadado, nunca usado como caminho.
+- [ ] Parsing no worker com timeout e limite de memória; falhou, a fonte fica `failed` com motivo.
+
+### Abuso e disponibilidade
+- [ ] Limite de taxa global e por usuário (throttler do NestJS com Redis), mais apertado em login, upload, link e IA.
+- [ ] Limite de chamadas de IA por usuário pra proteger a cota dele.
+- [ ] Limite de tamanho de nota, de fonte e de mensagens no quiz ao vivo.
+
+### Infra (VPS) — obrigatório
+- [ ] SSH só por chave, sem senha nem root; de preferência só pela Tailscale.
+- [ ] Firewall (ufw e lista de segurança da Oracle) liberando só 80 e 443 públicos.
+- [ ] Postgres, Redis, Elasticsearch e Ollama **sem porta publicada** no Compose: só na rede interna.
+- [ ] Redis com senha; Elasticsearch com segurança ligada (usuário e senha).
+- [ ] Containers sem root, imagens com versão fixa, `unattended-upgrades` no Ubuntu, fail2ban.
+- [ ] Segredos num `.env` fora do repositório (e nos secrets do GitHub Actions), com permissão restrita.
+- [ ] Backup diário criptografado do Postgres no Object Storage, com teste de restauração.
+
+### Código e cadeia de dependências
+- [ ] gitleaks (ou o secret scanning do GitHub) no CI e num hook de pre-commit.
+- [ ] Dependabot ou Renovate, `pnpm audit` no CI, lockfile sempre commitado.
+- [ ] CodeQL ou Semgrep no CI.
+- [ ] Agentes de IA nunca escrevem segredos em arquivos, não desligam verificações de segurança e marcam no PR qualquer mudança em auth, permissão ou criptografia, pra revisão humana.
+
+### Privacidade e LGPD
+- [ ] Página de privacidade simples: o que é guardado, onde (Brasil, Oracle São Paulo) e que, com IA ligada, o conteúdo enviado vai pro provedor escolhido pela pessoa.
+- [ ] Aviso na configuração de IA: alguns planos gratuitos podem usar o conteúdo pra treinar modelos.
+- [ ] Exportar os próprios dados e apagar a conta (apaga notas, fontes, chaves, arquivos e embeddings).
+- [ ] Logs sem conteúdo de nota, sem prompt e sem chave; retenção curta.
+- [ ] Registro de auditoria pra ações sensíveis: login, troca de chave de IA, exclusão de conta, mudança de membros da turma.
+
+## Checklist de PR (segurança)
+
+- [ ] Endpoint novo usa a camada de políticas e tem teste de acesso indevido?
+- [ ] Algum dado de usuário vai pra log, fila ou resposta sem necessidade?
+- [ ] Alguma entrada externa (link, arquivo, HTML, texto da IA) é usada sem validação ou sanitização?
+- [ ] Mudou auth, permissão, criptografia ou infra? Marque para revisão humana.
