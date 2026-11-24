@@ -29,4 +29,4 @@ COPY --from=builder --chown=nestjs:nodejs /app/apps/api/node_modules ./apps/api/
 
 USER nestjs
 EXPOSE 3001
-CMD ["sh", "-c", "node apps/api/node_modules/.bin/prisma migrate deploy --schema=apps/api/prisma/schema.prisma && node apps/api/dist/main.js"]
+CMD ["sh", "-c", "node apps/api/node_modules/prisma/build/index.js migrate deploy --schema=apps/api/prisma/schema.prisma && node apps/api/dist/main.js"]
