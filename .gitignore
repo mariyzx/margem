@@ -13,3 +13,5 @@ coverage/
 
 *:Zone.Identifier
 .DS_Storenext-env.d.ts
+test-results/
+playwright-report/
