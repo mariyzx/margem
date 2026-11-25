@@ -3,6 +3,7 @@ import type { CreateTextSourceInput, SourceDto } from "@margem/shared";
 import { PolicyService } from "../policies/policy.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { assertWithinQuota } from "../quotas/quota";
+import { chunkText } from "./chunk-text";
 
 @Injectable()
 export class SourcesService {
@@ -35,6 +36,18 @@ export class SourcesService {
           status: "ready",
         },
       });
+
+      const chunks = chunkText(input.content);
+      if (chunks.length > 0) {
+        await tx.sourceChunk.createMany({
+          data: chunks.map((text, ord) => ({
+            sourceId: source.id,
+            ord,
+            text,
+          })),
+        });
+      }
+
       await tx.auditLog.create({
         data: {
           userId,

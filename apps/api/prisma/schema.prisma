@@ -265,8 +265,26 @@ model Source {
 
   notebook Notebook @relation(fields: [notebookId], references: [id], onDelete: Cascade)
   notes    Note[]
+  chunks   SourceChunk[]
 
   @@index([notebookId, deletedAt, updatedAt])
+}
+
+model SourceChunk {
+  id        String   @id @default(cuid())
+  sourceId  String
+  ord       Int
+  text      String
+  page      Int?
+  startSec  Int?
+  endSec    Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  source Source @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceId, ord])
+  @@index([sourceId])
 }
 
 model AuthAccount {
