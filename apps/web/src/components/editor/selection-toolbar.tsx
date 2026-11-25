@@ -35,13 +35,96 @@ interface SelectionToolbarProps {
 }
 
 const TEXT_COLORS = [
-  { id: "default", value: null, dotClass: "bg-ink", label: "Padrão" },
-  { id: "bic", value: "var(--color-bic)", dotClass: "bg-bic", label: "Azul" },
-  { id: "correct", value: "var(--color-correct)", dotClass: "bg-correct", label: "Verde" },
-  { id: "turma", value: "var(--color-turma)", dotClass: "bg-turma", label: "Roxo" },
-  { id: "muted", value: "var(--color-ink-muted)", dotClass: "bg-ink-muted", label: "Grafite" },
-  { id: "danger", value: "var(--color-danger)", dotClass: "bg-danger", label: "Destaque" },
+  { id: "default", value: null, swatchStyle: undefined, dotClass: "bg-ink", label: "Padrão" },
+  {
+    id: "bic",
+    value: "var(--color-bic)",
+    swatchStyle: undefined,
+    dotClass: "bg-bic",
+    label: "Azul",
+  },
+  {
+    id: "correct",
+    value: "var(--color-correct)",
+    swatchStyle: undefined,
+    dotClass: "bg-correct",
+    label: "Verde",
+  },
+  {
+    id: "turma",
+    value: "var(--color-turma)",
+    swatchStyle: undefined,
+    dotClass: "bg-turma",
+    label: "Roxo",
+  },
+  {
+    id: "muted",
+    value: "var(--color-ink-muted)",
+    swatchStyle: undefined,
+    dotClass: "bg-ink-muted",
+    label: "Grafite",
+  },
+  {
+    id: "danger",
+    value: "var(--color-danger)",
+    swatchStyle: undefined,
+    dotClass: "bg-danger",
+    label: "Vermelho",
+  },
+  {
+    id: "orange",
+    value: "#ea580c",
+    swatchStyle: { backgroundColor: "#ea580c" },
+    dotClass: "",
+    label: "Laranja",
+  },
+  {
+    id: "amber",
+    value: "#d97706",
+    swatchStyle: { backgroundColor: "#d97706" },
+    dotClass: "",
+    label: "Âmbar",
+  },
+  {
+    id: "emerald",
+    value: "#059669",
+    swatchStyle: { backgroundColor: "#059669" },
+    dotClass: "",
+    label: "Esmeralda",
+  },
+  {
+    id: "cyan",
+    value: "#0891b2",
+    swatchStyle: { backgroundColor: "#0891b2" },
+    dotClass: "",
+    label: "Ciano",
+  },
+  {
+    id: "indigo",
+    value: "#4f46e5",
+    swatchStyle: { backgroundColor: "#4f46e5" },
+    dotClass: "",
+    label: "Índigo",
+  },
+  {
+    id: "pink",
+    value: "#db2777",
+    swatchStyle: { backgroundColor: "#db2777" },
+    dotClass: "",
+    label: "Rosa",
+  },
 ] as const;
+
+function toPickerHex(color: string | null): string {
+  if (!color) return "#1a4b8c";
+  if (/^#[0-9a-fA-F]{6}$/.test(color)) return color;
+  const rgbMatch = color.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
+  if (rgbMatch) {
+    const [, r, g, b] = rgbMatch;
+    return "#" + [r, g, b].map((n) => Number(n).toString(16).padStart(2, "0")).join("");
+  }
+  return "#1a4b8c";
+}
 
 export function SelectionToolbar({ editor, onCreateQuestion }: SelectionToolbarProps) {
   const isCloze = editor.isActive("cloze");
@@ -204,46 +287,83 @@ export function SelectionToolbar({ editor, onCreateQuestion }: SelectionToolbarP
               type="button"
               aria-label={messages.editor.textColor}
               className={cn(
-                "rounded-sm p-1.5 transition-colors duration-fast ease-margem-out focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-bic",
+                "relative rounded-sm p-1.5 transition-colors duration-fast ease-margem-out focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-bic",
                 currentColor
                   ? "bg-margin font-medium text-ink"
                   : "text-ink-muted hover:bg-margin hover:text-ink",
               )}
             >
               <Palette className="h-3.5 w-3.5" strokeWidth={1.5} />
+              {currentColor ? (
+                <span
+                  aria-hidden="true"
+                  className="absolute right-1.5 bottom-0.5 left-1.5 h-0.5 rounded-full"
+                  style={{ backgroundColor: currentColor }}
+                />
+              ) : null}
             </button>
           </PopoverTrigger>
-          <PopoverContent className="w-auto p-2">
+          <PopoverContent className="w-auto p-2.5">
             <div
               role="group"
               aria-label={messages.editor.textColor}
-              className="flex items-center gap-1.5"
+              className="flex flex-col gap-2"
             >
-              {TEXT_COLORS.map((color) => {
-                const active = currentColor === color.value;
-                return (
-                  <button
-                    key={color.id}
-                    type="button"
-                    aria-label={color.label}
-                    aria-pressed={active}
-                    title={color.label}
-                    onClick={() => {
-                      if (color.value === null) {
-                        editor.chain().focus().unsetColor().run();
-                      } else {
-                        editor.chain().focus().setColor(color.value).run();
-                      }
+              <div className="grid grid-cols-6 gap-1.5">
+                {TEXT_COLORS.map((color) => {
+                  const active = currentColor === color.value;
+                  return (
+                    <button
+                      key={color.id}
+                      type="button"
+                      aria-label={color.label}
+                      aria-pressed={active}
+                      title={color.label}
+                      onClick={() => {
+                        if (color.value === null) {
+                          editor.chain().focus().unsetColor().run();
+                        } else {
+                          editor.chain().focus().setColor(color.value).run();
+                        }
+                      }}
+                      className={cn(
+                        "flex h-6 w-6 items-center justify-center rounded-full border transition-transform duration-fast hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-bic",
+                        active ? "border-bic ring-2 ring-bic/30" : "border-margin-rule",
+                      )}
+                    >
+                      <span
+                        className={cn("h-3.5 w-3.5 rounded-full", color.dotClass)}
+                        style={color.swatchStyle}
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center justify-between gap-2 border-t border-margin-rule pt-2">
+                <label className="flex cursor-pointer items-center gap-2 text-xs text-ink-muted transition-colors hover:text-ink">
+                  <input
+                    type="color"
+                    aria-label={messages.editor.customTextColor}
+                    value={toPickerHex(currentColor)}
+                    onChange={(e) => {
+                      editor.chain().setColor(e.target.value).run();
                     }}
-                    className={cn(
-                      "flex h-6 w-6 items-center justify-center rounded-full border transition-transform duration-fast hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-bic",
-                      active ? "border-bic ring-2 ring-bic/30" : "border-margin-rule",
-                    )}
+                    className="h-6 w-6 cursor-pointer rounded border border-margin-rule bg-transparent p-0.5"
+                  />
+                  <span>{messages.editor.customTextColor}</span>
+                </label>
+
+                {currentColor ? (
+                  <button
+                    type="button"
+                    onClick={() => editor.chain().focus().unsetColor().run()}
+                    className="rounded-sm px-1.5 py-0.5 text-[11px] text-ink-muted transition-colors hover:bg-margin hover:text-ink"
                   >
-                    <span className={cn("h-3.5 w-3.5 rounded-full", color.dotClass)} />
+                    {messages.editor.clearTextColor}
                   </button>
-                );
-              })}
+                ) : null}
+              </div>
             </div>
           </PopoverContent>
         </Popover>

@@ -71,6 +71,8 @@ export const messages = {
     inlineCode: "Código",
     textColor: "Cor do texto",
     textColorDefault: "Padrão",
+    customTextColor: "Mais cores",
+    clearTextColor: "Remover cor",
     link: "Link",
     linkUrlLabel: "Endereço do link",
     linkUrlPlaceholder: "https://exemplo.com",
