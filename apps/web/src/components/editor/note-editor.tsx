@@ -3,8 +3,12 @@
 import type { NoteOrigin } from "@margem/shared";
 import { Button, Field, Popover, PopoverAnchor, PopoverContent } from "@margem/ui";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
+import { Color } from "@tiptap/extension-color";
 import Image from "@tiptap/extension-image";
+import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
+import { TextStyle } from "@tiptap/extension-text-style";
+import Underline from "@tiptap/extension-underline";
 import { EditorContent, useEditor, type JSONContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
@@ -76,6 +80,18 @@ export function NoteEditor({
       StarterKit.configure({ codeBlock: false }),
       CodeBlockLowlight.configure({ lowlight }),
       Placeholder.configure({ placeholder }),
+      Underline,
+      TextStyle,
+      Color,
+      Link.configure({
+        openOnClick: false,
+        autolink: true,
+        HTMLAttributes: {
+          rel: "noopener noreferrer nofollow",
+          target: "_blank",
+          class: "text-bic underline underline-offset-2 hover:opacity-80",
+        },
+      }),
       Image.configure({
         HTMLAttributes: {
           class: "my-4 max-h-96 rounded-md border border-margin-rule object-contain",
@@ -95,7 +111,10 @@ export function NoteEditor({
           "[&_h3]:mt-4 [&_h3]:mb-1.5 [&_h3]:text-xl [&_h3]:font-semibold " +
           "[&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-6 " +
           "[&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 " +
-          "[&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:border [&_pre]:border-margin-rule [&_pre]:bg-margin [&_pre]:p-3 [&_pre]:font-mono [&_pre]:text-sm " +
+          "[&_blockquote]:my-3 [&_blockquote]:border-l-2 [&_blockquote]:border-margin-rule [&_blockquote]:pl-4 [&_blockquote]:text-ink-muted [&_blockquote]:italic " +
+          "[&_hr]:my-6 [&_hr]:border-margin-rule " +
+          "[&_code]:rounded-xs [&_code]:bg-margin [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em] " +
+          "[&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:border [&_pre]:border-margin-rule [&_pre]:bg-margin [&_pre]:p-3 [&_pre]:font-mono [&_pre]:text-sm [&_pre_code]:bg-transparent [&_pre_code]:p-0 " +
           "[&_p.is-editor-empty:first-child::before]:pointer-events-none [&_p.is-editor-empty:first-child::before]:float-left [&_p.is-editor-empty:first-child::before]:h-0 [&_p.is-editor-empty:first-child::before]:text-ink-muted/50 [&_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]",
       },
     },
