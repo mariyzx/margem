@@ -1,15 +1,26 @@
 "use client";
 
+import "@tiptap/extension-color";
+import "@tiptap/extension-link";
+import "@tiptap/extension-text-style";
+import "@tiptap/extension-underline";
 import { cn } from "@margem/config/cn";
+import { Button, Field, Popover, PopoverContent, PopoverTrigger } from "@margem/ui";
 import type { Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
-import { Bold, Code, Highlighter, Italic, MessageSquarePlus } from "lucide-react";
+import {
+  Bold,
+  Code,
+  Highlighter,
+  Italic,
+  Link2,
+  MessageSquarePlus,
+  Palette,
+  Strikethrough,
+  Underline,
+} from "lucide-react";
+import * as React from "react";
 import { messages } from "../../messages/pt-br";
-
-interface SelectionToolbarProps {
-  editor: Editor;
-  onCreateQuestion: (draft: QuestionAnchorDraft) => void;
-}
 
 export interface QuestionAnchorDraft {
   blockId: string;
@@ -18,11 +29,116 @@ export interface QuestionAnchorDraft {
   suffix: string;
 }
 
+interface SelectionToolbarProps {
+  editor: Editor;
+  onCreateQuestion: (draft: QuestionAnchorDraft) => void;
+}
+
+const TEXT_COLORS = [
+  { id: "default", value: null, swatchStyle: undefined, dotClass: "bg-ink", label: "Padrão" },
+  {
+    id: "bic",
+    value: "var(--color-bic)",
+    swatchStyle: undefined,
+    dotClass: "bg-bic",
+    label: "Azul",
+  },
+  {
+    id: "correct",
+    value: "var(--color-correct)",
+    swatchStyle: undefined,
+    dotClass: "bg-correct",
+    label: "Verde",
+  },
+  {
+    id: "turma",
+    value: "var(--color-turma)",
+    swatchStyle: undefined,
+    dotClass: "bg-turma",
+    label: "Roxo",
+  },
+  {
+    id: "muted",
+    value: "var(--color-ink-muted)",
+    swatchStyle: undefined,
+    dotClass: "bg-ink-muted",
+    label: "Grafite",
+  },
+  {
+    id: "danger",
+    value: "var(--color-danger)",
+    swatchStyle: undefined,
+    dotClass: "bg-danger",
+    label: "Vermelho",
+  },
+  {
+    id: "orange",
+    value: "#ea580c",
+    swatchStyle: { backgroundColor: "#ea580c" },
+    dotClass: "",
+    label: "Laranja",
+  },
+  {
+    id: "amber",
+    value: "#d97706",
+    swatchStyle: { backgroundColor: "#d97706" },
+    dotClass: "",
+    label: "Âmbar",
+  },
+  {
+    id: "emerald",
+    value: "#059669",
+    swatchStyle: { backgroundColor: "#059669" },
+    dotClass: "",
+    label: "Esmeralda",
+  },
+  {
+    id: "cyan",
+    value: "#0891b2",
+    swatchStyle: { backgroundColor: "#0891b2" },
+    dotClass: "",
+    label: "Ciano",
+  },
+  {
+    id: "indigo",
+    value: "#4f46e5",
+    swatchStyle: { backgroundColor: "#4f46e5" },
+    dotClass: "",
+    label: "Índigo",
+  },
+  {
+    id: "pink",
+    value: "#db2777",
+    swatchStyle: { backgroundColor: "#db2777" },
+    dotClass: "",
+    label: "Rosa",
+  },
+] as const;
+
+function toPickerHex(color: string | null): string {
+  if (!color) return "#1a4b8c";
+  if (/^#[0-9a-fA-F]{6}$/.test(color)) return color;
+  const rgbMatch = color.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
+  if (rgbMatch) {
+    const [, r, g, b] = rgbMatch;
+    return "#" + [r, g, b].map((n) => Number(n).toString(16).padStart(2, "0")).join("");
+  }
+  return "#1a4b8c";
+}
+
 export function SelectionToolbar({ editor, onCreateQuestion }: SelectionToolbarProps) {
   const isCloze = editor.isActive("cloze");
   const isBold = editor.isActive("bold");
   const isItalic = editor.isActive("italic");
+  const isUnderline = editor.isActive("underline");
+  const isStrike = editor.isActive("strike");
   const isCode = editor.isActive("code");
+  const isLink = editor.isActive("link");
+  const currentColor = (editor.getAttributes("textStyle").color as string | undefined) ?? null;
+
+  const [linkOpen, setLinkOpen] = React.useState(false);
+  const [linkUrl, setLinkUrl] = React.useState("");
+  const [linkError, setLinkError] = React.useState<string | undefined>();
 
   function handleQuestionClick() {
     const { from, to, $from } = editor.state.selection;
@@ -43,6 +159,37 @@ export function SelectionToolbar({ editor, onCreateQuestion }: SelectionToolbarP
     onCreateQuestion({ blockId, quote, prefix, suffix });
   }
 
+  function handleOpenLinkPopover(nextOpen: boolean) {
+    setLinkOpen(nextOpen);
+    if (nextOpen) {
+      const existing = editor.getAttributes("link").href;
+      setLinkUrl(typeof existing === "string" ? existing : "");
+      setLinkError(undefined);
+    }
+  }
+
+  function handleApplyLink(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const trimmed = linkUrl.trim();
+    if (!trimmed) {
+      editor.chain().focus().unsetLink().run();
+      setLinkOpen(false);
+      return;
+    }
+
+    try {
+      const parsed = new URL(trimmed);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        setLinkError(messages.editor.linkUrlInvalid);
+        return;
+      }
+      editor.chain().focus().extendMarkRange("link").setLink({ href: parsed.toString() }).run();
+      setLinkOpen(false);
+    } catch {
+      setLinkError(messages.editor.linkUrlInvalid);
+    }
+  }
+
   return (
     <BubbleMenu
       editor={editor}
@@ -57,7 +204,7 @@ export function SelectionToolbar({ editor, onCreateQuestion }: SelectionToolbarP
       <div
         role="toolbar"
         aria-label={messages.editor.toolbarLabel}
-        className="flex items-center gap-1 rounded-md border border-margin-rule bg-paper p-1 font-sans text-xs shadow-md"
+        className="flex flex-wrap items-center gap-0.5 rounded-md border border-margin-rule bg-paper p-1 font-sans text-xs shadow-md"
       >
         <button
           type="button"
@@ -91,6 +238,36 @@ export function SelectionToolbar({ editor, onCreateQuestion }: SelectionToolbarP
 
         <button
           type="button"
+          aria-label={messages.editor.underline}
+          aria-pressed={isUnderline}
+          onClick={() => editor.chain().focus().toggleUnderline().run()}
+          className={cn(
+            "rounded-sm p-1.5 transition-colors duration-fast ease-margem-out focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-bic",
+            isUnderline
+              ? "bg-margin font-medium text-ink"
+              : "text-ink-muted hover:bg-margin hover:text-ink",
+          )}
+        >
+          <Underline className="h-3.5 w-3.5" strokeWidth={1.5} />
+        </button>
+
+        <button
+          type="button"
+          aria-label={messages.editor.strike}
+          aria-pressed={isStrike}
+          onClick={() => editor.chain().focus().toggleStrike().run()}
+          className={cn(
+            "rounded-sm p-1.5 transition-colors duration-fast ease-margem-out focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-bic",
+            isStrike
+              ? "bg-margin font-medium text-ink"
+              : "text-ink-muted hover:bg-margin hover:text-ink",
+          )}
+        >
+          <Strikethrough className="h-3.5 w-3.5" strokeWidth={1.5} />
+        </button>
+
+        <button
+          type="button"
           aria-label={messages.editor.inlineCode}
           aria-pressed={isCode}
           onClick={() => editor.chain().focus().toggleCode().run()}
@@ -104,7 +281,145 @@ export function SelectionToolbar({ editor, onCreateQuestion }: SelectionToolbarP
           <Code className="h-3.5 w-3.5" strokeWidth={1.5} />
         </button>
 
-        <span aria-hidden="true" className="h-4 w-px bg-margin-rule" />
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              aria-label={messages.editor.textColor}
+              className={cn(
+                "relative rounded-sm p-1.5 transition-colors duration-fast ease-margem-out focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-bic",
+                currentColor
+                  ? "bg-margin font-medium text-ink"
+                  : "text-ink-muted hover:bg-margin hover:text-ink",
+              )}
+            >
+              <Palette className="h-3.5 w-3.5" strokeWidth={1.5} />
+              {currentColor ? (
+                <span
+                  aria-hidden="true"
+                  className="absolute right-1.5 bottom-0.5 left-1.5 h-0.5 rounded-full"
+                  style={{ backgroundColor: currentColor }}
+                />
+              ) : null}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-2.5">
+            <div
+              role="group"
+              aria-label={messages.editor.textColor}
+              className="flex flex-col gap-2"
+            >
+              <div className="grid grid-cols-6 gap-1.5">
+                {TEXT_COLORS.map((color) => {
+                  const active = currentColor === color.value;
+                  return (
+                    <button
+                      key={color.id}
+                      type="button"
+                      aria-label={color.label}
+                      aria-pressed={active}
+                      title={color.label}
+                      onClick={() => {
+                        if (color.value === null) {
+                          editor.chain().focus().unsetColor().run();
+                        } else {
+                          editor.chain().focus().setColor(color.value).run();
+                        }
+                      }}
+                      className={cn(
+                        "flex h-6 w-6 items-center justify-center rounded-full border transition-transform duration-fast hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-bic",
+                        active ? "border-bic ring-2 ring-bic/30" : "border-margin-rule",
+                      )}
+                    >
+                      <span
+                        className={cn("h-3.5 w-3.5 rounded-full", color.dotClass)}
+                        style={color.swatchStyle}
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center justify-between gap-2 border-t border-margin-rule pt-2">
+                <label className="flex cursor-pointer items-center gap-2 text-xs text-ink-muted transition-colors hover:text-ink">
+                  <input
+                    type="color"
+                    aria-label={messages.editor.customTextColor}
+                    value={toPickerHex(currentColor)}
+                    onChange={(e) => {
+                      editor.chain().setColor(e.target.value).run();
+                    }}
+                    className="h-6 w-6 cursor-pointer rounded border border-margin-rule bg-transparent p-0.5"
+                  />
+                  <span>{messages.editor.customTextColor}</span>
+                </label>
+
+                {currentColor ? (
+                  <button
+                    type="button"
+                    onClick={() => editor.chain().focus().unsetColor().run()}
+                    className="rounded-sm px-1.5 py-0.5 text-[11px] text-ink-muted transition-colors hover:bg-margin hover:text-ink"
+                  >
+                    {messages.editor.clearTextColor}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        <Popover open={linkOpen} onOpenChange={handleOpenLinkPopover}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              aria-label={messages.editor.link}
+              aria-pressed={isLink}
+              className={cn(
+                "rounded-sm p-1.5 transition-colors duration-fast ease-margem-out focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-bic",
+                isLink
+                  ? "bg-margin font-medium text-bic"
+                  : "text-ink-muted hover:bg-margin hover:text-ink",
+              )}
+            >
+              <Link2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent>
+            <form onSubmit={handleApplyLink} className="flex flex-col gap-3" noValidate>
+              <Field
+                label={messages.editor.linkUrlLabel}
+                placeholder={messages.editor.linkUrlPlaceholder}
+                value={linkUrl}
+                onChange={(e) => {
+                  setLinkUrl(e.target.value);
+                  if (linkError) setLinkError(undefined);
+                }}
+                error={linkError}
+                autoFocus
+              />
+              <div className="flex items-center gap-2">
+                <Button type="submit" size="sm">
+                  {messages.editor.applyLink}
+                </Button>
+                {isLink ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      editor.chain().focus().unsetLink().run();
+                      setLinkOpen(false);
+                    }}
+                  >
+                    {messages.editor.removeLink}
+                  </Button>
+                ) : null}
+              </div>
+            </form>
+          </PopoverContent>
+        </Popover>
+
+        <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-margin-rule" />
 
         <button
           type="button"

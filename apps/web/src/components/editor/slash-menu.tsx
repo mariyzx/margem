@@ -12,6 +12,8 @@ import {
   Image as ImageIcon,
   List,
   ListOrdered,
+  Minus,
+  Quote,
 } from "lucide-react";
 import * as React from "react";
 import { messages } from "../../messages/pt-br";
@@ -54,6 +56,13 @@ const SLASH_ITEMS: SlashCommandItem[] = [
     run: (editor) => editor.chain().focus().toggleOrderedList().run(),
   },
   {
+    id: "blockquote",
+    label: messages.editor.blocks.blockquote.label,
+    description: messages.editor.blocks.blockquote.description,
+    icon: Quote,
+    run: (editor) => editor.chain().focus().toggleBlockquote().run(),
+  },
+  {
     id: "code",
     label: messages.editor.blocks.code.label,
     description: messages.editor.blocks.code.description,
@@ -66,6 +75,13 @@ const SLASH_ITEMS: SlashCommandItem[] = [
     description: messages.editor.blocks.callout.description,
     icon: HelpCircle,
     run: (editor) => editor.chain().focus().setNode("callout").run(),
+  },
+  {
+    id: "divider",
+    label: messages.editor.blocks.divider.label,
+    description: messages.editor.blocks.divider.description,
+    icon: Minus,
+    run: (editor) => editor.chain().focus().setHorizontalRule().run(),
   },
   {
     id: "image",
