@@ -27,6 +27,11 @@
 	}
 
 	handle {
-		reverse_proxy web:3000
+		reverse_proxy web:3000 {
+			# Below the web's KEEP_ALIVE_TIMEOUT (65s, see docker-compose.prod.yml).
+			transport http {
+				keepalive 60s
+			}
+		}
 	}
 }

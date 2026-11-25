@@ -30,6 +30,9 @@ services:
     environment:
       NODE_ENV: production
       NEXT_PUBLIC_API_URL: /api
+      # Read by the Next standalone server.js (ms). Must outlive Caddy's upstream
+      # keepalive (60s in infra/caddy/Caddyfile); Node's default of 5s caused 502s.
+      KEEP_ALIVE_TIMEOUT: ${WEB_KEEP_ALIVE_TIMEOUT:-65000}
       SENTRY_DSN: ${SENTRY_DSN:-}
       NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
     networks:

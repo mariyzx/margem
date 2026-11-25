@@ -13,6 +13,12 @@ import { MailerService } from "./mailer.service";
 import { SessionGuard } from "./session.guard";
 import { PolicyGuard } from "../policies/policy.guard";
 import { FakeRedis } from "../testing/fake-redis";
+import { ThrottlerModule } from "@nestjs/throttler";
+import { ALLOWED_ORIGIN } from "../security/csrf-origin.guard";
+import { GLOBAL_GUARDS } from "../security/security.module";
+import { createThrottlers } from "../security/throttlers";
+
+const APP_ORIGIN = "http://localhost:3000";
 
 describe("Magic link authentication", () => {
   const users = new Map<
@@ -64,7 +70,11 @@ describe("Magic link authentication", () => {
     vi.restoreAllMocks();
   });
 
-  async function createApp() {
+  /**
+   * `productionGuards: true` wires the exact GLOBAL_GUARDS used in production (CSRF,
+   * throttler, session, policy) instead of only session + policy.
+   */
+  async function createApp({ productionGuards = false } = {}) {
     const fakePrisma = {
       magicLinkToken: {
         create: vi.fn(
@@ -210,14 +220,23 @@ describe("Magic link authentication", () => {
       },
     };
 
+    const guards = productionGuards
+      ? [{ provide: ALLOWED_ORIGIN, useValue: APP_ORIGIN }, ...GLOBAL_GUARDS]
+      : [
+          // Same order as GLOBAL_GUARDS in SecurityModule (minus CSRF and throttling).
+          { provide: APP_GUARD, useClass: SessionGuard },
+          { provide: APP_GUARD, useClass: PolicyGuard },
+        ];
+
     @Module({
-      imports: [PoliciesModule],
+      imports: [
+        PoliciesModule,
+        ...(productionGuards ? [ThrottlerModule.forRoot({ throttlers: createThrottlers() })] : []),
+      ],
       controllers: [AuthController],
       providers: [
         AuthService,
-        // Same order as GLOBAL_GUARDS in SecurityModule (minus CSRF and throttling).
-        { provide: APP_GUARD, useClass: SessionGuard },
-        { provide: APP_GUARD, useClass: PolicyGuard },
+        ...guards,
         { provide: PrismaService, useValue: fakePrisma },
         { provide: REDIS_CLIENT, useValue: redis },
         {
@@ -497,6 +516,55 @@ describe("Magic link authentication", () => {
     expect([...sessions.values()].filter((s) => s.revokedAt === null)).toHaveLength(2);
 
     delete process.env.MAX_ACTIVE_SESSIONS_PER_USER;
+    await app.close();
+  });
+
+  it("end to end with production guards: login, /auth/me, logout and logout-all", async () => {
+    freezeClock();
+    const app = await createApp({ productionGuards: true });
+    const server = app.getHttpServer();
+    const login = async (i: number) => {
+      await request(server)
+        .post("/auth/magic-link")
+        .set("Origin", APP_ORIGIN)
+        .send({ email: "flow@margem.local" })
+        .expect(200);
+      const res = await request(server)
+        .post("/auth/verify")
+        .set("Origin", APP_ORIGIN)
+        .send({ token: tokenFromEmail(i) })
+        .expect(200);
+      advanceClock(61_000);
+      return res.headers["set-cookie"] as unknown as string[];
+    };
+
+    // Anonymous: no session, no user.
+    await request(server).get("/auth/me").expect(401);
+
+    const first = await login(0);
+    const me = await request(server).get("/auth/me").set("Cookie", first).expect(200);
+    expect(me.body.user).toMatchObject({ email: "flow@margem.local" });
+
+    // Logout needs a same-origin request (CSRF) and a resolved session.
+    await request(server).post("/auth/logout").set("Cookie", first).expect(403);
+    await request(server)
+      .post("/auth/logout")
+      .set("Cookie", first)
+      .set("Origin", APP_ORIGIN)
+      .expect(200);
+    await request(server).get("/auth/me").set("Cookie", first).expect(401);
+    expect(auditLogs.map((l) => l.action)).toContain("auth.logout");
+
+    const second = await login(1);
+    const third = await login(2);
+    await request(server)
+      .post("/auth/logout-all")
+      .set("Cookie", second)
+      .set("Origin", APP_ORIGIN)
+      .expect(200);
+    await request(server).get("/auth/me").set("Cookie", second).expect(401);
+    await request(server).get("/auth/me").set("Cookie", third).expect(401);
+
     await app.close();
   });
 
