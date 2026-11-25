@@ -65,22 +65,17 @@ export function NoteWorkspace({
   onCreateNote,
   onSaveNote,
 }: NoteWorkspaceProps) {
-  const [title, setTitle] = React.useState("");
-  const [body, setBody] = React.useState("");
+  const [title, setTitle] = React.useState(selectedNote?.title ?? "");
+  const [body, setBody] = React.useState(() =>
+    selectedNote ? docToPlainText(selectedNote.doc) : "",
+  );
   const [saving, setSaving] = React.useState(false);
-
-  React.useEffect(() => {
-    if (!selectedNote) {
-      setTitle("");
-      setBody("");
-      return;
-    }
-    setTitle(selectedNote.title);
-    setBody(docToPlainText(selectedNote.doc));
-  }, [selectedNote]);
 
   async function persistCurrentNote(nextTitle: string, nextBody: string) {
     if (!selectedNote) return;
+    if (nextTitle === selectedNote.title && nextBody === docToPlainText(selectedNote.doc)) {
+      return;
+    }
     setSaving(true);
     try {
       await onSaveNote(selectedNote.id, {

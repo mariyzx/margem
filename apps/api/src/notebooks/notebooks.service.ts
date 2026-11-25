@@ -30,20 +30,7 @@ export class NotebooksService {
       },
     });
 
-    return notebooks.map((nb) => ({
-      id: nb.id,
-      name: nb.name,
-      color: nb.color,
-      createdAt: nb.createdAt.toISOString(),
-      updatedAt: nb.updatedAt.toISOString(),
-      notes: nb.notes.map((note) => ({
-        id: note.id,
-        notebookId: note.notebookId,
-        title: note.title,
-        createdAt: note.createdAt.toISOString(),
-        updatedAt: note.updatedAt.toISOString(),
-      })),
-    }));
+    return notebooks.map((nb) => this.toDto(nb));
   }
 
   async create(userId: string, input: CreateNotebookInput): Promise<NotebookDto> {
@@ -57,14 +44,7 @@ export class NotebooksService {
 
     this.logger.log({ notebookId: notebook.id, userId }, "Notebook created");
 
-    return {
-      id: notebook.id,
-      name: notebook.name,
-      color: notebook.color,
-      createdAt: notebook.createdAt.toISOString(),
-      updatedAt: notebook.updatedAt.toISOString(),
-      notes: [],
-    };
+    return this.toDto({ ...notebook, notes: [] });
   }
 
   async update(
@@ -88,12 +68,40 @@ export class NotebooksService {
 
     this.logger.log({ notebookId: updated.id, userId }, "Notebook updated");
 
+    return this.toDto(updated);
+  }
+
+  private toDto(notebook: {
+    id: string;
+    name: string;
+    color: NotebookDto["color"];
+    createdAt: Date;
+    updatedAt: Date;
+    notes?: Array<{
+      id: string;
+      notebookId: string;
+      title: string;
+      createdAt: Date;
+      updatedAt: Date;
+    }>;
+  }): NotebookDto {
     return {
-      id: updated.id,
-      name: updated.name,
-      color: updated.color,
-      createdAt: updated.createdAt.toISOString(),
-      updatedAt: updated.updatedAt.toISOString(),
+      id: notebook.id,
+      name: notebook.name,
+      color: notebook.color,
+      createdAt: notebook.createdAt.toISOString(),
+      updatedAt: notebook.updatedAt.toISOString(),
+      ...(notebook.notes !== undefined
+        ? {
+            notes: notebook.notes.map((note) => ({
+              id: note.id,
+              notebookId: note.notebookId,
+              title: note.title,
+              createdAt: note.createdAt.toISOString(),
+              updatedAt: note.updatedAt.toISOString(),
+            })),
+          }
+        : {}),
     };
   }
 

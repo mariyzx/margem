@@ -30,6 +30,40 @@ export default function HomePage() {
   const [creatingNotebook, setCreatingNotebook] = React.useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [errorToast, setErrorToast] = React.useState<string | null>(null);
+  const noteRequestIdRef = React.useRef(0);
+
+  const loadNoteById = React.useCallback(async (noteId: string) => {
+    const requestId = ++noteRequestIdRef.current;
+    setLoadingNote(true);
+    try {
+      const note = await fetchNote(noteId);
+      if (noteRequestIdRef.current === requestId) {
+        setSelectedNote(note);
+      }
+    } catch {
+      if (noteRequestIdRef.current === requestId) {
+        setErrorToast(messages.notes.saveError);
+      }
+    } finally {
+      if (noteRequestIdRef.current === requestId) {
+        setLoadingNote(false);
+      }
+    }
+  }, []);
+
+  const loadFirstNoteOfNotebook = React.useCallback(
+    async (notebook: NotebookDto) => {
+      const firstNote = notebook.notes?.[0];
+      if (!firstNote) {
+        noteRequestIdRef.current++;
+        setSelectedNote(null);
+        setLoadingNote(false);
+        return;
+      }
+      await loadNoteById(firstNote.id);
+    },
+    [loadNoteById],
+  );
 
   const loadWorkspace = React.useCallback(async () => {
     const list = await fetchNotebooks();
@@ -42,19 +76,8 @@ export default function HomePage() {
 
     const firstNotebook = list[0]!;
     setSelectedNotebookId(firstNotebook.id);
-    const firstNoteSummary = firstNotebook.notes?.[0];
-    if (firstNoteSummary) {
-      setLoadingNote(true);
-      try {
-        const note = await fetchNote(firstNoteSummary.id);
-        setSelectedNote(note);
-      } finally {
-        setLoadingNote(false);
-      }
-    } else {
-      setSelectedNote(null);
-    }
-  }, []);
+    await loadFirstNoteOfNotebook(firstNotebook);
+  }, [loadFirstNoteOfNotebook]);
 
   React.useEffect(() => {
     let active = true;
@@ -83,44 +106,33 @@ export default function HomePage() {
     setSelectedNotebookId(notebookId);
 
     const nb = notebooks.find((item) => item.id === notebookId);
-    const firstNote = nb?.notes?.[0];
-    if (!firstNote) {
+    if (!nb) {
+      noteRequestIdRef.current++;
       setSelectedNote(null);
       return;
     }
 
-    setLoadingNote(true);
-    try {
-      const note = await fetchNote(firstNote.id);
-      setSelectedNote(note);
-    } catch {
-      setErrorToast(messages.notes.saveError);
-    } finally {
-      setLoadingNote(false);
-    }
+    await loadFirstNoteOfNotebook(nb);
   }
 
   async function handleSelectNote(notebookId: string, noteId: string) {
     setCreatingNotebook(false);
     setMobileMenuOpen(false);
     setSelectedNotebookId(notebookId);
-    setLoadingNote(true);
-    try {
-      const note = await fetchNote(noteId);
-      setSelectedNote(note);
-    } catch {
-      setErrorToast(messages.notes.saveError);
-    } finally {
-      setLoadingNote(false);
-    }
+    await loadNoteById(noteId);
   }
 
   async function handleCreateNotebook(values: { name: string; color: NotebookColor }) {
-    const created = await createNotebook(values);
-    setNotebooks((prev) => [created, ...prev]);
-    setSelectedNotebookId(created.id);
-    setSelectedNote(null);
-    setCreatingNotebook(false);
+    try {
+      const created = await createNotebook(values);
+      setNotebooks((prev) => [created, ...prev]);
+      setSelectedNotebookId(created.id);
+      noteRequestIdRef.current++;
+      setSelectedNote(null);
+      setCreatingNotebook(false);
+    } catch {
+      setErrorToast(messages.notes.saveError);
+    }
   }
 
   async function handleCreateNote(notebookId: string) {
@@ -233,6 +245,7 @@ export default function HomePage() {
 
         <main className="flex-1 px-6 py-8">
           <NoteWorkspace
+            key={selectedNote?.id ?? selectedNotebookId ?? "empty"}
             notebooks={notebooks}
             selectedNotebook={selectedNotebook}
             selectedNote={selectedNote}

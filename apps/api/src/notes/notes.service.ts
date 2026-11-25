@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import type { CreateNoteInput, NoteDto, UpdateNoteInput } from "@margem/shared";
 import { PolicyService } from "../policies/policy.service";
@@ -23,8 +23,11 @@ export class NotesService {
       where: { id: noteId },
     });
     this.policyService.assertOwner(userId, note?.authorId);
+    if (!note) {
+      throw new NotFoundException("Resource not found");
+    }
 
-    return this.toDto(note!);
+    return this.toDto(note);
   }
 
   async create(userId: string, input: CreateNoteInput): Promise<NoteDto> {
