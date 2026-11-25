@@ -176,7 +176,12 @@ export default function HomePage() {
 
   async function handleSaveNote(
     noteId: string,
-    values: { title?: string; doc?: Record<string, unknown>; materialOpenedAt?: string },
+    values: {
+      title?: string;
+      doc?: Record<string, unknown>;
+      sourceId?: string;
+      materialOpenedAt?: string;
+    },
   ) {
     try {
       const updated = await updateNote(noteId, values);

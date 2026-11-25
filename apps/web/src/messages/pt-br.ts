@@ -121,7 +121,7 @@ export const messages = {
     titlePlaceholder: "Ex.: Aula 04 — Consenso Raft",
     contentLabel: "Texto do material",
     contentPlaceholder: "Cole aqui suas anotações da aula, transcrição ou artigo...",
-    createNoteWithMaterial: "Começar escrevendo de memória",
+    createNoteWithMaterial: "Anexar material à nota",
     cancel: "Cancelar",
     closedHint:
       "Escreva primeiro o que você lembra. Só abra o material quando terminar de puxar da memória.",

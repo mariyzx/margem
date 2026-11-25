@@ -56,6 +56,8 @@ export function NoteEditor({
 }: NoteEditorProps) {
   const originRef = React.useRef<NoteOrigin>(currentOrigin);
   originRef.current = currentOrigin;
+  const onChangeDocRef = React.useRef(onChangeDoc);
+  onChangeDocRef.current = onChangeDoc;
   const [slash, setSlash] = React.useState<SlashState>({
     open: false,
     query: "",
@@ -98,7 +100,7 @@ export function NoteEditor({
       },
     },
     onUpdate: ({ editor: current }) => {
-      onChangeDoc(current.getJSON() as Record<string, unknown>);
+      onChangeDocRef.current(current.getJSON() as Record<string, unknown>);
 
       const { $from, empty } = current.state.selection;
       if (!empty || current.isActive("codeBlock")) {

@@ -30,7 +30,12 @@ interface NoteWorkspaceProps {
   onCreateNote: (notebookId: string, sourceId?: string) => Promise<void>;
   onSaveNote: (
     noteId: string,
-    values: { title?: string; doc?: Record<string, unknown>; materialOpenedAt?: string },
+    values: {
+      title?: string;
+      doc?: Record<string, unknown>;
+      sourceId?: string;
+      materialOpenedAt?: string;
+    },
   ) => Promise<void>;
 }
 
@@ -48,6 +53,8 @@ export function NoteWorkspace({
   const selectedNoteId = selectedNote?.id;
 
   const [title, setTitle] = React.useState(selectedNote?.title ?? "");
+  const titleRef = React.useRef(title);
+  titleRef.current = title;
   const [saving, setSaving] = React.useState(false);
   const [mode, setMode] = React.useState<"write" | "study">("write");
   const [clozeStats, setClozeStats] = React.useState({ revealed: 0, total: 0 });
@@ -196,8 +203,14 @@ export function NoteWorkspace({
     title: string;
     content: string;
   }) {
+    if (!selectedNote) return;
+    await flushPending();
     const createdSource = await createTextSource(input);
-    await onCreateNote(input.notebookId, createdSource.id);
+    await onSaveNote(selectedNote.id, {
+      title: titleRef.current,
+      doc: docRef.current,
+      sourceId: createdSource.id,
+    });
   }
 
   if (creatingNotebook || notebooks.length === 0) {
@@ -330,7 +343,7 @@ export function NoteWorkspace({
           showOriginBars={Boolean(selectedNote.sourceId || materialOpened)}
           onChangeDoc={(nextDoc) => {
             docRef.current = nextDoc;
-            scheduleSave(title, nextDoc);
+            scheduleSave(titleRef.current, nextDoc);
           }}
           onCreateQuestion={(draft) => setQuestionDraft(draft)}
           onClozeStatsChange={setClozeStats}

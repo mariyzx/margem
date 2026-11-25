@@ -71,6 +71,7 @@ export type CreateNoteInput = z.infer<typeof createNoteSchema>;
 export const updateNoteSchema = z.object({
   title: z.string().trim().max(160, "Título muito longo").optional(),
   doc: z.record(z.string(), z.unknown()).optional(),
+  sourceId: z.string().min(1).optional(),
   materialOpenedAt: z.string().datetime().optional(),
 });
 
