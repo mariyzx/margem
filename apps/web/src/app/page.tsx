@@ -147,10 +147,10 @@ export default function HomePage() {
     }
   }
 
-  async function handleCreateNote(notebookId: string) {
+  async function handleCreateNote(notebookId: string, sourceId?: string) {
     setCreatingNotebook(false);
     setMobileMenuOpen(false);
-    const created = await createNote({ notebookId });
+    const created = await createNote({ notebookId, ...(sourceId ? { sourceId } : {}) });
     setSelectedNotebookId(notebookId);
     setSelectedNote(created);
     setNotebooks((prev) =>
@@ -176,7 +176,7 @@ export default function HomePage() {
 
   async function handleSaveNote(
     noteId: string,
-    values: { title: string; doc: Record<string, unknown> },
+    values: { title?: string; doc?: Record<string, unknown>; materialOpenedAt?: string },
   ) {
     try {
       const updated = await updateNote(noteId, values);

@@ -6,13 +6,16 @@ import {
   QuestionDto,
   questionSchema,
   reviewCardSchema,
+  sourceSchema,
   type AuthUser,
   type CreateNotebookInput,
   type CreateNoteInput,
+  type CreateTextSourceInput,
   type NotebookDto,
   type NoteDto,
   type ReviewCardDto,
   type ReviewRating,
+  type SourceDto,
   type UpdateNotebookInput,
   type UpdateNoteInput,
 } from "@margem/shared";
@@ -228,4 +231,25 @@ export async function enqueueStudyErrors(
     throw new Error(`Enqueue study errors failed with status ${res.status}`);
   }
   return (await res.json()) as { enqueued: number };
+}
+
+export async function createTextSource(input: CreateTextSourceInput): Promise<SourceDto> {
+  const res = await apiFetch("/sources/text", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error(`Create source failed with status ${res.status}`);
+  }
+  const data = (await res.json()) as { source: unknown };
+  return sourceSchema.parse(data.source);
+}
+
+export async function fetchSource(sourceId: string): Promise<SourceDto> {
+  const res = await apiFetch(`/sources/${encodeURIComponent(sourceId)}`, { method: "GET" });
+  if (!res.ok) {
+    throw new Error(`Fetch source failed with status ${res.status}`);
+  }
+  const data = (await res.json()) as { source: unknown };
+  return sourceSchema.parse(data.source);
 }

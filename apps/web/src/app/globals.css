@@ -19,3 +19,13 @@
   background-color: var(--color-marker-soft);
   user-select: text;
 }
+
+.margem-origin-bars [data-origin="memory"] {
+  border-left: 3px solid var(--color-margin-rule);
+  padding-left: 0.75rem;
+}
+
+.margem-origin-bars [data-origin="material"] {
+  border-left: 3px solid var(--color-bic);
+  padding-left: 0.75rem;
+}

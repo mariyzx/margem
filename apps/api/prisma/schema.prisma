@@ -41,8 +41,9 @@ model Notebook {
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
-  owner User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  notes Note[]
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  notes   Note[]
+  sources Source[]
 
   @@index([ownerId, deletedAt, updatedAt])
 }
@@ -64,6 +65,7 @@ model Note {
   anchors   Anchor[]
   clozes    Cloze[]
   questions Question[]
+  source    Source? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
 
   @@index([notebookId, deletedAt, updatedAt])
   @@index([authorId, deletedAt, updatedAt])
@@ -227,4 +229,37 @@ model ReviewLog {
   reviewItem ReviewItem @relation(fields: [reviewItemId], references: [id], onDelete: Cascade)
 
   @@index([reviewItemId, reviewedAt])
+}
+
+enum SourceType {
+  file
+  link
+  text
+}
+
+enum SourceStatus {
+  queued
+  processing
+  ready
+  failed
+}
+
+model Source {
+  id            String       @id @default(cuid())
+  notebookId    String
+  type          SourceType
+  title         String
+  content       String?
+  storageKey    String?
+  url           String?
+  status        SourceStatus @default(ready)
+  failureReason String?
+  deletedAt     DateTime?    @map("deleted_date")
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  notebook Notebook @relation(fields: [notebookId], references: [id], onDelete: Cascade)
+  notes    Note[]
+
+  @@index([notebookId, deletedAt, updatedAt])
 }

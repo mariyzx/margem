@@ -1,14 +1,22 @@
 "use client";
 
 import { cn } from "@margem/config/cn";
-import type { NotebookColor, NotebookDto, NoteDto, QuestionDto } from "@margem/shared";
+import type { NotebookColor, NotebookDto, NoteDto, QuestionDto, SourceDto } from "@margem/shared";
 import { Button, Skeleton } from "@margem/ui";
 import * as React from "react";
-import { createQuestion, deleteQuestion, enqueueStudyErrors, fetchQuestions } from "../lib/api";
+import {
+  createQuestion,
+  createTextSource,
+  deleteQuestion,
+  enqueueStudyErrors,
+  fetchQuestions,
+  fetchSource,
+} from "../lib/api";
 import { messages } from "../messages/pt-br";
 import { NoteEditor } from "./editor/note-editor";
 import { NoteMargin } from "./editor/note-margin";
 import type { QuestionAnchorDraft } from "./editor/selection-toolbar";
+import { SourcePanel } from "./editor/source-panel";
 import { NotebookForm } from "./notebook-form";
 
 interface NoteWorkspaceProps {
@@ -19,10 +27,10 @@ interface NoteWorkspaceProps {
   creatingNotebook: boolean;
   onCancelCreateNotebook: () => void;
   onCreateNotebook: (values: { name: string; color: NotebookColor }) => Promise<void>;
-  onCreateNote: (notebookId: string) => Promise<void>;
+  onCreateNote: (notebookId: string, sourceId?: string) => Promise<void>;
   onSaveNote: (
     noteId: string,
-    values: { title: string; doc: Record<string, unknown> },
+    values: { title?: string; doc?: Record<string, unknown>; materialOpenedAt?: string },
   ) => Promise<void>;
 }
 
@@ -48,6 +56,10 @@ export function NoteWorkspace({
   const [errorsSentNotice, setErrorsSentNotice] = React.useState(false);
   const [questions, setQuestions] = React.useState<QuestionDto[]>([]);
   const [questionDraft, setQuestionDraft] = React.useState<QuestionAnchorDraft | null>(null);
+  const [materialOpened, setMaterialOpened] = React.useState(
+    Boolean(selectedNote?.materialOpenedAt),
+  );
+  const [source, setSource] = React.useState<SourceDto | null>(null);
 
   const docRef = React.useRef<Record<string, unknown>>(selectedNote?.doc ?? {});
   const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -99,6 +111,24 @@ export function NoteWorkspace({
     };
   }, [selectedNoteId]);
 
+  const selectedSourceId = selectedNote?.sourceId ?? null;
+  React.useEffect(() => {
+    if (!selectedSourceId || !materialOpened) return;
+    let active = true;
+
+    fetchSource(selectedSourceId)
+      .then((loaded) => {
+        if (active) setSource(loaded);
+      })
+      .catch(() => {
+        if (active) setSource(null);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [selectedSourceId, materialOpened]);
+
   function scheduleSave(nextTitle: string, nextDoc: Record<string, unknown>) {
     if (!selectedNote) return;
     pendingRef.current = { noteId: selectedNote.id, title: nextTitle, doc: nextDoc };
@@ -148,6 +178,26 @@ export function NoteWorkspace({
     } finally {
       setSendingErrors(false);
     }
+  }
+
+  async function handleOpenMaterial() {
+    if (!selectedNote || !selectedNote.sourceId) return;
+    await flushPending();
+    await onSaveNote(selectedNote.id, {
+      materialOpenedAt: new Date().toISOString(),
+    });
+    const loaded = await fetchSource(selectedNote.sourceId);
+    setSource(loaded);
+    setMaterialOpened(true);
+  }
+
+  async function handleCreateNoteWithMaterial(input: {
+    notebookId: string;
+    title: string;
+    content: string;
+  }) {
+    const createdSource = await createTextSource(input);
+    await onCreateNote(input.notebookId, createdSource.id);
   }
 
   if (creatingNotebook || notebooks.length === 0) {
@@ -276,6 +326,8 @@ export function NoteWorkspace({
           mode={mode}
           initialDoc={selectedNote.doc}
           placeholder={messages.notes.bodyPlaceholder}
+          currentOrigin={materialOpened ? "material" : "memory"}
+          showOriginBars={Boolean(selectedNote.sourceId || materialOpened)}
           onChangeDoc={(nextDoc) => {
             docRef.current = nextDoc;
             scheduleSave(title, nextDoc);
@@ -284,24 +336,34 @@ export function NoteWorkspace({
           onClozeStatsChange={setClozeStats}
         />
       </article>
-      <NoteMargin
-        mode={mode}
-        questions={questions}
-        draft={questionDraft}
-        studyResults={studyResults}
-        onMarkStudyResult={(id, result) => setStudyResults((prev) => ({ ...prev, [id]: result }))}
-        onCancelDraft={() => setQuestionDraft(null)}
-        onCreateQuestion={async (input) => {
-          const created = await createQuestion(selectedNote.id, input);
-          setQuestions((prev) => [...prev, created]);
-          setQuestionDraft(null);
-        }}
-        onDeleteQuestion={async (id) => {
-          await deleteQuestion(id);
-          setQuestions((prev) => prev.filter((q) => q.id !== id));
-        }}
-        onHighlightBlock={handleHighlightBlock}
-      />
+      <div className="flex flex-col gap-4">
+        <SourcePanel
+          notebookId={selectedNote.notebookId}
+          sourceId={selectedNote.sourceId}
+          source={source}
+          materialOpened={materialOpened}
+          onOpenMaterial={handleOpenMaterial}
+          onCreateNoteWithMaterial={handleCreateNoteWithMaterial}
+        />
+        <NoteMargin
+          mode={mode}
+          questions={questions}
+          draft={questionDraft}
+          studyResults={studyResults}
+          onMarkStudyResult={(id, result) => setStudyResults((prev) => ({ ...prev, [id]: result }))}
+          onCancelDraft={() => setQuestionDraft(null)}
+          onCreateQuestion={async (input) => {
+            const created = await createQuestion(selectedNote.id, input);
+            setQuestions((prev) => [...prev, created]);
+            setQuestionDraft(null);
+          }}
+          onDeleteQuestion={async (id) => {
+            await deleteQuestion(id);
+            setQuestions((prev) => prev.filter((q) => q.id !== id));
+          }}
+          onHighlightBlock={handleHighlightBlock}
+        />
+      </div>
     </div>
   );
 }

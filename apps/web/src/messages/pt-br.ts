@@ -114,4 +114,20 @@ export const messages = {
     loadError: "Não foi possível carregar sua fila de revisão.",
     submitError: "Não foi possível registrar sua resposta.",
   },
+  source: {
+    panelTitle: "Material de apoio",
+    attachButton: "Colar material",
+    titleLabel: "Título do material",
+    titlePlaceholder: "Ex.: Aula 04 — Consenso Raft",
+    contentLabel: "Texto do material",
+    contentPlaceholder: "Cole aqui suas anotações da aula, transcrição ou artigo...",
+    createNoteWithMaterial: "Começar escrevendo de memória",
+    cancel: "Cancelar",
+    closedHint:
+      "Escreva primeiro o que você lembra. Só abra o material quando terminar de puxar da memória.",
+    openMaterial: "Abrir o material",
+    memoryLegend: "De memória",
+    materialLegend: "Com material aberto",
+    loadError: "Não foi possível carregar o material.",
+  },
 } as const;
