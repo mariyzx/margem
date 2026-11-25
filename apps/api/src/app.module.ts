@@ -6,6 +6,8 @@ import { PrismaModule } from "./prisma/prisma.module";
 import { SecurityModule } from "./security/security.module";
 import { PoliciesModule } from "./policies/policies.module";
 import { AuthModule } from "./auth/auth.module";
+import { NotebooksModule } from "./notebooks/notebooks.module";
+import { NotesModule } from "./notes/notes.module";
 import { type MiddlewareConsumer, Module, type NestModule } from "@nestjs/common";
 import { SessionMiddleware } from "./auth/session.middleware";
 import { SentryModule } from "@sentry/nestjs/setup";
@@ -18,6 +20,8 @@ import { SentryModule } from "@sentry/nestjs/setup";
     SecurityModule,
     PoliciesModule,
     AuthModule,
+    NotebooksModule,
+    NotesModule,
     SentryModule.forRoot(),
   ],
 })

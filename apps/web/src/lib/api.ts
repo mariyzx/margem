@@ -1,4 +1,15 @@
-import { authUserSchema, type AuthUser } from "@margem/shared";
+import {
+  authUserSchema,
+  notebookSchema,
+  noteSchema,
+  type AuthUser,
+  type CreateNotebookInput,
+  type CreateNoteInput,
+  type NotebookDto,
+  type NoteDto,
+  type UpdateNotebookInput,
+  type UpdateNoteInput,
+} from "@margem/shared";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
@@ -56,5 +67,89 @@ export async function logoutAll(): Promise<void> {
   const res = await apiFetch("/auth/logout-all", { method: "POST" });
   if (!res.ok) {
     throw new Error(`Logout all failed with status ${res.status}`);
+  }
+}
+
+export async function fetchNotebooks(): Promise<NotebookDto[]> {
+  const res = await apiFetch("/notebooks", { method: "GET" });
+  if (!res.ok) {
+    throw new Error(`Fetch notebooks failed with status ${res.status}`);
+  }
+  const data = (await res.json()) as { notebooks: unknown[] };
+  return data.notebooks.map((item) => notebookSchema.parse(item));
+}
+
+export async function createNotebook(input: CreateNotebookInput): Promise<NotebookDto> {
+  const res = await apiFetch("/notebooks", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error(`Create notebook failed with status ${res.status}`);
+  }
+  const data = (await res.json()) as { notebook: unknown };
+  return notebookSchema.parse(data.notebook);
+}
+
+export async function updateNotebook(id: string, input: UpdateNotebookInput): Promise<NotebookDto> {
+  const res = await apiFetch(`/notebooks/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error(`Update notebook failed with status ${res.status}`);
+  }
+  const data = (await res.json()) as { notebook: unknown };
+  return notebookSchema.parse(data.notebook);
+}
+
+export async function deleteNotebook(id: string): Promise<void> {
+  const res = await apiFetch(`/notebooks/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    throw new Error(`Delete notebook failed with status ${res.status}`);
+  }
+}
+
+export async function fetchNote(id: string): Promise<NoteDto> {
+  const res = await apiFetch(`/notes/${encodeURIComponent(id)}`, { method: "GET" });
+  if (!res.ok) {
+    throw new Error(`Fetch note failed with status ${res.status}`);
+  }
+  const data = (await res.json()) as { note: unknown };
+  return noteSchema.parse(data.note);
+}
+
+export async function createNote(input: CreateNoteInput): Promise<NoteDto> {
+  const res = await apiFetch("/notes", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error(`Create note failed with status ${res.status}`);
+  }
+  const data = (await res.json()) as { note: unknown };
+  return noteSchema.parse(data.note);
+}
+
+export async function updateNote(id: string, input: UpdateNoteInput): Promise<NoteDto> {
+  const res = await apiFetch(`/notes/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error(`Update note failed with status ${res.status}`);
+  }
+  const data = (await res.json()) as { note: unknown };
+  return noteSchema.parse(data.note);
+}
+
+export async function deleteNote(id: string): Promise<void> {
+  const res = await apiFetch(`/notes/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    throw new Error(`Delete note failed with status ${res.status}`);
   }
 }
