@@ -3,7 +3,8 @@
 import { cn } from "@margem/config/cn";
 import type { AuthUser, NotebookColor, NotebookDto } from "@margem/shared";
 import { Button, SidebarItem } from "@margem/ui";
-import { BookOpen, FileText, LogOut, Plus, X } from "lucide-react";
+import { BookOpen, Clock, FileText, LogOut, Plus, X } from "lucide-react";
+import Link from "next/link";
 import { messages } from "../messages/pt-br";
 import { Wordmark } from "./wordmark";
 
@@ -66,6 +67,17 @@ export function NotebookSidebar({
         ) : null}
       </div>
 
+      <div className="px-3 pt-3">
+        <Link
+          href="/revisar"
+          onClick={onCloseMobile}
+          className="flex items-center gap-2 rounded-md border border-margin-rule bg-paper px-3 py-2 text-sm font-medium text-bic shadow-xs transition-colors duration-fast ease-margem-out hover:bg-margin focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bic"
+        >
+          <Clock className="h-4 w-4 shrink-0" strokeWidth={1.5} />
+          <span>{messages.review.navLink}</span>
+        </Link>
+      </div>
+
       <div className="flex items-center justify-between px-4 pt-4 pb-2">
         <span className="text-xs font-medium tracking-wide text-ink-muted uppercase">
           {messages.notebooks.sectionTitle}
@@ -75,7 +87,6 @@ export function NotebookSidebar({
           <span>{messages.notebooks.newNotebook}</span>
         </Button>
       </div>
-
       <nav
         className="flex-1 overflow-y-auto px-2 pb-4"
         aria-label={messages.notebooks.sectionTitle}

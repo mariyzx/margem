@@ -36,13 +36,17 @@ interface NoteEditorProps {
   placeholder: string;
   onChangeDoc: (doc: Record<string, unknown>) => void;
   onCreateQuestion: (draft: QuestionAnchorDraft) => void;
+  mode?: "write" | "study";
+  onClozeStatsChange?: (stats: { revealed: number; total: number }) => void;
 }
 
 export function NoteEditor({
   initialDoc,
   placeholder,
+  mode,
   onChangeDoc,
   onCreateQuestion,
+  onClozeStatsChange,
 }: NoteEditorProps) {
   const [slash, setSlash] = React.useState<SlashState>({
     open: false,
@@ -113,6 +117,21 @@ export function NoteEditor({
     },
   });
 
+  const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const onClozeStatsRef = React.useRef(onClozeStatsChange);
+  onClozeStatsRef.current = onClozeStatsChange;
+
+  React.useEffect(() => {
+    if (!editor) return;
+    editor.setEditable(mode === "write");
+
+    const all = containerRef.current?.querySelectorAll('mark[data-cloze="true"]') ?? [];
+    all.forEach((el) => el.removeAttribute("data-revealed"));
+    if (mode === "study") {
+      onClozeStatsRef.current?.({ revealed: 0, total: all.length });
+    }
+  }, [editor, mode]);
+
   function handleRequestImage() {
     if (!editor) return;
     const coords = editor.view.coordsAtPos(editor.state.selection.from);
@@ -144,24 +163,44 @@ export function NoteEditor({
   if (!editor) return null;
 
   return (
-    <div className="relative">
-      <SelectionToolbar editor={editor} onCreateQuestion={onCreateQuestion} />
+    <div
+      ref={containerRef}
+      data-study-mode={mode === "study" ? "true" : "false"}
+      onClick={(event) => {
+        if (mode !== "study") return;
+        const target = (event.target as HTMLElement).closest('mark[data-cloze="true"]');
+        if (!target || target.getAttribute("data-revealed") === "true") return;
+
+        target.setAttribute("data-revealed", "true");
+        const all = containerRef.current?.querySelectorAll('mark[data-cloze="true"]') ?? [];
+        const revealed =
+          containerRef.current?.querySelectorAll('mark[data-cloze="true"][data-revealed="true"]') ??
+          [];
+        onClozeStatsRef.current?.({ revealed: revealed.length, total: all.length });
+      }}
+      className="relative"
+    >
+      {mode === "write" ? (
+        <SelectionToolbar editor={editor} onCreateQuestion={onCreateQuestion} />
+      ) : null}
       <EditorContent editor={editor} />
-      <SlashMenu
-        editor={editor}
-        open={slash.open}
-        query={slash.query}
-        position={slash.position}
-        onClose={() => setSlash((prev) => ({ ...prev, open: false }))}
-        onRequestImage={handleRequestImage}
-        onExecute={(run) => {
-          if (slash.range) {
-            editor.chain().focus().deleteRange(slash.range).run();
-          }
-          run(editor, { onRequestImage: handleRequestImage });
-          setSlash((prev) => ({ ...prev, open: false, range: null }));
-        }}
-      />
+      {mode === "write" ? (
+        <SlashMenu
+          editor={editor}
+          open={slash.open}
+          query={slash.query}
+          position={slash.position}
+          onClose={() => setSlash((prev) => ({ ...prev, open: false }))}
+          onRequestImage={handleRequestImage}
+          onExecute={(run) => {
+            if (slash.range) {
+              editor.chain().focus().deleteRange(slash.range).run();
+            }
+            run(editor, { onRequestImage: handleRequestImage });
+            setSlash((prev) => ({ ...prev, open: false, range: null }));
+          }}
+        />
+      ) : null}
 
       <Popover
         open={imagePrompt.open}

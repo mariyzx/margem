@@ -9,8 +9,11 @@ import { messages } from "../../messages/pt-br";
 import type { QuestionAnchorDraft } from "./selection-toolbar";
 
 interface NoteMarginProps {
+  mode?: "write" | "study";
   questions: QuestionDto[];
   draft: QuestionAnchorDraft | null;
+  studyResults?: Record<string, "correct" | "missed">;
+  onMarkStudyResult?: (questionId: string, result: "correct" | "missed") => void;
   onCancelDraft: () => void;
   onCreateQuestion: (input: CreateQuestionInput) => Promise<void>;
   onDeleteQuestion: (questionId: string) => Promise<void>;
@@ -18,8 +21,11 @@ interface NoteMarginProps {
 }
 
 export function NoteMargin({
+  mode = "write",
   questions,
   draft,
+  studyResults = {},
+  onMarkStudyResult,
   onCancelDraft,
   onCreateQuestion,
   onDeleteQuestion,
@@ -29,12 +35,17 @@ export function NoteMargin({
   const [answer, setAnswer] = React.useState("");
   const [error, setError] = React.useState<string | undefined>();
   const [saving, setSaving] = React.useState(false);
+  const [revealedIds, setRevealedIds] = React.useState<Record<string, boolean>>({});
 
   React.useEffect(() => {
     setText("");
     setAnswer("");
     setError(undefined);
   }, [draft]);
+
+  React.useEffect(() => {
+    setRevealedIds({});
+  }, [mode]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -154,15 +165,56 @@ export function NoteMargin({
 
               <div className="flex items-start justify-between gap-2">
                 <p className="text-sm font-medium text-ink">{question.text}</p>
-                <button
-                  type="button"
-                  aria-label={messages.margin.deleteAriaLabel}
-                  onClick={() => void onDeleteQuestion(question.id)}
-                  className="rounded-sm p-1 text-ink-muted opacity-70 transition-opacity duration-fast hover:text-danger group-hover:opacity-100"
-                >
-                  <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
-                </button>
+                {mode === "write" ? (
+                  <button
+                    type="button"
+                    aria-label={messages.margin.deleteAriaLabel}
+                    onClick={() => void onDeleteQuestion(question.id)}
+                    className="rounded-sm p-1 text-ink-muted opacity-70 transition-opacity duration-fast hover:text-danger group-hover:opacity-100"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+                  </button>
+                ) : null}
               </div>
+
+              {mode === "study" ? (
+                <div className="mt-3 flex flex-col gap-2 border-t border-margin-rule pt-2.5">
+                  {!revealedIds[question.id] ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setRevealedIds((prev) => ({ ...prev, [question.id]: true }))}
+                    >
+                      {messages.study.showAnswer}
+                    </Button>
+                  ) : (
+                    <>
+                      <p className="text-sm text-ink-muted">{question.answer}</p>
+                      <div className="flex items-center gap-2 pt-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={
+                            studyResults[question.id] === "correct" ? "primary" : "secondary"
+                          }
+                          onClick={() => onMarkStudyResult?.(question.id, "correct")}
+                        >
+                          {messages.study.gotIt}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={studyResults[question.id] === "missed" ? "primary" : "ghost"}
+                          onClick={() => onMarkStudyResult?.(question.id, "missed")}
+                        >
+                          {messages.study.missed}
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : null}
             </li>
           );
         })}
