@@ -5,39 +5,7 @@ import { Button, Skeleton } from "@margem/ui";
 import * as React from "react";
 import { messages } from "../messages/pt-br";
 import { NotebookForm } from "./notebook-form";
-
-function docToPlainText(doc: Record<string, unknown>): string {
-  const content = doc.content;
-  if (!Array.isArray(content)) return "";
-  return content
-    .map((node) => {
-      if (!node || typeof node !== "object") return "";
-      const children = (node as { content?: unknown }).content;
-      if (!Array.isArray(children)) return "";
-      return children
-        .map((child) =>
-          child &&
-          typeof child === "object" &&
-          typeof (child as { text?: unknown }).text === "string"
-            ? (child as { text: string }).text
-            : "",
-        )
-        .join("");
-    })
-    .join("\n");
-}
-
-function plainTextToDoc(text: string): Record<string, unknown> {
-  const lines = text.split("\n");
-  return {
-    type: "doc",
-    content: lines.map((line) =>
-      line.length > 0
-        ? { type: "paragraph", content: [{ type: "text", text: line }] }
-        : { type: "paragraph" },
-    ),
-  };
-}
+import { NoteEditor } from "./editor/note-editor";
 
 interface NoteWorkspaceProps {
   notebooks: NotebookDto[];
@@ -66,25 +34,53 @@ export function NoteWorkspace({
   onSaveNote,
 }: NoteWorkspaceProps) {
   const [title, setTitle] = React.useState(selectedNote?.title ?? "");
-  const [body, setBody] = React.useState(() =>
-    selectedNote ? docToPlainText(selectedNote.doc) : "",
-  );
   const [saving, setSaving] = React.useState(false);
+  const docRef = React.useRef<Record<string, unknown>>(selectedNote?.doc ?? {});
+  const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingRef = React.useRef<{
+    noteId: string;
+    title: string;
+    doc: Record<string, unknown>;
+  } | null>(null);
+  const onSaveRef = React.useRef(onSaveNote);
+  onSaveRef.current = onSaveNote;
+  const [questionHint, setQuestionHint] = React.useState<string | null>(null);
 
-  async function persistCurrentNote(nextTitle: string, nextBody: string) {
-    if (!selectedNote) return;
-    if (nextTitle === selectedNote.title && nextBody === docToPlainText(selectedNote.doc)) {
-      return;
+  const flushPending = React.useCallback(async () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
     }
+    const pending = pendingRef.current;
+    if (!pending) return;
+    pendingRef.current = null;
     setSaving(true);
     try {
-      await onSaveNote(selectedNote.id, {
-        title: nextTitle,
-        doc: plainTextToDoc(nextBody),
-      });
+      await onSaveRef.current(pending.noteId, { title: pending.title, doc: pending.doc });
     } finally {
       setSaving(false);
     }
+  }, []);
+
+  const selectedNoteId = selectedNote?.id;
+  React.useEffect(() => {
+    docRef.current = selectedNote?.doc ?? {};
+    return () => {
+      void flushPending();
+    };
+  }, [selectedNoteId, flushPending]);
+
+  function scheduleSave(nextTitle: string, nextDoc: Record<string, unknown>) {
+    if (!selectedNote) return;
+    pendingRef.current = { noteId: selectedNote.id, title: nextTitle, doc: nextDoc };
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => void flushPending(), 800);
+  }
+
+  function flushTitle(nextTitle: string) {
+    if (!selectedNote || nextTitle === selectedNote.title) return;
+    pendingRef.current = { noteId: selectedNote.id, title: nextTitle, doc: docRef.current };
+    void flushPending();
   }
 
   if (creatingNotebook || notebooks.length === 0) {
@@ -147,20 +143,29 @@ export function NoteWorkspace({
         aria-label={messages.notes.titlePlaceholder}
         placeholder={messages.notes.titlePlaceholder}
         value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        onBlur={() => void persistCurrentNote(title, body)}
+        onChange={(e) => {
+          setTitle(e.target.value);
+          scheduleSave(e.target.value, docRef.current);
+        }}
+        onBlur={() => flushTitle(title)}
         className="mb-4 w-full bg-transparent font-serif text-3xl font-semibold text-ink placeholder:text-ink-muted/50 focus:outline-none"
       />
 
-      <textarea
-        aria-label={messages.notes.bodyPlaceholder}
+      <NoteEditor
+        initialDoc={selectedNote.doc}
         placeholder={messages.notes.bodyPlaceholder}
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-        onBlur={() => void persistCurrentNote(title, body)}
-        rows={14}
-        className="w-full resize-y bg-transparent font-serif text-[18px] leading-[1.75] text-ink placeholder:text-ink-muted/50 focus:outline-none"
+        onChangeDoc={(nextDoc) => {
+          docRef.current = nextDoc;
+          scheduleSave(title, nextDoc);
+        }}
+        onCreateQuestion={(quote) => {
+          setQuestionHint(
+            `Trecho selecionado para pergunta: "${quote}" (margem entra na próxima etapa)`,
+          );
+        }}
       />
+
+      {questionHint ? <p className="mt-4 text-xs text-ink-muted">{questionHint}</p> : null}
     </article>
   );
 }
