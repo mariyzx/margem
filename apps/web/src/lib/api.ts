@@ -5,11 +5,14 @@ import {
   noteSchema,
   QuestionDto,
   questionSchema,
+  reviewCardSchema,
   type AuthUser,
   type CreateNotebookInput,
   type CreateNoteInput,
   type NotebookDto,
   type NoteDto,
+  type ReviewCardDto,
+  type ReviewRating,
   type UpdateNotebookInput,
   type UpdateNoteInput,
 } from "@margem/shared";
@@ -188,4 +191,41 @@ export async function deleteQuestion(questionId: string): Promise<void> {
   if (!res.ok) {
     throw new Error(`Delete question failed with status ${res.status}`);
   }
+}
+
+export async function fetchDueReviews(): Promise<ReviewCardDto[]> {
+  const res = await apiFetch("/reviews/due", { method: "GET" });
+  if (!res.ok) {
+    throw new Error(`Fetch due reviews failed with status ${res.status}`);
+  }
+  const data = (await res.json()) as { cards: unknown[] };
+  return data.cards.map((item) => reviewCardSchema.parse(item));
+}
+
+export async function submitReview(
+  reviewItemId: string,
+  rating: ReviewRating,
+): Promise<{ ok: true; nextDue: string; scheduledDays: number }> {
+  const res = await apiFetch(`/reviews/${encodeURIComponent(reviewItemId)}/submit`, {
+    method: "POST",
+    body: JSON.stringify({ rating }),
+  });
+  if (!res.ok) {
+    throw new Error(`Submit review failed with status ${res.status}`);
+  }
+  return (await res.json()) as { ok: true; nextDue: string; scheduledDays: number };
+}
+
+export async function enqueueStudyErrors(
+  noteId: string,
+  questionIds: string[],
+): Promise<{ enqueued: number }> {
+  const res = await apiFetch("/reviews/study-errors", {
+    method: "POST",
+    body: JSON.stringify({ noteId, questionIds }),
+  });
+  if (!res.ok) {
+    throw new Error(`Enqueue study errors failed with status ${res.status}`);
+  }
+  return (await res.json()) as { enqueued: number };
 }

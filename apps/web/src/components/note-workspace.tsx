@@ -1,14 +1,15 @@
 "use client";
 
+import { cn } from "@margem/config/cn";
 import type { NotebookColor, NotebookDto, NoteDto, QuestionDto } from "@margem/shared";
 import { Button, Skeleton } from "@margem/ui";
 import * as React from "react";
+import { createQuestion, deleteQuestion, enqueueStudyErrors, fetchQuestions } from "../lib/api";
 import { messages } from "../messages/pt-br";
-import { NotebookForm } from "./notebook-form";
 import { NoteEditor } from "./editor/note-editor";
-import { createQuestion, deleteQuestion, fetchQuestions } from "../lib/api";
 import { NoteMargin } from "./editor/note-margin";
-import { QuestionAnchorDraft } from "./editor/selection-toolbar";
+import type { QuestionAnchorDraft } from "./editor/selection-toolbar";
+import { NotebookForm } from "./notebook-form";
 
 interface NoteWorkspaceProps {
   notebooks: NotebookDto[];
@@ -40,6 +41,11 @@ export function NoteWorkspace({
 
   const [title, setTitle] = React.useState(selectedNote?.title ?? "");
   const [saving, setSaving] = React.useState(false);
+  const [mode, setMode] = React.useState<"write" | "study">("write");
+  const [clozeStats, setClozeStats] = React.useState({ revealed: 0, total: 0 });
+  const [studyResults, setStudyResults] = React.useState<Record<string, "correct" | "missed">>({});
+  const [sendingErrors, setSendingErrors] = React.useState(false);
+  const [errorsSentNotice, setErrorsSentNotice] = React.useState(false);
   const [questions, setQuestions] = React.useState<QuestionDto[]>([]);
   const [questionDraft, setQuestionDraft] = React.useState<QuestionAnchorDraft | null>(null);
 
@@ -84,8 +90,8 @@ export function NoteWorkspace({
       .then((result) => {
         if (active) setQuestions(result);
       })
-      .catch((err) => {
-        console.error("Failed to fetch questions", err);
+      .catch(() => {
+        if (active) setQuestions([]);
       });
 
     return () => {
@@ -109,9 +115,37 @@ export function NoteWorkspace({
   function handleHighlightBlock(blockId: string) {
     const el = document.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`);
     if (!(el instanceof HTMLElement)) return;
-    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "center" });
     el.classList.add("ring-2", "ring-bic/40", "rounded-sm");
     setTimeout(() => el.classList.remove("ring-2", "ring-bic/40", "rounded-sm"), 1200);
+  }
+
+  async function handleSwitchMode(nextMode: "write" | "study") {
+    if (nextMode === mode) return;
+    if (nextMode === "study") {
+      await flushPending();
+      setStudyResults({});
+      setErrorsSentNotice(false);
+      setQuestionDraft(null);
+    }
+    setMode(nextMode);
+  }
+
+  const wrongQuestionIds = Object.entries(studyResults)
+    .filter(([, result]) => result === "missed")
+    .map(([id]) => id);
+  const answeredCount = Object.keys(studyResults).length;
+
+  async function handleSendErrorsToReview() {
+    if (!selectedNote || wrongQuestionIds.length === 0) return;
+    setSendingErrors(true);
+    try {
+      await enqueueStudyErrors(selectedNote.id, wrongQuestionIds);
+      setErrorsSentNotice(true);
+    } finally {
+      setSendingErrors(false);
+    }
   }
 
   if (creatingNotebook || notebooks.length === 0) {
@@ -165,16 +199,70 @@ export function NoteWorkspace({
   return (
     <div className="mx-auto grid w-full max-w-[1040px] grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,680px)_320px]">
       <article className="flex flex-col rounded-lg border border-margin-rule bg-paper px-8 py-10 shadow-sm">
-        {" "}
-        <div className="mb-2 flex items-center justify-between text-xs text-ink-muted">
-          <span>{selectedNotebook?.name}</span>
-          <span>{saving ? messages.notes.saving : messages.notes.saved}</span>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs text-ink-muted">
+          <div className="flex items-center gap-3">
+            <span>{selectedNotebook?.name}</span>
+            <span>{saving ? messages.notes.saving : messages.notes.saved}</span>
+          </div>
+
+          <div
+            role="group"
+            aria-label={messages.study.studyMode}
+            className="inline-flex rounded-md border border-margin-rule bg-margin p-0.5"
+          >
+            <button
+              type="button"
+              onClick={() => void handleSwitchMode("write")}
+              className={cn(
+                "rounded-sm px-2.5 py-1 text-xs font-medium transition-colors duration-fast",
+                mode === "write" ? "bg-paper text-ink shadow-xs" : "text-ink-muted hover:text-ink",
+              )}
+            >
+              {messages.study.writeMode}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleSwitchMode("study")}
+              className={cn(
+                "rounded-sm px-2.5 py-1 text-xs font-medium transition-colors duration-fast",
+                mode === "study"
+                  ? "bg-marker-soft text-ink shadow-xs"
+                  : "text-ink-muted hover:text-ink",
+              )}
+            >
+              {messages.study.studyMode}
+            </button>
+          </div>
         </div>
+
+        {mode === "study" ? (
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-2 rounded-md border border-marker bg-marker-soft/50 px-3 py-2 text-xs text-ink">
+            <span>
+              {clozeStats.revealed} de {clozeStats.total} {messages.study.progressClozes} ·{" "}
+              {answeredCount} de {questions.length} {messages.study.progressQuestions}
+            </span>
+            {wrongQuestionIds.length > 0 ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                loading={sendingErrors}
+                onClick={() => void handleSendErrorsToReview()}
+              >
+                {errorsSentNotice
+                  ? messages.study.errorsSentToast
+                  : messages.study.sendErrorsButton}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+
         <input
           type="text"
           aria-label={messages.notes.titlePlaceholder}
           placeholder={messages.notes.titlePlaceholder}
           value={title}
+          readOnly={mode === "study"}
           onChange={(e) => {
             setTitle(e.target.value);
             scheduleSave(e.target.value, docRef.current);
@@ -183,6 +271,7 @@ export function NoteWorkspace({
           className="mb-4 w-full bg-transparent font-serif text-3xl font-semibold text-ink placeholder:text-ink-muted/50 focus:outline-none"
         />
         <NoteEditor
+          mode={mode}
           initialDoc={selectedNote.doc}
           placeholder={messages.notes.bodyPlaceholder}
           onChangeDoc={(nextDoc) => {
@@ -190,11 +279,15 @@ export function NoteWorkspace({
             scheduleSave(title, nextDoc);
           }}
           onCreateQuestion={(draft) => setQuestionDraft(draft)}
+          onClozeStatsChange={setClozeStats}
         />
       </article>
       <NoteMargin
+        mode={mode}
         questions={questions}
         draft={questionDraft}
+        studyResults={studyResults}
+        onMarkStudyResult={(id, result) => setStudyResults((prev) => ({ ...prev, [id]: result }))}
         onCancelDraft={() => setQuestionDraft(null)}
         onCreateQuestion={async (input) => {
           const created = await createQuestion(selectedNote.id, input);

@@ -7,6 +7,7 @@ import {
 } from "@margem/shared";
 import { PolicyService } from "../policies/policy.service";
 import { PrismaService } from "../prisma/prisma.service";
+import { createInitialSrsState } from "@margem/srs";
 
 @Injectable()
 export class QuestionsService {
@@ -79,6 +80,25 @@ export class QuestionsService {
           status: "approved",
         },
         include: { anchor: true },
+      });
+
+      const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const initialSrs = createInitialSrsState(tomorrow);
+      await tx.reviewItem.create({
+        data: {
+          userId,
+          kind: "question",
+          refId: question.id,
+          due: initialSrs.due,
+          stability: initialSrs.stability,
+          difficulty: initialSrs.difficulty,
+          scheduledDays: initialSrs.scheduledDays,
+          learningSteps: initialSrs.learningSteps,
+          reps: initialSrs.reps,
+          lapses: initialSrs.lapses,
+          state: initialSrs.state,
+          lastReview: initialSrs.lastReview,
+        },
       });
 
       await tx.auditLog.create({
@@ -157,6 +177,10 @@ export class QuestionsService {
       await tx.question.update({
         where: { id: questionId },
         data: { deletedAt: now },
+      });
+      await tx.reviewItem.updateMany({
+        where: { userId, kind: "question", refId: questionId, archivedAt: null },
+        data: { archivedAt: now },
       });
       if (existing?.anchorId) {
         await tx.anchor.update({
