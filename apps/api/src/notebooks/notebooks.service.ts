@@ -14,10 +14,11 @@ export class NotebooksService {
 
   async listForUser(userId: string): Promise<NotebookDto[]> {
     const notebooks = await this.prisma.notebook.findMany({
-      where: { ownerId: userId },
+      where: { ownerId: userId, deletedAt: null },
       orderBy: { updatedAt: "desc" },
       include: {
         notes: {
+          where: { deletedAt: null },
           orderBy: { updatedAt: "desc" },
           select: {
             id: true,
@@ -34,12 +35,22 @@ export class NotebooksService {
   }
 
   async create(userId: string, input: CreateNotebookInput): Promise<NotebookDto> {
-    const notebook = await this.prisma.notebook.create({
-      data: {
-        ownerId: userId,
-        name: input.name,
-        color: input.color,
-      },
+    const notebook = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.notebook.create({
+        data: {
+          ownerId: userId,
+          name: input.name,
+          color: input.color,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          userId,
+          action: "notebook.created",
+          metadata: { notebookId: created.id, color: created.color },
+        },
+      });
+      return created;
     });
 
     this.logger.log({ notebookId: notebook.id, userId }, "Notebook created");
@@ -54,16 +65,26 @@ export class NotebooksService {
   ): Promise<NotebookDto> {
     const existing = await this.prisma.notebook.findUnique({
       where: { id: notebookId },
-      select: { id: true, ownerId: true },
+      select: { id: true, ownerId: true, deletedAt: true },
     });
-    this.policyService.assertOwner(userId, existing?.ownerId);
+    this.policyService.assertOwner(userId, existing?.deletedAt ? null : existing?.ownerId);
 
-    const updated = await this.prisma.notebook.update({
-      where: { id: notebookId },
-      data: {
-        ...(input.name !== undefined ? { name: input.name } : {}),
-        ...(input.color !== undefined ? { color: input.color } : {}),
-      },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const saved = await tx.notebook.update({
+        where: { id: notebookId },
+        data: {
+          ...(input.name !== undefined ? { name: input.name } : {}),
+          ...(input.color !== undefined ? { color: input.color } : {}),
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          userId,
+          action: "notebook.updated",
+          metadata: { notebookId: saved.id },
+        },
+      });
+      return saved;
     });
 
     this.logger.log({ notebookId: updated.id, userId }, "Notebook updated");
@@ -108,12 +129,30 @@ export class NotebooksService {
   async remove(userId: string, notebookId: string): Promise<{ ok: true }> {
     const existing = await this.prisma.notebook.findUnique({
       where: { id: notebookId },
-      select: { id: true, ownerId: true },
+      select: { id: true, ownerId: true, deletedAt: true },
     });
-    this.policyService.assertOwner(userId, existing?.ownerId);
+    this.policyService.assertOwner(userId, existing?.deletedAt ? null : existing?.ownerId);
 
-    await this.prisma.notebook.delete({ where: { id: notebookId } });
-    this.logger.log({ notebookId, userId }, "Notebook deleted");
+    const now = new Date();
+    await this.prisma.$transaction(async (tx) => {
+      await tx.notebook.update({
+        where: { id: notebookId },
+        data: { deletedAt: now },
+      });
+      await tx.note.updateMany({
+        where: { notebookId, deletedAt: null },
+        data: { deletedAt: now },
+      });
+      await tx.auditLog.create({
+        data: {
+          userId,
+          action: "notebook.deleted",
+          metadata: { notebookId },
+        },
+      });
+    });
+
+    this.logger.log({ notebookId, userId }, "Notebook soft-deleted");
 
     return { ok: true };
   }

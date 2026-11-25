@@ -12,7 +12,8 @@ model User {
   email     String   @unique
   name      String?
   avatarUrl String?
-  createdAt DateTime @default(now())
+  deletedAt DateTime? @map("deleted_date")
+  createdAt DateTime  @default(now())
   updatedAt DateTime @updatedAt
 
   sessions  Session[]
@@ -34,13 +35,14 @@ model Notebook {
   ownerId   String
   name      String
   color     NotebookColor @default(bic)
+  deletedAt DateTime?     @map("deleted_date")
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
   owner User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   notes Note[]
 
-  @@index([ownerId, updatedAt])
+  @@index([ownerId, deletedAt, updatedAt])
 }
 
 model Note {
@@ -51,14 +53,15 @@ model Note {
   doc              Json
   materialOpenedAt DateTime?
   sourceId         String?
+  deletedAt        DateTime? @map("deleted_date")
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
   notebook Notebook @relation(fields: [notebookId], references: [id], onDelete: Cascade)
   author   User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
-  @@index([notebookId, updatedAt])
-  @@index([authorId, updatedAt])
+  @@index([notebookId, deletedAt, updatedAt])
+  @@index([authorId, deletedAt, updatedAt])
 }
 
 model Session {
