@@ -2,6 +2,22 @@
 @import "@margem/config/tokens.css";
 @source "../../../../packages/ui/src";
 
+/* Tailwind v4 não põe cursor:pointer em botões; tudo que é clicável ganha o feedback aqui. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="menuitem"],
+  [role="tab"],
+  summary,
+  select,
+  label[for],
+  input[type="checkbox"],
+  input[type="radio"],
+  input[type="submit"] {
+    cursor: pointer;
+  }
+}
+
 [data-study-mode="true"] mark[data-cloze="true"] {
   color: transparent;
   background-color: var(--color-marker);
