@@ -30,6 +30,10 @@ Análise de ameaças e controles do Margem. Leia antes de mexer em auth, permiss
 - [ ] Token do link mágico com 32 bytes aleatórios, guardado **só como hash**, uso único, expira em 15 minutos.
 - [ ] Resposta igual pra e-mail cadastrado ou não ("se a conta existir, mandamos o link"), pra não revelar quem usa o app.
 - [ ] Limite de pedidos de link por e-mail e por IP (ex.: 5 por hora).
+  - Por IP: 5 por hora no `POST /auth/magic-link` (throttler), com 429.
+  - Por e-mail: 60 s de intervalo entre envios e no máximo 5 por hora. A chave do limite normaliza aliases (minúsculas, sem `+sufixo`; no Gmail, sem pontos e com `googlemail.com` = `gmail.com`). Estourou, responde o mesmo 200 genérico sem enviar, pra não revelar nada sobre o endereço.
+  - Teto global: `MAGIC_LINK_DAILY_CAP` e-mails por dia UTC (padrão 300). Acima disso, mesmo 200 genérico e log `auth.magic_link_global_cap_reached` (warn) no máximo uma vez por hora.
+  - Pedir um link novo invalida os links ainda válidos daquele e-mail.
 - [ ] OAuth com `state` e PKCE.
 - [ ] Sessão em cookie `HttpOnly`, `Secure`, `SameSite=Lax`, rotacionada no login. "Sair de todos os aparelhos" disponível.
 - [ ] Proteção CSRF nas rotas que mudam dados (token ou checagem de `Origin`), já que a sessão é por cookie.
@@ -82,6 +86,7 @@ Análise de ameaças e controles do Margem. Leia antes de mexer em auth, permiss
 
 ### Abuso e disponibilidade
 - [ ] Limite de taxa global e por usuário (throttler do NestJS com Redis), mais apertado em login, upload, link e IA.
+  - `default`: 60 req/min por IP **em cada rota**. `global-ip`: 300 req/min por IP somando todas as rotas. Contadores no Redis com `INCR` + `PEXPIRE NX` atômicos (exige Redis 7+).
 - [ ] Limite de chamadas de IA por usuário pra proteger a cota dele.
 - [ ] Limite de tamanho de nota, de fonte e de mensagens no quiz ao vivo.
 

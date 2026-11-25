@@ -7,6 +7,7 @@ import { ALLOWED_ORIGIN, CsrfOriginGuard } from "./csrf-origin.guard";
 import { RedisThrottlerStorage } from "./redis-throttler.storage";
 import type Redis from "ioredis";
 import { REDIS_CLIENT } from "../health/redis.health";
+import { createThrottlers } from "./throttlers";
 
 @Module({
   imports: [
@@ -16,7 +17,7 @@ import { REDIS_CLIENT } from "../health/redis.health";
       imports: [HealthModule],
       inject: [REDIS_CLIENT],
       useFactory: (redis: Redis) => ({
-        throttlers: [{ name: "default", ttl: 60_000, limit: 60 }],
+        throttlers: createThrottlers(),
         storage: new RedisThrottlerStorage(redis),
       }),
     }),

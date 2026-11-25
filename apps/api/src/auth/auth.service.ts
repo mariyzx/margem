@@ -1,18 +1,31 @@
 import { createHash, randomBytes } from "node:crypto";
-import { Inject, Injectable, UnauthorizedException } from "@nestjs/common";
+import { Inject, Injectable, Logger, UnauthorizedException } from "@nestjs/common";
 import type Redis from "ioredis";
 import type { AuthUser } from "@margem/shared";
 import { loadEnv } from "../config/env";
 import { REDIS_CLIENT } from "../health/redis.health";
 import { PolicyService } from "../policies/policy.service";
 import { PrismaService } from "../prisma/prisma.service";
+import { incrementWithTtl } from "../security/redis-counter";
+import { normalizeEmailForRateLimit } from "./email-rate-limit-key";
 import { MailerService } from "./mailer.service";
-import { TooManyRequestsException } from "./too-many-requests.exception";
 
 const MAGIC_LINK_TTL_MS = 15 * 60 * 1000;
 const MAGIC_LINK_EMAIL_LIMIT = 5;
 const MAGIC_LINK_EMAIL_WINDOW_SEC = 3600;
+const MAGIC_LINK_EMAIL_COOLDOWN_SEC = 60;
+const MAGIC_LINK_GLOBAL_KEY_TTL_SEC = 48 * 3600;
+const GLOBAL_CAP_LOG_INTERVAL_SEC = 3600;
 const GOOGLE_OAUTH_TTL_SEC = 600;
+
+export interface MagicLinkRequestResponse {
+  ok: true;
+  message: string;
+}
+
+function magicLinkRequestResponse(): MagicLinkRequestResponse {
+  return { ok: true, message: "Se o endereço existir, enviamos um link de acesso." };
+}
 
 export function hashToken(rawToken: string): string {
   return createHash("sha256").update(rawToken).digest("hex");
@@ -20,6 +33,8 @@ export function hashToken(rawToken: string): string {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly mailer: MailerService,
@@ -27,33 +42,85 @@ export class AuthService {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
-  async requestMagicLink(email: string): Promise<{ ok: true; message: string }> {
-    const emailKey = `auth:magic:email:${hashToken(email)}`;
-    const count = await this.redis.incr(emailKey);
-    const ttl = await this.redis.ttl(emailKey);
-    if (count === 1 || ttl < 0) {
-      await this.redis.expire(emailKey, MAGIC_LINK_EMAIL_WINDOW_SEC);
+  async requestMagicLink(email: string): Promise<MagicLinkRequestResponse> {
+    // Every early return below sends the same body as a successful request, so the
+    // response never tells whether an address exists or was rate-limited.
+    if (!(await this.consumeEmailQuota(email))) {
+      return magicLinkRequestResponse();
     }
-    if (count > MAGIC_LINK_EMAIL_LIMIT) {
-      throw new TooManyRequestsException("Too many magic link requests");
+    if (!(await this.consumeGlobalDailyQuota())) {
+      return magicLinkRequestResponse();
     }
 
     const rawToken = randomBytes(32).toString("base64url");
     const tokenHash = hashToken(rawToken);
-    const expiresAt = new Date(Date.now() + MAGIC_LINK_TTL_MS);
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + MAGIC_LINK_TTL_MS);
 
-    await this.prisma.magicLinkToken.create({
-      data: { email, tokenHash, expiresAt },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.magicLinkToken.updateMany({
+        where: { email, usedAt: null, expiresAt: { gt: now } },
+        data: { usedAt: now },
+      });
+      await tx.magicLinkToken.create({
+        data: { email, tokenHash, expiresAt },
+      });
     });
 
     const env = loadEnv();
     const magicUrl = `${env.APP_URL}/entrar/verificar?token=${encodeURIComponent(rawToken)}`;
     await this.mailer.sendMagicLink(email, magicUrl);
 
-    return {
-      ok: true,
-      message: "Se o endereço existir, enviamos um link de acesso.",
-    };
+    return magicLinkRequestResponse();
+  }
+
+  /** Cooldown between sends, then the hourly cap, both keyed by the normalized address. */
+  private async consumeEmailQuota(email: string): Promise<boolean> {
+    const emailKey = hashToken(normalizeEmailForRateLimit(email));
+
+    const cooldown = await this.redis.set(
+      `auth:magic:cooldown:${emailKey}`,
+      "1",
+      "EX",
+      MAGIC_LINK_EMAIL_COOLDOWN_SEC,
+      "NX",
+    );
+    if (cooldown === null) {
+      return false;
+    }
+
+    const { count } = await incrementWithTtl(
+      this.redis,
+      `auth:magic:email:${emailKey}`,
+      MAGIC_LINK_EMAIL_WINDOW_SEC * 1000,
+    );
+    return count <= MAGIC_LINK_EMAIL_LIMIT;
+  }
+
+  private async consumeGlobalDailyQuota(): Promise<boolean> {
+    const cap = loadEnv().MAGIC_LINK_DAILY_CAP;
+    const day = new Date().toISOString().slice(0, 10);
+
+    const { count } = await incrementWithTtl(
+      this.redis,
+      `auth:magic:global:${day}`,
+      MAGIC_LINK_GLOBAL_KEY_TTL_SEC * 1000,
+    );
+    if (count <= cap) {
+      return true;
+    }
+
+    const firstInHour = await this.redis.set(
+      "auth:magic:global_cap_logged",
+      "1",
+      "EX",
+      GLOBAL_CAP_LOG_INTERVAL_SEC,
+      "NX",
+    );
+    if (firstInHour !== null) {
+      this.logger.warn({ cap, day }, "auth.magic_link_global_cap_reached");
+    }
+    return false;
   }
 
   async verifyMagicLink(

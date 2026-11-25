@@ -13,6 +13,7 @@ export const envSchema = z.object({
   SMTP_PASSWORD: z.string().optional(),
   MAIL_FROM: z.string().min(1).default("Margem <no-reply@margem.local>"),
   SESSION_TTL_DAYS: z.coerce.number().int().positive().default(14),
+  MAGIC_LINK_DAILY_CAP: z.coerce.number().int().positive().default(300),
   SENTRY_DSN: z.string().url().optional().or(z.literal("")),
   APP_VERSION: z.string().default("0.0.0"),
   GOOGLE_CLIENT_ID: z.string().trim().optional().or(z.literal("")),

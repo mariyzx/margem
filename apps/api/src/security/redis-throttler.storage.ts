@@ -2,6 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import type { ThrottlerStorage } from "@nestjs/throttler";
 import type Redis from "ioredis";
 import { REDIS_CLIENT } from "../health/redis.health";
+import { incrementWithTtl } from "./redis-counter";
 
 @Injectable()
 export class RedisThrottlerStorage implements ThrottlerStorage {
@@ -27,12 +28,8 @@ export class RedisThrottlerStorage implements ThrottlerStorage {
       };
     }
 
-    const totalHits = await this.redis.incr(redisKey);
-    if (totalHits === 1) {
-      await this.redis.pexpire(redisKey, ttl);
-    }
-    const pttl = await this.redis.pttl(redisKey);
-    const timeToExpire = Math.max(1, Math.ceil(pttl / 1000));
+    const { count: totalHits, pttlMs } = await incrementWithTtl(this.redis, redisKey, ttl);
+    const timeToExpire = Math.max(1, Math.ceil(pttlMs / 1000));
 
     let isBlocked = false;
     let timeToBlockExpire = 0;
