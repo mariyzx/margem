@@ -7,13 +7,15 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY apps/api/package.json ./apps/api/
 COPY packages/config/package.json ./packages/config/
 COPY packages/shared/package.json ./packages/shared/
+COPY packages/srs/package.json ./packages/srs/
 RUN pnpm install --frozen-lockfile --filter @margem/api...
 
 FROM deps AS builder
 COPY packages/config ./packages/config
 COPY packages/shared ./packages/shared
+COPY packages/srs ./packages/srs
 COPY apps/api ./apps/api
-RUN pnpm --filter @margem/shared build && pnpm --filter @margem/api build
+RUN pnpm --filter @margem/shared build && pnpm --filter @margem/srs build && pnpm --filter @margem/api build
 
 FROM node:22.14.0-alpine AS runner
 WORKDIR /app
@@ -22,6 +24,7 @@ RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nestjs
 
 COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/packages/shared ./packages/shared
+COPY --from=builder --chown=nestjs:nodejs /app/packages/srs ./packages/srs
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/package.json ./apps/api/
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/prisma ./apps/api/prisma
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/dist ./apps/api/dist
