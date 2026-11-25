@@ -16,12 +16,13 @@ model User {
   createdAt DateTime  @default(now())
   updatedAt DateTime @updatedAt
 
-  sessions    Session[]
-  auditLogs   AuditLog[]
-  notebooks   Notebook[]
-  notes       Note[]
-  questions   Question[]
-  reviewItems ReviewItem[]
+  sessions      Session[]
+  auditLogs     AuditLog[]
+  notebooks     Notebook[]
+  notes         Note[]
+  questions     Question[]
+  reviewItems   ReviewItem[]
+  authAccounts  AuthAccount[]
 }
 
 enum NotebookColor {
@@ -262,4 +263,17 @@ model Source {
   notes    Note[]
 
   @@index([notebookId, deletedAt, updatedAt])
+}
+
+model AuthAccount {
+  id                String   @id @default(cuid())
+  userId             String
+  provider           String
+  providerAccountId  String
+  createdAt          DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
 }

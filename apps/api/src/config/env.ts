@@ -15,6 +15,9 @@ export const envSchema = z.object({
   SESSION_TTL_DAYS: z.coerce.number().int().positive().default(14),
   SENTRY_DSN: z.string().url().optional().or(z.literal("")),
   APP_VERSION: z.string().default("0.0.0"),
+  GOOGLE_CLIENT_ID: z.string().trim().optional().or(z.literal("")),
+  GOOGLE_CLIENT_SECRET: z.string().trim().optional().or(z.literal("")),
+  GOOGLE_REDIRECT_URI: z.string().trim().optional().or(z.literal("")),
 });
 
 export type Env = z.infer<typeof envSchema>;
