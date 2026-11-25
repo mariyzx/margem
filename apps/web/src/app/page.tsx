@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import * as React from "react";
 import { NotebookSidebar } from "../components/notebook-sidebar";
 import { NoteWorkspace } from "../components/note-workspace";
+import { ThemeToggle } from "../components/theme-toggle";
 import {
   createNotebook,
   createNote,
@@ -292,7 +293,7 @@ export default function HomePage() {
             <Menu className="h-5 w-5" strokeWidth={1.5} />
           </button>
           <span className="font-serif text-lg font-semibold text-ink">{messages.appName}</span>
-          <span className="w-8" aria-hidden="true" />
+          <ThemeToggle />
         </header>
 
         <main className="flex-1 px-6 py-8">

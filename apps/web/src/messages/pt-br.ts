@@ -138,4 +138,8 @@ export const messages = {
     materialLegend: "Com material aberto",
     loadError: "Não foi possível carregar o material.",
   },
+  theme: {
+    switchToDark: "Mudar para tema escuro",
+    switchToLight: "Mudar para tema claro",
+  },
 } as const;
