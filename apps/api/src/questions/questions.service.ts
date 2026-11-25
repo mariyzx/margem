@@ -2,11 +2,14 @@ import { Injectable, Logger } from "@nestjs/common";
 import {
   resolveAnchorInDoc,
   type CreateQuestionInput,
+  type PaginationQuery,
   type QuestionDto,
   type UpdateQuestionInput,
 } from "@margem/shared";
+import { cursorArgs, toPage } from "../common/pagination";
 import { PolicyService } from "../policies/policy.service";
 import { PrismaService } from "../prisma/prisma.service";
+import { assertWithinQuota } from "../quotas/quota";
 import { createInitialSrsState } from "@margem/srs";
 
 @Injectable()
@@ -18,22 +21,28 @@ export class QuestionsService {
     private readonly policyService: PolicyService,
   ) {}
 
-  async listForNote(userId: string, noteId: string): Promise<QuestionDto[]> {
+  async listForNote(
+    userId: string,
+    noteId: string,
+    page: PaginationQuery,
+  ): Promise<{ questions: QuestionDto[]; nextCursor: string | null }> {
     const note = await this.prisma.note.findUnique({
       where: { id: noteId },
       select: { id: true, authorId: true, doc: true, deletedAt: true },
     });
     this.policyService.assertOwner(userId, note?.deletedAt ? null : note?.authorId);
 
-    const questions = await this.prisma.question.findMany({
+    const rows = await this.prisma.question.findMany({
       where: { noteId, deletedAt: null },
-      orderBy: { createdAt: "asc" },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      ...cursorArgs(page),
       include: { anchor: true },
     });
+    const { items: questions, nextCursor } = toPage(rows, page.limit);
 
     const doc = (note?.doc ?? { type: "doc", content: [] }) as Record<string, unknown>;
 
-    return questions.map((q) => {
+    const dtos = questions.map((q) => {
       const anchor =
         q.anchor && !q.anchor.deletedAt
           ? {
@@ -46,6 +55,7 @@ export class QuestionsService {
 
       return this.toDto({ ...q, anchor });
     });
+    return { questions: dtos, nextCursor };
   }
 
   async create(userId: string, noteId: string, input: CreateQuestionInput): Promise<QuestionDto> {
@@ -54,6 +64,11 @@ export class QuestionsService {
       select: { id: true, authorId: true, deletedAt: true },
     });
     this.policyService.assertOwner(userId, note?.deletedAt ? null : note?.authorId);
+
+    const owned = await this.prisma.question.count({
+      where: { authorId: userId, deletedAt: null, note: { deletedAt: null } },
+    });
+    assertWithinQuota("questions", owned);
 
     const created = await this.prisma.$transaction(async (tx) => {
       const anchor = input.anchor

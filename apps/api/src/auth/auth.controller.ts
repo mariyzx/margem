@@ -15,7 +15,7 @@ import { magicLinkRequestSchema, magicLinkVerifySchema } from "@margem/shared";
 import { loadEnv } from "../config/env";
 import { RequirePolicy } from "../policies/require-policy.decorator";
 import { AuthService } from "./auth.service";
-import { type AuthenticatedRequest, SESSION_COOKIE_NAME } from "./session.middleware";
+import { type AuthenticatedRequest, SESSION_COOKIE_NAME } from "./session";
 
 const OAUTH_STATE_COOKIE_NAME = "margem_oauth_state";
 

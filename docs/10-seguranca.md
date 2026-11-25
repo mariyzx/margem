@@ -89,6 +89,11 @@ Análise de ameaças e controles do Margem. Leia antes de mexer em auth, permiss
   - `default`: 60 req/min por IP **em cada rota**. `global-ip`: 300 req/min por IP somando todas as rotas. Contadores no Redis com `INCR` + `PEXPIRE NX` atômicos (exige Redis 7+).
 - [ ] Limite de chamadas de IA por usuário pra proteger a cota dele.
 - [ ] Limite de tamanho de nota, de fonte e de mensagens no quiz ao vivo.
+  - Corpo da requisição: 1 MB no Caddy (`request_body`) e no Node (JSON e urlencoded). Caddy: `read_header` 10s, `read_body` 30s, `idle` 2m, cabeçalhos até 16 KB, keepalive com a API de 60s. Node: `headersTimeout` 15s, `requestTimeout` 45s, `keepAliveTimeout` 65s.
+  - Listas paginadas por cursor (`?limit=` padrão 50, máximo 100; `?cursor=` é o id do último item). `GET /notebooks` traz até 100 notas por caderno com `hasMoreNotes`; o resto vem de `GET /notebooks/:id/notes`.
+  - Tetos por usuário (env): 100 cadernos, 5.000 notas, 500 materiais, 10.000 perguntas. Acima disso, 422 `quota_exceeded`.
+  - Sessão: a API só consulta o banco depois do CSRF e do throttler (`SessionGuard`), e só em rotas com `@RequirePolicy`. No máximo 10 sessões ativas por usuário; a mais antiga é revogada.
+  - Limpeza diária às 03:30 (America/Sao_Paulo), com lock no Redis: tokens de link expirados ou usados há mais de 24h e sessões expiradas há mais de 7 dias, em lotes de 1.000.
 
 ### Infra (VPS) — obrigatório
 - [ ] SSH só por chave, sem senha nem root; de preferência só pela Tailscale.

@@ -5,6 +5,7 @@ import type { CreateQuestionInput, QuestionDto } from "@margem/shared";
 import { Button, Field } from "@margem/ui";
 import { Trash2 } from "lucide-react";
 import * as React from "react";
+import { createErrorMessage } from "../../lib/errors";
 import { messages } from "../../messages/pt-br";
 import type { QuestionAnchorDraft } from "./selection-toolbar";
 
@@ -65,8 +66,8 @@ export function NoteMargin({
       });
       setText("");
       setAnswer("");
-    } catch {
-      setError(messages.margin.saveError);
+    } catch (error) {
+      setError(createErrorMessage(error, messages.margin.saveError));
     } finally {
       setSaving(false);
     }

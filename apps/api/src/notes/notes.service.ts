@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import type { CreateNoteInput, NoteDto, UpdateNoteInput } from "@margem/shared";
 import { PolicyService } from "../policies/policy.service";
 import { PrismaService } from "../prisma/prisma.service";
+import { assertWithinQuota } from "../quotas/quota";
 
 const EMPTY_TIPTAP_DOC: Prisma.InputJsonValue = {
   type: "doc",
@@ -36,6 +37,11 @@ export class NotesService {
       select: { id: true, ownerId: true, deletedAt: true },
     });
     this.policyService.assertOwner(userId, notebook?.deletedAt ? null : notebook?.ownerId);
+
+    const owned = await this.prisma.note.count({
+      where: { authorId: userId, deletedAt: null },
+    });
+    assertWithinQuota("notes", owned);
 
     if (input.sourceId) {
       const source = await this.prisma.source.findUnique({

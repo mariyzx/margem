@@ -1,0 +1,32 @@
+{
+	servers {
+		timeouts {
+			read_header 10s
+			read_body 30s
+			idle 2m
+		}
+		max_header_size 16KB
+	}
+}
+
+{$APP_DOMAIN:localhost} {
+	encode gzip zstd
+
+	request_body {
+		max_size 1MB
+	}
+
+	handle_path /api/* {
+		reverse_proxy api:3001 {
+			# Below the API's keepAliveTimeout (65s): Caddy closes idle upstream
+			# sockets first, so it never reuses one Node already closed (502).
+			transport http {
+				keepalive 60s
+			}
+		}
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
+}

@@ -8,6 +8,7 @@ import { AnimatePresence, m } from "motion/react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { NotebookSidebar } from "../components/notebook-sidebar";
+import { createErrorMessage } from "../lib/errors";
 import { NoteWorkspace } from "../components/note-workspace";
 import { ThemeToggle } from "../components/theme-toggle";
 import {
@@ -16,6 +17,7 @@ import {
   deleteNote,
   fetchCurrentUser,
   fetchNote,
+  fetchNotebookNotes,
   fetchNotebooks,
   logout,
   logoutAll,
@@ -147,15 +149,21 @@ export default function HomePage() {
       noteRequestIdRef.current++;
       setSelectedNote(null);
       setCreatingNotebook(false);
-    } catch {
-      setErrorToast(messages.notes.saveError);
+    } catch (error) {
+      setErrorToast(createErrorMessage(error, messages.notes.saveError));
     }
   }
 
   async function handleCreateNote(notebookId: string, sourceId?: string) {
     setCreatingNotebook(false);
     setMobileMenuOpen(false);
-    const created = await createNote({ notebookId, ...(sourceId ? { sourceId } : {}) });
+    let created: NoteDto;
+    try {
+      created = await createNote({ notebookId, ...(sourceId ? { sourceId } : {}) });
+    } catch (error) {
+      setErrorToast(createErrorMessage(error, messages.notes.saveError));
+      return;
+    }
     setSelectedNotebookId(notebookId);
     setSelectedNote(created);
     setNotebooks((prev) =>
@@ -177,6 +185,28 @@ export default function HomePage() {
           : nb,
       ),
     );
+  }
+
+  async function handleLoadMoreNotes(notebookId: string) {
+    const notebook = notebooks.find((nb) => nb.id === notebookId);
+    const lastNote = notebook?.notes?.at(-1);
+    if (!lastNote) return;
+    try {
+      const page = await fetchNotebookNotes(notebookId, lastNote.id);
+      setNotebooks((prev) =>
+        prev.map((nb) => {
+          if (nb.id !== notebookId) return nb;
+          const known = new Set((nb.notes ?? []).map((n) => n.id));
+          return {
+            ...nb,
+            notes: [...(nb.notes ?? []), ...page.notes.filter((n) => !known.has(n.id))],
+            hasMoreNotes: page.nextCursor !== null,
+          };
+        }),
+      );
+    } catch {
+      setErrorToast(messages.notebooks.loadMoreNotesError);
+    }
   }
 
   async function handleSaveNote(
@@ -275,6 +305,7 @@ export default function HomePage() {
           setMobileMenuOpen(false);
         }}
         onCreateNote={(nbId) => void handleCreateNote(nbId)}
+        onLoadMoreNotes={handleLoadMoreNotes}
         onDeleteNote={handleDeleteNote}
         onLogout={() => void handleLogout()}
         onLogoutAll={() => void handleLogoutAll()}

@@ -5,12 +5,17 @@ import { AppModule } from "./app.module";
 import { loadEnv } from "./config/env";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
+import type { Server } from "node:http";
+import type { NestExpressApplication } from "@nestjs/platform-express";
 import { initApiSentry } from "./observability/sentry";
+import { applyBodyLimits, applyServerTimeouts } from "./config/http";
 
 async function bootstrap() {
   const env = loadEnv();
   initApiSentry(env);
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
+  applyBodyLimits(app);
+  applyServerTimeouts(app.getHttpServer() as Server);
   if (env.NODE_ENV === "production") {
     const httpAdapter = app.getHttpAdapter().getInstance() as {
       set?: (k: string, v: unknown) => void;

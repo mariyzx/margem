@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { Inject, Injectable, Logger, UnauthorizedException } from "@nestjs/common";
+import type { Prisma } from "@prisma/client";
 import type Redis from "ioredis";
 import type { AuthUser } from "@margem/shared";
 import { loadEnv } from "../config/env";
@@ -154,13 +155,7 @@ export class AuthService {
         create: { email: record.email },
       });
 
-      await tx.session.create({
-        data: {
-          userId: user.id,
-          tokenHash: sessionHash,
-          expiresAt: sessionExpiresAt,
-        },
-      });
+      await this.createSessionWithinLimit(tx, user.id, sessionHash, sessionExpiresAt);
 
       await tx.auditLog.create({
         data: {
@@ -306,13 +301,7 @@ export class AuthService {
         });
       }
 
-      await tx.session.create({
-        data: {
-          userId: user.id,
-          tokenHash: sessionHash,
-          expiresAt: sessionExpiresAt,
-        },
-      });
+      await this.createSessionWithinLimit(tx, user.id, sessionHash, sessionExpiresAt);
 
       await tx.auditLog.create({
         data: {
@@ -333,6 +322,33 @@ export class AuthService {
         expiresAt: sessionExpiresAt,
       };
     });
+  }
+
+  /**
+   * Creates the session and, if the user now has more active sessions than
+   * MAX_ACTIVE_SESSIONS_PER_USER, revokes the oldest ones in the same transaction.
+   */
+  private async createSessionWithinLimit(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    tokenHash: string,
+    expiresAt: Date,
+  ): Promise<void> {
+    const now = new Date();
+    await tx.session.create({ data: { userId, tokenHash, expiresAt } });
+
+    const overflow = await tx.session.findMany({
+      where: { userId, revokedAt: null, expiresAt: { gt: now } },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      skip: loadEnv().MAX_ACTIVE_SESSIONS_PER_USER,
+      select: { id: true },
+    });
+    if (overflow.length > 0) {
+      await tx.session.updateMany({
+        where: { id: { in: overflow.map((session) => session.id) } },
+        data: { revokedAt: now },
+      });
+    }
   }
 
   async findSessionUser(

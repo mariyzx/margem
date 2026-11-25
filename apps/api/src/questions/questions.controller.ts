@@ -8,10 +8,12 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
 } from "@nestjs/common";
 import { createQuestionSchema, updateQuestionSchema } from "@margem/shared";
-import type { AuthenticatedRequest } from "../auth/session.middleware";
+import type { AuthenticatedRequest } from "../auth/session";
+import { parsePagination } from "../common/pagination";
 import { RequirePolicy } from "../policies/require-policy.decorator";
 import { QuestionsService } from "./questions.service";
 
@@ -21,9 +23,12 @@ export class QuestionsController {
 
   @Get("notes/:noteId/questions")
   @RequirePolicy("read", "note")
-  async listForNote(@Req() req: AuthenticatedRequest, @Param("noteId") noteId: string) {
-    const questions = await this.questionsService.listForNote(req.user!.id, noteId);
-    return { questions };
+  listForNote(
+    @Req() req: AuthenticatedRequest,
+    @Param("noteId") noteId: string,
+    @Query() query: unknown,
+  ) {
+    return this.questionsService.listForNote(req.user!.id, noteId, parsePagination(query));
   }
 
   @Post("notes/:noteId/questions")
