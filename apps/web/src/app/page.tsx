@@ -185,7 +185,7 @@ export default function HomePage() {
   ) {
     try {
       const updated = await updateNote(noteId, values);
-      setSelectedNote(updated);
+      setSelectedNote((prev) => (prev?.id === updated.id ? updated : prev));
       setNotebooks((prev) =>
         prev.map((nb) =>
           nb.id === updated.notebookId
