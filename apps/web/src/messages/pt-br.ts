@@ -40,6 +40,9 @@ export const messages = {
     newNote: "Nova nota",
     untitledNote: "Nota sem título",
     emptyNotebookHint: "Nenhuma nota ainda",
+    loadMoreNotes: "Mostrar mais notas",
+    loadingMoreNotes: "Carregando notas",
+    loadMoreNotesError: "Não foi possível carregar mais notas.",
     expandNotebook: "Mostrar notas do caderno",
     collapseNotebook: "Esconder notas do caderno",
     deleteNote: "Excluir nota",
@@ -158,6 +161,13 @@ export const messages = {
     memoryLegend: "De memória",
     materialLegend: "Com material aberto",
     loadError: "Não foi possível carregar o material.",
+  },
+  // `{limit}` is replaced with the cap returned by the API.
+  quota: {
+    notebooks: "Você chegou ao limite de {limit} cadernos. Apague algum para criar outro.",
+    notes: "Você chegou ao limite de {limit} notas. Apague alguma para criar outra.",
+    sources: "Você chegou ao limite de {limit} materiais. Apague algum para anexar outro.",
+    questions: "Você chegou ao limite de {limit} perguntas. Apague alguma para criar outra.",
   },
   theme: {
     switchToDark: "Mudar para tema escuro",

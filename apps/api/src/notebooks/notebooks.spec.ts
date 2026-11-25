@@ -1,6 +1,6 @@
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
-import type { AuthenticatedRequest } from "../auth/session.middleware";
+import type { AuthenticatedRequest } from "../auth/session";
 import { PolicyService } from "../policies/policy.service";
 import type { PrismaService } from "../prisma/prisma.service";
 import { NotebooksController } from "./notebooks.controller";
@@ -39,11 +39,13 @@ describe("NotebooksService & NotebooksController", () => {
     } as unknown as PrismaService;
 
     const service = new NotebooksService(prisma, new PolicyService());
-    const result = await service.listForUser("user-1");
+    const { notebooks: result, nextCursor } = await service.listForUser("user-1", { limit: 50 });
 
     expect(result).toHaveLength(1);
+    expect(nextCursor).toBeNull();
     expect(result[0]?.name).toBe("Redes");
     expect(result[0]?.notes?.[0]?.title).toBe("TCP vs UDP");
+    expect(result[0]?.hasMoreNotes).toBe(false);
   });
 
   it("soft-deletes notebook + notes and writes audit log", async () => {

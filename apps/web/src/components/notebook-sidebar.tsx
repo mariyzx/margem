@@ -36,6 +36,8 @@ interface NotebookSidebarProps {
   onSelectNote: (notebookId: string, noteId: string) => void;
   onStartNewNotebook: () => void;
   onCreateNote: (notebookId: string) => void;
+  /** Loads the next page of a notebook's notes (only shown when `hasMoreNotes`). */
+  onLoadMoreNotes: (notebookId: string) => Promise<void>;
   onDeleteNote: (notebookId: string, noteId: string) => Promise<void>;
   onLogout: () => void;
   onLogoutAll: () => void;
@@ -52,6 +54,7 @@ export function NotebookSidebar({
   onSelectNote,
   onStartNewNotebook,
   onCreateNote,
+  onLoadMoreNotes,
   onDeleteNote,
   onLogout,
   onLogoutAll,
@@ -61,6 +64,20 @@ export function NotebookSidebar({
   const [expandedIds, setExpandedIds] = React.useState<Set<string>>(() => new Set());
   const reduceMotion = useReducedMotion();
   const [confirmingNoteId, setConfirmingNoteId] = React.useState<string | null>(null);
+  const [loadingMoreIds, setLoadingMoreIds] = React.useState<Set<string>>(() => new Set());
+
+  async function handleLoadMore(notebookId: string) {
+    setLoadingMoreIds((prev) => new Set(prev).add(notebookId));
+    try {
+      await onLoadMoreNotes(notebookId);
+    } finally {
+      setLoadingMoreIds((prev) => {
+        const next = new Set(prev);
+        next.delete(notebookId);
+        return next;
+      });
+    }
+  }
 
   // O caderno da nota aberta sempre aparece aberto (carga inicial, troca de nota, link ?note=).
   React.useEffect(() => {
@@ -285,6 +302,21 @@ export function NotebookSidebar({
                             </Popover>
                           </m.li>
                         ))}
+                        {notebook.hasMoreNotes ? (
+                          <m.li variants={itemVariants}>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              disabled={loadingMoreIds.has(notebook.id)}
+                              onClick={() => void handleLoadMore(notebook.id)}
+                            >
+                              {loadingMoreIds.has(notebook.id)
+                                ? messages.notebooks.loadingMoreNotes
+                                : messages.notebooks.loadMoreNotes}
+                            </Button>
+                          </m.li>
+                        ) : null}
                         {notes.length === 0 ? (
                           <m.li
                             variants={itemVariants}

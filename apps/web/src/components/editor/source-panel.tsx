@@ -4,6 +4,7 @@ import { createTextSourceSchema, type SourceDto } from "@margem/shared";
 import { Button, Field } from "@margem/ui";
 import { BookOpenCheck, FilePlus2 } from "lucide-react";
 import * as React from "react";
+import { createErrorMessage } from "../../lib/errors";
 import { messages } from "../../messages/pt-br";
 
 interface SourcePanelProps {
@@ -50,8 +51,8 @@ export function SourcePanel({
       setTitle("");
       setContent("");
       setShowForm(false);
-    } catch {
-      setError(messages.source.loadError);
+    } catch (error) {
+      setError(createErrorMessage(error, messages.source.loadError));
     } finally {
       setSubmitting(false);
     }

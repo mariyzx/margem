@@ -37,6 +37,9 @@ export const noteSummarySchema = z.object({
 });
 export type NoteSummary = z.infer<typeof noteSummarySchema>;
 
+/** Notes embedded per notebook in GET /notebooks; the rest via GET /notebooks/:id/notes. */
+export const NOTEBOOK_NOTES_PREVIEW_LIMIT = 100;
+
 export const notebookSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -44,6 +47,8 @@ export const notebookSchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   notes: z.array(noteSummarySchema).optional(),
+  /** True when `notes` holds only the most recent NOTEBOOK_NOTES_PREVIEW_LIMIT notes. */
+  hasMoreNotes: z.boolean().optional(),
 });
 export type NotebookDto = z.infer<typeof notebookSchema>;
 

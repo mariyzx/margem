@@ -62,6 +62,10 @@ jobs:
             git checkout main
             git pull --ff-only origin main
             docker compose --env-file .env -f infra/docker-compose.prod.yml up -d --build --remove-orphans
+            # The Caddyfile is bind-mounted, so 'up' does not recreate caddy when only the
+            # file changes. Reload applies it without dropping connections.
+            docker compose --env-file .env -f infra/docker-compose.prod.yml exec -T caddy \
+              caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
             docker image prune -f
           "
 

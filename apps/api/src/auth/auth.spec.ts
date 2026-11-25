@@ -1,4 +1,5 @@
-import { Logger, type MiddlewareConsumer, Module, type NestModule } from "@nestjs/common";
+import { Logger, Module } from "@nestjs/common";
+import { APP_GUARD } from "@nestjs/core";
 import { Test } from "@nestjs/testing";
 import cookieParser from "cookie-parser";
 import request from "supertest";
@@ -9,8 +10,15 @@ import { PrismaService } from "../prisma/prisma.service";
 import { AuthController } from "./auth.controller";
 import { AuthService, hashToken } from "./auth.service";
 import { MailerService } from "./mailer.service";
-import { SessionMiddleware } from "./session.middleware";
+import { SessionGuard } from "./session.guard";
+import { PolicyGuard } from "../policies/policy.guard";
 import { FakeRedis } from "../testing/fake-redis";
+import { ThrottlerModule } from "@nestjs/throttler";
+import { ALLOWED_ORIGIN } from "../security/csrf-origin.guard";
+import { GLOBAL_GUARDS } from "../security/security.module";
+import { createThrottlers } from "../security/throttlers";
+
+const APP_ORIGIN = "http://localhost:3000";
 
 describe("Magic link authentication", () => {
   const users = new Map<
@@ -23,7 +31,14 @@ describe("Magic link authentication", () => {
   >();
   const sessions = new Map<
     string,
-    { id: string; userId: string; tokenHash: string; expiresAt: Date; revokedAt: Date | null }
+    {
+      id: string;
+      userId: string;
+      tokenHash: string;
+      expiresAt: Date;
+      revokedAt: Date | null;
+      seq: number;
+    }
   >();
   const auditLogs: Array<{ userId?: string; action: string }> = [];
   const sentEmails: Array<{ email: string; url: string }> = [];
@@ -55,7 +70,11 @@ describe("Magic link authentication", () => {
     vi.restoreAllMocks();
   });
 
-  async function createApp() {
+  /**
+   * `productionGuards: true` wires the exact GLOBAL_GUARDS used in production (CSRF,
+   * throttler, session, policy) instead of only session + policy.
+   */
+  async function createApp({ productionGuards = false } = {}) {
     const fakePrisma = {
       magicLinkToken: {
         create: vi.fn(
@@ -109,7 +128,8 @@ describe("Magic link authentication", () => {
       session: {
         create: vi.fn(
           async ({ data }: { data: { userId: string; tokenHash: string; expiresAt: Date } }) => {
-            const s = { id: `sess-${sessions.size + 1}`, ...data, revokedAt: null };
+            const seq = sessions.size + 1;
+            const s = { id: `sess-${seq}`, ...data, revokedAt: null, seq };
             sessions.set(data.tokenHash, s);
             return s;
           },
@@ -120,20 +140,42 @@ describe("Magic link authentication", () => {
           const user = users.get(s.userId);
           return user ? { ...s, user } : null;
         }),
+        findMany: vi.fn(
+          async ({
+            where,
+            skip = 0,
+          }: {
+            where: { userId: string; revokedAt: null; expiresAt: { gt: Date } };
+            skip?: number;
+          }) =>
+            [...sessions.values()]
+              .filter(
+                (s) =>
+                  s.userId === where.userId &&
+                  s.revokedAt === null &&
+                  s.expiresAt > where.expiresAt.gt,
+              )
+              .sort((a, b) => b.seq - a.seq)
+              .slice(skip)
+              .map((s) => ({ id: s.id })),
+        ),
         updateMany: vi.fn(
           async ({
             where,
             data,
           }: {
-            where: { id?: string; userId: string; revokedAt: null };
+            where: { id?: string | { in: string[] }; userId?: string; revokedAt?: null };
             data: { revokedAt: Date };
           }) => {
+            const matchesId = (id: string) =>
+              where.id === undefined ||
+              (typeof where.id === "string" ? id === where.id : where.id.in.includes(id));
             let count = 0;
             for (const s of sessions.values()) {
               if (
-                s.userId === where.userId &&
+                (where.userId === undefined || s.userId === where.userId) &&
                 s.revokedAt === null &&
-                (!where.id || s.id === where.id)
+                matchesId(s.id)
               ) {
                 s.revokedAt = data.revokedAt;
                 count++;
@@ -178,12 +220,23 @@ describe("Magic link authentication", () => {
       },
     };
 
+    const guards = productionGuards
+      ? [{ provide: ALLOWED_ORIGIN, useValue: APP_ORIGIN }, ...GLOBAL_GUARDS]
+      : [
+          // Same order as GLOBAL_GUARDS in SecurityModule (minus CSRF and throttling).
+          { provide: APP_GUARD, useClass: SessionGuard },
+          { provide: APP_GUARD, useClass: PolicyGuard },
+        ];
+
     @Module({
-      imports: [PoliciesModule],
+      imports: [
+        PoliciesModule,
+        ...(productionGuards ? [ThrottlerModule.forRoot({ throttlers: createThrottlers() })] : []),
+      ],
       controllers: [AuthController],
       providers: [
         AuthService,
-        SessionMiddleware,
+        ...guards,
         { provide: PrismaService, useValue: fakePrisma },
         { provide: REDIS_CLIENT, useValue: redis },
         {
@@ -196,11 +249,7 @@ describe("Magic link authentication", () => {
         },
       ],
     })
-    class TestAuthModule implements NestModule {
-      configure(consumer: MiddlewareConsumer) {
-        consumer.apply(SessionMiddleware).forRoutes("*");
-      }
-    }
+    class TestAuthModule {}
 
     const moduleRef = await Test.createTestingModule({
       imports: [TestAuthModule],
@@ -439,6 +488,82 @@ describe("Magic link authentication", () => {
     await requestLink(app, "ttl@margem.local").expect(200);
     expect(redis.keys().length).toBeGreaterThan(0);
     expect(redis.keysWithoutTtl()).toEqual([]);
+
+    await app.close();
+  });
+
+  it("revokes the oldest session when a login would exceed the active session cap", async () => {
+    process.env.MAX_ACTIVE_SESSIONS_PER_USER = "2";
+    freezeClock();
+    const app = await createApp();
+    const cookies: string[][] = [];
+
+    for (let i = 0; i < 3; i++) {
+      await requestLink(app, "devices@margem.local").expect(200);
+      const res = await request(app.getHttpServer())
+        .post("/auth/verify")
+        .send({ token: tokenFromEmail(i) })
+        .expect(200);
+      cookies.push(res.headers["set-cookie"] as unknown as string[]);
+      advanceClock(61_000);
+    }
+
+    const me = (cookie: string[]) =>
+      request(app.getHttpServer()).get("/auth/me").set("Cookie", cookie);
+    await me(cookies[0]!).expect(401);
+    await me(cookies[1]!).expect(200);
+    await me(cookies[2]!).expect(200);
+    expect([...sessions.values()].filter((s) => s.revokedAt === null)).toHaveLength(2);
+
+    delete process.env.MAX_ACTIVE_SESSIONS_PER_USER;
+    await app.close();
+  });
+
+  it("end to end with production guards: login, /auth/me, logout and logout-all", async () => {
+    freezeClock();
+    const app = await createApp({ productionGuards: true });
+    const server = app.getHttpServer();
+    const login = async (i: number) => {
+      await request(server)
+        .post("/auth/magic-link")
+        .set("Origin", APP_ORIGIN)
+        .send({ email: "flow@margem.local" })
+        .expect(200);
+      const res = await request(server)
+        .post("/auth/verify")
+        .set("Origin", APP_ORIGIN)
+        .send({ token: tokenFromEmail(i) })
+        .expect(200);
+      advanceClock(61_000);
+      return res.headers["set-cookie"] as unknown as string[];
+    };
+
+    // Anonymous: no session, no user.
+    await request(server).get("/auth/me").expect(401);
+
+    const first = await login(0);
+    const me = await request(server).get("/auth/me").set("Cookie", first).expect(200);
+    expect(me.body.user).toMatchObject({ email: "flow@margem.local" });
+
+    // Logout needs a same-origin request (CSRF) and a resolved session.
+    await request(server).post("/auth/logout").set("Cookie", first).expect(403);
+    await request(server)
+      .post("/auth/logout")
+      .set("Cookie", first)
+      .set("Origin", APP_ORIGIN)
+      .expect(200);
+    await request(server).get("/auth/me").set("Cookie", first).expect(401);
+    expect(auditLogs.map((l) => l.action)).toContain("auth.logout");
+
+    const second = await login(1);
+    const third = await login(2);
+    await request(server)
+      .post("/auth/logout-all")
+      .set("Cookie", second)
+      .set("Origin", APP_ORIGIN)
+      .expect(200);
+    await request(server).get("/auth/me").set("Cookie", second).expect(401);
+    await request(server).get("/auth/me").set("Cookie", third).expect(401);
 
     await app.close();
   });

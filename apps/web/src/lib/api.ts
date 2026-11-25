@@ -1,5 +1,10 @@
 import {
   authUserSchema,
+  nextCursorSchema,
+  noteSummarySchema,
+  quotaExceededErrorSchema,
+  type NoteSummary,
+  type QuotaExceededError,
   CreateQuestionInput,
   notebookSchema,
   noteSchema,
@@ -21,6 +26,49 @@ import {
 } from "@margem/shared";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+
+/** Safety net for "fetch every page" loops; per-user caps keep real lists far below it. */
+const MAX_PAGES = 200;
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    /** Set when the API answered 422 because a per-user cap was reached. */
+    readonly quota?: QuotaExceededError,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+async function failed(res: Response, label: string): Promise<never> {
+  let quota: QuotaExceededError | undefined;
+  if (res.status === 422) {
+    const parsed = quotaExceededErrorSchema.safeParse(await res.json().catch(() => null));
+    if (parsed.success) quota = parsed.data;
+  }
+  throw new ApiError(`${label} failed with status ${res.status}`, res.status, quota);
+}
+
+function pageQuery(cursor: string | null): string {
+  return cursor ? `?limit=100&cursor=${encodeURIComponent(cursor)}` : "?limit=100";
+}
+
+/** Walks a cursor-paginated endpoint until the last page. */
+async function fetchAllPages<T>(
+  fetchPage: (cursor: string | null) => Promise<{ items: T[]; nextCursor: string | null }>,
+): Promise<T[]> {
+  const all: T[] = [];
+  let cursor: string | null = null;
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const { items, nextCursor } = await fetchPage(cursor);
+    all.push(...items);
+    if (!nextCursor) break;
+    cursor = nextCursor;
+  }
+  return all;
+}
 
 async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
   return fetch(`${API_URL}${path}`, {
@@ -79,13 +127,33 @@ export async function logoutAll(): Promise<void> {
   }
 }
 
-export async function fetchNotebooks(): Promise<NotebookDto[]> {
-  const res = await apiFetch("/notebooks", { method: "GET" });
-  if (!res.ok) {
-    throw new Error(`Fetch notebooks failed with status ${res.status}`);
-  }
-  const data = (await res.json()) as { notebooks: unknown[] };
-  return data.notebooks.map((item) => notebookSchema.parse(item));
+export function fetchNotebooks(): Promise<NotebookDto[]> {
+  return fetchAllPages(async (cursor) => {
+    const res = await apiFetch(`/notebooks${pageQuery(cursor)}`, { method: "GET" });
+    if (!res.ok) await failed(res, "Fetch notebooks");
+    const data = (await res.json()) as { notebooks: unknown[]; nextCursor: unknown };
+    return {
+      items: data.notebooks.map((item) => notebookSchema.parse(item)),
+      nextCursor: nextCursorSchema.parse(data.nextCursor),
+    };
+  });
+}
+
+/** One page of a notebook's notes, after the note with id `cursor`. */
+export async function fetchNotebookNotes(
+  notebookId: string,
+  cursor: string | null,
+): Promise<{ notes: NoteSummary[]; nextCursor: string | null }> {
+  const res = await apiFetch(
+    `/notebooks/${encodeURIComponent(notebookId)}/notes${pageQuery(cursor)}`,
+    { method: "GET" },
+  );
+  if (!res.ok) await failed(res, "Fetch notebook notes");
+  const data = (await res.json()) as { notes: unknown[]; nextCursor: unknown };
+  return {
+    notes: data.notes.map((item) => noteSummarySchema.parse(item)),
+    nextCursor: nextCursorSchema.parse(data.nextCursor),
+  };
 }
 
 export async function createNotebook(input: CreateNotebookInput): Promise<NotebookDto> {
@@ -93,9 +161,7 @@ export async function createNotebook(input: CreateNotebookInput): Promise<Notebo
     method: "POST",
     body: JSON.stringify(input),
   });
-  if (!res.ok) {
-    throw new Error(`Create notebook failed with status ${res.status}`);
-  }
+  if (!res.ok) await failed(res, "Create notebook");
   const data = (await res.json()) as { notebook: unknown };
   return notebookSchema.parse(data.notebook);
 }
@@ -135,9 +201,7 @@ export async function createNote(input: CreateNoteInput): Promise<NoteDto> {
     method: "POST",
     body: JSON.stringify(input),
   });
-  if (!res.ok) {
-    throw new Error(`Create note failed with status ${res.status}`);
-  }
+  if (!res.ok) await failed(res, "Create note");
   const data = (await res.json()) as { note: unknown };
   return noteSchema.parse(data.note);
 }
@@ -163,13 +227,19 @@ export async function deleteNote(id: string): Promise<void> {
   }
 }
 
-export async function fetchQuestions(noteId: string): Promise<QuestionDto[]> {
-  const res = await apiFetch(`/notes/${encodeURIComponent(noteId)}/questions`, { method: "GET" });
-  if (!res.ok) {
-    throw new Error(`Fetch questions failed with status ${res.status}`);
-  }
-  const data = (await res.json()) as { questions: unknown[] };
-  return data.questions.map((item) => questionSchema.parse(item));
+export function fetchQuestions(noteId: string): Promise<QuestionDto[]> {
+  return fetchAllPages(async (cursor) => {
+    const res = await apiFetch(
+      `/notes/${encodeURIComponent(noteId)}/questions${pageQuery(cursor)}`,
+      { method: "GET" },
+    );
+    if (!res.ok) await failed(res, "Fetch questions");
+    const data = (await res.json()) as { questions: unknown[]; nextCursor: unknown };
+    return {
+      items: data.questions.map((item) => questionSchema.parse(item)),
+      nextCursor: nextCursorSchema.parse(data.nextCursor),
+    };
+  });
 }
 
 export async function createQuestion(
@@ -180,9 +250,7 @@ export async function createQuestion(
     method: "POST",
     body: JSON.stringify(input),
   });
-  if (!res.ok) {
-    throw new Error(`Create question failed with status ${res.status}`);
-  }
+  if (!res.ok) await failed(res, "Create question");
   const data = (await res.json()) as { question: unknown };
   return questionSchema.parse(data.question);
 }
@@ -238,9 +306,7 @@ export async function createTextSource(input: CreateTextSourceInput): Promise<So
     method: "POST",
     body: JSON.stringify(input),
   });
-  if (!res.ok) {
-    throw new Error(`Create source failed with status ${res.status}`);
-  }
+  if (!res.ok) await failed(res, "Create source");
   const data = (await res.json()) as { source: unknown };
   return sourceSchema.parse(data.source);
 }

@@ -10,7 +10,7 @@ import {
   Req,
 } from "@nestjs/common";
 import { createNoteSchema, updateNoteSchema } from "@margem/shared";
-import type { AuthenticatedRequest } from "../auth/session.middleware";
+import type { AuthenticatedRequest } from "../auth/session";
 import { RequirePolicy } from "../policies/require-policy.decorator";
 import { NotesService } from "./notes.service";
 

@@ -12,6 +12,7 @@ describe("NotesService", () => {
       notebook: {
         findUnique: vi.fn(async () => ({ id: "nb-1", ownerId: "user-1", deletedAt: null })),
       },
+      note: { count: vi.fn(async () => 0) },
       $transaction: vi.fn(async (cb: (tx: unknown) => Promise<unknown>) =>
         cb({
           note: {

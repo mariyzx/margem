@@ -23,7 +23,9 @@ describe("QuestionsService", () => {
 
     const service = new QuestionsService(prisma, new PolicyService());
 
-    await expect(service.listForNote("user-2", "note-1")).rejects.toThrow(NotFoundException);
+    await expect(service.listForNote("user-2", "note-1", { limit: 50 })).rejects.toThrow(
+      NotFoundException,
+    );
     await expect(service.create("user-2", "note-1", { text: "P?", answer: "R." })).rejects.toThrow(
       NotFoundException,
     );

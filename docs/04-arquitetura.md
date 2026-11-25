@@ -33,7 +33,7 @@ packages/
   ui/           componentes React do design system (tokens, Button, Lacuna...)
   config/       tsconfig, eslint, tailwind preset com os tokens
 infra/
-  docker-compose.yml, Caddyfile, scripts de backup
+  docker-compose.yml, caddy/Caddyfile, scripts de backup
 docs/
 ```
 

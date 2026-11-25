@@ -7,10 +7,12 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
 } from "@nestjs/common";
 import { createNotebookSchema, updateNotebookSchema } from "@margem/shared";
-import type { AuthenticatedRequest } from "../auth/session.middleware";
+import type { AuthenticatedRequest } from "../auth/session";
+import { parsePagination } from "../common/pagination";
 import { RequirePolicy } from "../policies/require-policy.decorator";
 import { NotebooksService } from "./notebooks.service";
 
@@ -20,9 +22,14 @@ export class NotebooksController {
 
   @Get()
   @RequirePolicy("read", "notebook")
-  async list(@Req() req: AuthenticatedRequest) {
-    const notebooks = await this.notebooksService.listForUser(req.user!.id);
-    return { notebooks };
+  list(@Req() req: AuthenticatedRequest, @Query() query: unknown) {
+    return this.notebooksService.listForUser(req.user!.id, parsePagination(query));
+  }
+
+  @Get(":id/notes")
+  @RequirePolicy("read", "notebook")
+  listNotes(@Req() req: AuthenticatedRequest, @Param("id") id: string, @Query() query: unknown) {
+    return this.notebooksService.listNotes(req.user!.id, id, parsePagination(query));
   }
 
   @Post()

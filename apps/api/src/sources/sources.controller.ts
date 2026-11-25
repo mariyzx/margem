@@ -1,6 +1,6 @@
 import { BadRequestException, Body, Controller, Get, Param, Post, Req } from "@nestjs/common";
 import { createTextSourceSchema } from "@margem/shared";
-import type { AuthenticatedRequest } from "../auth/session.middleware";
+import type { AuthenticatedRequest } from "../auth/session";
 import { RequirePolicy } from "../policies/require-policy.decorator";
 import { SourcesService } from "./sources.service";
 

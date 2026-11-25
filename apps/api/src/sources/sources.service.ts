@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import type { CreateTextSourceInput, SourceDto } from "@margem/shared";
 import { PolicyService } from "../policies/policy.service";
 import { PrismaService } from "../prisma/prisma.service";
+import { assertWithinQuota } from "../quotas/quota";
 import { chunkText } from "./chunk-text";
 
 @Injectable()
@@ -19,6 +20,11 @@ export class SourcesService {
       select: { id: true, ownerId: true, deletedAt: true },
     });
     this.policyService.assertOwner(userId, notebook?.deletedAt ? null : notebook?.ownerId);
+
+    const owned = await this.prisma.source.count({
+      where: { deletedAt: null, notebook: { ownerId: userId, deletedAt: null } },
+    });
+    assertWithinQuota("sources", owned);
 
     const created = await this.prisma.$transaction(async (tx) => {
       const source = await tx.source.create({

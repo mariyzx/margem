@@ -16,3 +16,6 @@ coverage/
 next-env.d.ts
 test-results/
 playwright-report/
+
+# Claude Code worktrees (each holds a full checkout of the repo)
+.claude/worktrees/
