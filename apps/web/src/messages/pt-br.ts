@@ -63,6 +63,9 @@ export const messages = {
   },
   editor: {
     toolbarLabel: "Ações para o trecho selecionado",
+    bold: "Negrito",
+    italic: "Itálico",
+    inlineCode: "Código",
     hideAsCloze: "Esconder como lacuna",
     removeCloze: "Tirar lacuna",
     turnIntoQuestion: "Virar pergunta",

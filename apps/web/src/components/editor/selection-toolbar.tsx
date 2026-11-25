@@ -3,7 +3,7 @@
 import { cn } from "@margem/config/cn";
 import type { Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
-import { Highlighter, MessageSquarePlus } from "lucide-react";
+import { Bold, Code, Highlighter, Italic, MessageSquarePlus } from "lucide-react";
 import { messages } from "../../messages/pt-br";
 
 interface SelectionToolbarProps {
@@ -20,6 +20,9 @@ export interface QuestionAnchorDraft {
 
 export function SelectionToolbar({ editor, onCreateQuestion }: SelectionToolbarProps) {
   const isCloze = editor.isActive("cloze");
+  const isBold = editor.isActive("bold");
+  const isItalic = editor.isActive("italic");
+  const isCode = editor.isActive("code");
 
   function handleQuestionClick() {
     const { from, to, $from } = editor.state.selection;
@@ -56,6 +59,53 @@ export function SelectionToolbar({ editor, onCreateQuestion }: SelectionToolbarP
         aria-label={messages.editor.toolbarLabel}
         className="flex items-center gap-1 rounded-md border border-margin-rule bg-paper p-1 font-sans text-xs shadow-md"
       >
+        <button
+          type="button"
+          aria-label={messages.editor.bold}
+          aria-pressed={isBold}
+          onClick={() => editor.chain().focus().toggleBold().run()}
+          className={cn(
+            "rounded-sm p-1.5 transition-colors duration-fast ease-margem-out focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-bic",
+            isBold
+              ? "bg-margin font-medium text-ink"
+              : "text-ink-muted hover:bg-margin hover:text-ink",
+          )}
+        >
+          <Bold className="h-3.5 w-3.5" strokeWidth={1.5} />
+        </button>
+
+        <button
+          type="button"
+          aria-label={messages.editor.italic}
+          aria-pressed={isItalic}
+          onClick={() => editor.chain().focus().toggleItalic().run()}
+          className={cn(
+            "rounded-sm p-1.5 transition-colors duration-fast ease-margem-out focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-bic",
+            isItalic
+              ? "bg-margin font-medium text-ink"
+              : "text-ink-muted hover:bg-margin hover:text-ink",
+          )}
+        >
+          <Italic className="h-3.5 w-3.5" strokeWidth={1.5} />
+        </button>
+
+        <button
+          type="button"
+          aria-label={messages.editor.inlineCode}
+          aria-pressed={isCode}
+          onClick={() => editor.chain().focus().toggleCode().run()}
+          className={cn(
+            "rounded-sm p-1.5 transition-colors duration-fast ease-margem-out focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-bic",
+            isCode
+              ? "bg-margin font-medium text-ink"
+              : "text-ink-muted hover:bg-margin hover:text-ink",
+          )}
+        >
+          <Code className="h-3.5 w-3.5" strokeWidth={1.5} />
+        </button>
+
+        <span aria-hidden="true" className="h-4 w-px bg-margin-rule" />
+
         <button
           type="button"
           onClick={() => editor.chain().focus().toggleCloze().run()}
