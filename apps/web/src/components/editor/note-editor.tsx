@@ -1,5 +1,6 @@
 "use client";
 
+import type { NoteOrigin } from "@margem/shared";
 import { Button, Field, Popover, PopoverAnchor, PopoverContent } from "@margem/ui";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import Image from "@tiptap/extension-image";
@@ -10,6 +11,7 @@ import { common, createLowlight } from "lowlight";
 import * as React from "react";
 import { messages } from "../../messages/pt-br";
 import { BlockId } from "./block-id";
+import { BlockOrigin } from "./block-origin";
 import { Callout } from "./callout-node";
 import { Cloze } from "./cloze-mark";
 import { QuestionAnchorDraft, SelectionToolbar } from "./selection-toolbar";
@@ -37,17 +39,23 @@ interface NoteEditorProps {
   onChangeDoc: (doc: Record<string, unknown>) => void;
   onCreateQuestion: (draft: QuestionAnchorDraft) => void;
   mode?: "write" | "study";
+  currentOrigin?: NoteOrigin;
+  showOriginBars?: boolean;
   onClozeStatsChange?: (stats: { revealed: number; total: number }) => void;
 }
 
 export function NoteEditor({
   initialDoc,
   placeholder,
-  mode,
+  mode = "write",
+  currentOrigin = "memory",
+  showOriginBars = false,
   onChangeDoc,
   onCreateQuestion,
   onClozeStatsChange,
 }: NoteEditorProps) {
+  const originRef = React.useRef<NoteOrigin>(currentOrigin);
+  originRef.current = currentOrigin;
   const [slash, setSlash] = React.useState<SlashState>({
     open: false,
     query: "",
@@ -74,6 +82,7 @@ export function NoteEditor({
       Callout,
       Cloze,
       BlockId,
+      BlockOrigin.configure({ originRef }),
     ],
     content: initialDoc as JSONContent,
     editorProps: {
@@ -178,7 +187,7 @@ export function NoteEditor({
           [];
         onClozeStatsRef.current?.({ revealed: revealed.length, total: all.length });
       }}
-      className="relative"
+      className={showOriginBars ? "margem-origin-bars relative" : "relative"}
     >
       {mode === "write" ? (
         <SelectionToolbar editor={editor} onCreateQuestion={onCreateQuestion} />

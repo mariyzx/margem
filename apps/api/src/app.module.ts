@@ -13,6 +13,7 @@ import { SessionMiddleware } from "./auth/session.middleware";
 import { SentryModule } from "@sentry/nestjs/setup";
 import { QuestionsModule } from "./questions/questions.module";
 import { ReviewsModule } from "./reviews/reviews.module";
+import { SourcesModule } from "./sources/sources.module";
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { ReviewsModule } from "./reviews/reviews.module";
     SentryModule.forRoot(),
     QuestionsModule,
     ReviewsModule,
+    SourcesModule,
   ],
 })
 export class AppModule implements NestModule {

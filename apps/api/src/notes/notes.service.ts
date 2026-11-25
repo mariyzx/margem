@@ -37,6 +37,16 @@ export class NotesService {
     });
     this.policyService.assertOwner(userId, notebook?.deletedAt ? null : notebook?.ownerId);
 
+    if (input.sourceId) {
+      const source = await this.prisma.source.findUnique({
+        where: { id: input.sourceId },
+        select: { id: true, notebookId: true, deletedAt: true },
+      });
+      if (!source || source.deletedAt || source.notebookId !== input.notebookId) {
+        throw new NotFoundException("Resource not found");
+      }
+    }
+
     const note = await this.prisma.$transaction(async (tx) => {
       const created = await tx.note.create({
         data: {
@@ -44,6 +54,7 @@ export class NotesService {
           authorId: userId,
           title: input.title ?? "",
           doc: (input.doc as Prisma.InputJsonValue | undefined) ?? EMPTY_TIPTAP_DOC,
+          sourceId: input.sourceId ?? null,
         },
       });
       await tx.auditLog.create({
@@ -64,7 +75,7 @@ export class NotesService {
   async update(userId: string, noteId: string, input: UpdateNoteInput): Promise<NoteDto> {
     const existing = await this.prisma.note.findUnique({
       where: { id: noteId },
-      select: { id: true, authorId: true, deletedAt: true },
+      select: { id: true, authorId: true, deletedAt: true, materialOpenedAt: true },
     });
     this.policyService.assertOwner(userId, existing?.deletedAt ? null : existing?.authorId);
 
@@ -74,6 +85,9 @@ export class NotesService {
         data: {
           ...(input.title !== undefined ? { title: input.title } : {}),
           ...(input.doc !== undefined ? { doc: input.doc as Prisma.InputJsonValue } : {}),
+          ...(input.materialOpenedAt !== undefined && !existing?.materialOpenedAt
+            ? { materialOpenedAt: new Date(input.materialOpenedAt) }
+            : {}),
         },
       });
       await tx.auditLog.create({
