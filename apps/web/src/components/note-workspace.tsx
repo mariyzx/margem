@@ -143,6 +143,8 @@ export function NoteWorkspace({
     try {
       await enqueueStudyErrors(selectedNote.id, wrongQuestionIds);
       setErrorsSentNotice(true);
+    } catch {
+      setErrorsSentNotice(false);
     } finally {
       setSendingErrors(false);
     }

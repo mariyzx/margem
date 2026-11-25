@@ -74,10 +74,22 @@ export default function HomePage() {
       return;
     }
 
+    const requestedNoteId = new URLSearchParams(window.location.search).get("note");
+    if (requestedNoteId) {
+      const targetNotebook = list.find((nb) =>
+        (nb.notes ?? []).some((note) => note.id === requestedNoteId),
+      );
+      if (targetNotebook) {
+        setSelectedNotebookId(targetNotebook.id);
+        await loadNoteById(requestedNoteId);
+        return;
+      }
+    }
+
     const firstNotebook = list[0]!;
     setSelectedNotebookId(firstNotebook.id);
     await loadFirstNoteOfNotebook(firstNotebook);
-  }, [loadFirstNoteOfNotebook]);
+  }, [loadFirstNoteOfNotebook, loadNoteById]);
 
   React.useEffect(() => {
     let active = true;

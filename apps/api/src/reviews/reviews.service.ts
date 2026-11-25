@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import {
   createInitialSrsState,
   previewSrsIntervals,
@@ -92,9 +92,12 @@ export class ReviewsService {
     });
     const isActive = item && !item.deletedAt && !item.archivedAt;
     this.policyService.assertOwner(userId, isActive ? item.userId : null);
+    if (!item || !isActive) {
+      throw new NotFoundException("Resource not found");
+    }
 
     const now = new Date();
-    const currentState = this.toSrsState(item!);
+    const currentState = this.toSrsState(item);
     const { nextState, scheduledDays } = scheduleSrsReview(currentState, rating, now);
 
     await this.prisma.$transaction(async (tx) => {
@@ -184,6 +187,7 @@ export class ReviewsService {
 
         const baseState = existing ? this.toSrsState(existing) : createInitialSrsState(now);
         const { nextState } = scheduleSrsReview(baseState, "again", now);
+        const immediateDue = nextState.due > now ? now : nextState.due;
 
         await tx.reviewItem.upsert({
           where: {
@@ -197,7 +201,7 @@ export class ReviewsService {
             userId,
             kind: "question",
             refId: question.id,
-            due: nextState.due,
+            due: immediateDue,
             stability: nextState.stability,
             difficulty: nextState.difficulty,
             scheduledDays: nextState.scheduledDays,
@@ -210,7 +214,7 @@ export class ReviewsService {
           update: {
             archivedAt: null,
             deletedAt: null,
-            due: nextState.due,
+            due: immediateDue,
             stability: nextState.stability,
             difficulty: nextState.difficulty,
             scheduledDays: nextState.scheduledDays,
