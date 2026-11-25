@@ -1,28 +1,73 @@
 "use client";
 
-import type { AuthUser } from "@margem/shared";
-import { Button, Skeleton } from "@margem/ui";
+import type { AuthUser, NotebookColor, NotebookDto, NoteDto } from "@margem/shared";
+import { Skeleton, Toast, ToastClose, ToastTitle } from "@margem/ui";
+import { Menu } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
-import { fetchCurrentUser, logout, logoutAll } from "../lib/api";
+import { NotebookSidebar } from "../components/notebook-sidebar";
+import { NoteWorkspace } from "../components/note-workspace";
+import {
+  createNotebook,
+  createNote,
+  fetchCurrentUser,
+  fetchNote,
+  fetchNotebooks,
+  logout,
+  logoutAll,
+  updateNote,
+} from "../lib/api";
 import { messages } from "../messages/pt-br";
 
 export default function HomePage() {
   const router = useRouter();
   const [user, setUser] = React.useState<AuthUser | null>(null);
   const [checking, setChecking] = React.useState(true);
+  const [notebooks, setNotebooks] = React.useState<NotebookDto[]>([]);
+  const [selectedNotebookId, setSelectedNotebookId] = React.useState<string | null>(null);
+  const [selectedNote, setSelectedNote] = React.useState<NoteDto | null>(null);
+  const [loadingNote, setLoadingNote] = React.useState(false);
+  const [creatingNotebook, setCreatingNotebook] = React.useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const [errorToast, setErrorToast] = React.useState<string | null>(null);
+
+  const loadWorkspace = React.useCallback(async () => {
+    const list = await fetchNotebooks();
+    setNotebooks(list);
+    if (list.length === 0) {
+      setSelectedNotebookId(null);
+      setSelectedNote(null);
+      return;
+    }
+
+    const firstNotebook = list[0]!;
+    setSelectedNotebookId(firstNotebook.id);
+    const firstNoteSummary = firstNotebook.notes?.[0];
+    if (firstNoteSummary) {
+      setLoadingNote(true);
+      try {
+        const note = await fetchNote(firstNoteSummary.id);
+        setSelectedNote(note);
+      } finally {
+        setLoadingNote(false);
+      }
+    } else {
+      setSelectedNote(null);
+    }
+  }, []);
 
   React.useEffect(() => {
     let active = true;
     fetchCurrentUser()
-      .then((current) => {
+      .then(async (current) => {
         if (!active) return;
         if (!current) {
           router.replace("/entrar");
           return;
         }
         setUser(current);
-        setChecking(false);
+        await loadWorkspace();
+        if (active) setChecking(false);
       })
       .catch(() => {
         if (active) router.replace("/entrar");
@@ -30,7 +75,106 @@ export default function HomePage() {
     return () => {
       active = false;
     };
-  }, [router]);
+  }, [router, loadWorkspace]);
+
+  async function handleSelectNotebook(notebookId: string) {
+    setCreatingNotebook(false);
+    setMobileMenuOpen(false);
+    setSelectedNotebookId(notebookId);
+
+    const nb = notebooks.find((item) => item.id === notebookId);
+    const firstNote = nb?.notes?.[0];
+    if (!firstNote) {
+      setSelectedNote(null);
+      return;
+    }
+
+    setLoadingNote(true);
+    try {
+      const note = await fetchNote(firstNote.id);
+      setSelectedNote(note);
+    } catch {
+      setErrorToast(messages.notes.saveError);
+    } finally {
+      setLoadingNote(false);
+    }
+  }
+
+  async function handleSelectNote(notebookId: string, noteId: string) {
+    setCreatingNotebook(false);
+    setMobileMenuOpen(false);
+    setSelectedNotebookId(notebookId);
+    setLoadingNote(true);
+    try {
+      const note = await fetchNote(noteId);
+      setSelectedNote(note);
+    } catch {
+      setErrorToast(messages.notes.saveError);
+    } finally {
+      setLoadingNote(false);
+    }
+  }
+
+  async function handleCreateNotebook(values: { name: string; color: NotebookColor }) {
+    const created = await createNotebook(values);
+    setNotebooks((prev) => [created, ...prev]);
+    setSelectedNotebookId(created.id);
+    setSelectedNote(null);
+    setCreatingNotebook(false);
+  }
+
+  async function handleCreateNote(notebookId: string) {
+    setCreatingNotebook(false);
+    setMobileMenuOpen(false);
+    const created = await createNote({ notebookId });
+    setSelectedNotebookId(notebookId);
+    setSelectedNote(created);
+    setNotebooks((prev) =>
+      prev.map((nb) =>
+        nb.id === notebookId
+          ? {
+              ...nb,
+              notes: [
+                {
+                  id: created.id,
+                  notebookId: created.notebookId,
+                  title: created.title,
+                  createdAt: created.createdAt,
+                  updatedAt: created.updatedAt,
+                },
+                ...(nb.notes ?? []),
+              ],
+            }
+          : nb,
+      ),
+    );
+  }
+
+  async function handleSaveNote(
+    noteId: string,
+    values: { title: string; doc: Record<string, unknown> },
+  ) {
+    try {
+      const updated = await updateNote(noteId, values);
+      setSelectedNote(updated);
+      setNotebooks((prev) =>
+        prev.map((nb) =>
+          nb.id === updated.notebookId
+            ? {
+                ...nb,
+                notes: (nb.notes ?? []).map((n) =>
+                  n.id === updated.id
+                    ? { ...n, title: updated.title, updatedAt: updated.updatedAt }
+                    : n,
+                ),
+              }
+            : nb,
+        ),
+      );
+    } catch {
+      setErrorToast(messages.notes.saveError);
+    }
+  }
 
   async function handleLogout() {
     await logout();
@@ -51,20 +195,67 @@ export default function HomePage() {
     );
   }
 
+  const selectedNotebook = notebooks.find((nb) => nb.id === selectedNotebookId) ?? null;
+
   return (
-    <main className="mx-auto flex min-h-screen max-w-2xl flex-col items-start justify-center gap-4 px-6">
-      <h1 className="font-serif text-3xl font-semibold text-ink">{messages.appName}</h1>
-      <p className="text-sm text-ink-muted">
-        {messages.auth.signedInAs} <span className="font-medium text-ink">{user.email}</span>
-      </p>
-      <div className="flex flex-wrap gap-3">
-        <Button type="button" variant="secondary" onClick={handleLogout}>
-          {messages.auth.logout}
-        </Button>
-        <Button type="button" variant="ghost" onClick={handleLogoutAll}>
-          {messages.auth.logoutAll}
-        </Button>
+    <div className="flex min-h-screen bg-ground">
+      <NotebookSidebar
+        user={user}
+        notebooks={notebooks}
+        selectedNotebookId={selectedNotebookId}
+        selectedNoteId={selectedNote?.id ?? null}
+        onSelectNotebook={(id) => void handleSelectNotebook(id)}
+        onSelectNote={(nbId, noteId) => void handleSelectNote(nbId, noteId)}
+        onStartNewNotebook={() => {
+          setCreatingNotebook(true);
+          setMobileMenuOpen(false);
+        }}
+        onCreateNote={(nbId) => void handleCreateNote(nbId)}
+        onLogout={() => void handleLogout()}
+        onLogoutAll={() => void handleLogoutAll()}
+        mobileOpen={mobileMenuOpen}
+        onCloseMobile={() => setMobileMenuOpen(false)}
+      />
+
+      <div className="flex flex-1 flex-col">
+        <header className="flex items-center justify-between border-b border-margin-rule bg-paper px-4 py-3 md:hidden">
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(true)}
+            aria-label={messages.notebooks.openMenu}
+            className="rounded-md p-1.5 text-ink hover:bg-margin"
+          >
+            <Menu className="h-5 w-5" strokeWidth={1.5} />
+          </button>
+          <span className="font-serif text-lg font-semibold text-ink">{messages.appName}</span>
+          <span className="w-8" aria-hidden="true" />
+        </header>
+
+        <main className="flex-1 px-6 py-8">
+          <NoteWorkspace
+            notebooks={notebooks}
+            selectedNotebook={selectedNotebook}
+            selectedNote={selectedNote}
+            loadingNote={loadingNote}
+            creatingNotebook={creatingNotebook}
+            onCancelCreateNotebook={() => setCreatingNotebook(false)}
+            onCreateNotebook={handleCreateNotebook}
+            onCreateNote={handleCreateNote}
+            onSaveNote={handleSaveNote}
+          />
+        </main>
       </div>
-    </main>
+
+      <Toast
+        open={Boolean(errorToast)}
+        onOpenChange={(open) => {
+          if (!open) setErrorToast(null);
+        }}
+        variant="danger"
+      >
+        <ToastTitle>{errorToast}</ToastTitle>
+        <ToastClose />
+      </Toast>
+    </div>
   );
 }

@@ -144,6 +144,9 @@ importers:
       '@sentry/nextjs':
         specifier: ^11.13.0
         version: 11.13.0(next@15.5.29(@opentelemetry/api@1.10.0)(@playwright/test@1.65.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+      lucide-react:
+        specifier: ^1.74.0
+        version: 1.74.0(@types/react@19.3.0)(react@19.3.1)
       motion:
         specifier: ^14.14.0
         version: 14.14.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)

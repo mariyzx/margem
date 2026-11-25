@@ -17,6 +17,48 @@ model User {
 
   sessions  Session[]
   auditLogs AuditLog[]
+  notebooks Notebook[]
+  notes     Note[]
+}
+
+enum NotebookColor {
+  bic
+  correct
+  turma
+  marker
+  ink
+}
+
+model Notebook {
+  id        String        @id @default(cuid())
+  ownerId   String
+  name      String
+  color     NotebookColor @default(bic)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  owner User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  notes Note[]
+
+  @@index([ownerId, updatedAt])
+}
+
+model Note {
+  id               String    @id @default(cuid())
+  notebookId       String
+  authorId         String
+  title            String    @default("")
+  doc              Json
+  materialOpenedAt DateTime?
+  sourceId         String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  notebook Notebook @relation(fields: [notebookId], references: [id], onDelete: Cascade)
+  author   User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([notebookId, updatedAt])
+  @@index([authorId, updatedAt])
 }
 
 model Session {

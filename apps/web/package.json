@@ -23,6 +23,7 @@
     "@margem/shared": "workspace:*",
     "@margem/ui": "workspace:*",
     "@sentry/nextjs": "^11.13.0",
+    "lucide-react": "^1.74.0",
     "motion": "^14.14.0",
     "next": "^15.5.29",
     "react": "^19.3.1",
