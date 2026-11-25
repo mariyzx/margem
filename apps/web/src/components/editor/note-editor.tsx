@@ -136,7 +136,9 @@ export function NoteEditor({
 
   React.useEffect(() => {
     if (!editor) return;
-    editor.setEditable(mode === "write");
+    // emitUpdate=false: o padrão do Tiptap dispara "update" e agendaria um autosave
+    // fantasma só por abrir a nota.
+    editor.setEditable(mode === "write", false);
 
     const all = containerRef.current?.querySelectorAll('mark[data-cloze="true"]') ?? [];
     all.forEach((el) => el.removeAttribute("data-revealed"));

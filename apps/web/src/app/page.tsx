@@ -12,6 +12,7 @@ import { NoteWorkspace } from "../components/note-workspace";
 import {
   createNotebook,
   createNote,
+  deleteNote,
   fetchCurrentUser,
   fetchNote,
   fetchNotebooks,
@@ -33,6 +34,7 @@ export default function HomePage() {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [errorToast, setErrorToast] = React.useState<string | null>(null);
   const noteRequestIdRef = React.useRef(0);
+  const deletedNoteIdsRef = React.useRef<Set<string>>(new Set());
 
   const loadNoteById = React.useCallback(async (noteId: string) => {
     const requestId = ++noteRequestIdRef.current;
@@ -185,6 +187,8 @@ export default function HomePage() {
       materialOpenedAt?: string;
     },
   ) {
+    // Autosave pendente de uma nota recém-excluída não deve virar toast de erro.
+    if (deletedNoteIdsRef.current.has(noteId)) return;
     try {
       const updated = await updateNote(noteId, values);
       setSelectedNote((prev) => (prev?.id === updated.id ? updated : prev));
@@ -204,6 +208,34 @@ export default function HomePage() {
       );
     } catch {
       setErrorToast(messages.notes.saveError);
+    }
+  }
+
+  async function handleDeleteNote(notebookId: string, noteId: string) {
+    try {
+      await deleteNote(noteId);
+    } catch {
+      setErrorToast(messages.notebooks.deleteNoteError);
+      return;
+    }
+    deletedNoteIdsRef.current.add(noteId);
+
+    const notebook = notebooks.find((nb) => nb.id === notebookId);
+    const remaining = (notebook?.notes ?? []).filter((n) => n.id !== noteId);
+    setNotebooks((prev) =>
+      prev.map((nb) => (nb.id === notebookId ? { ...nb, notes: remaining } : nb)),
+    );
+
+    if (selectedNote?.id === noteId) {
+      const index = (notebook?.notes ?? []).findIndex((n) => n.id === noteId);
+      const next = remaining[Math.min(index, remaining.length - 1)];
+      if (next) {
+        await loadNoteById(next.id);
+      } else {
+        noteRequestIdRef.current++;
+        setSelectedNote(null);
+        setLoadingNote(false);
+      }
     }
   }
 
@@ -242,6 +274,7 @@ export default function HomePage() {
           setMobileMenuOpen(false);
         }}
         onCreateNote={(nbId) => void handleCreateNote(nbId)}
+        onDeleteNote={handleDeleteNote}
         onLogout={() => void handleLogout()}
         onLogoutAll={() => void handleLogoutAll()}
         mobileOpen={mobileMenuOpen}
