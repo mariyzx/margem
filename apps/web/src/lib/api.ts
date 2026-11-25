@@ -1,7 +1,10 @@
 import {
   authUserSchema,
+  CreateQuestionInput,
   notebookSchema,
   noteSchema,
+  QuestionDto,
+  questionSchema,
   type AuthUser,
   type CreateNotebookInput,
   type CreateNoteInput,
@@ -151,5 +154,38 @@ export async function deleteNote(id: string): Promise<void> {
   });
   if (!res.ok) {
     throw new Error(`Delete note failed with status ${res.status}`);
+  }
+}
+
+export async function fetchQuestions(noteId: string): Promise<QuestionDto[]> {
+  const res = await apiFetch(`/notes/${encodeURIComponent(noteId)}/questions`, { method: "GET" });
+  if (!res.ok) {
+    throw new Error(`Fetch questions failed with status ${res.status}`);
+  }
+  const data = (await res.json()) as { questions: unknown[] };
+  return data.questions.map((item) => questionSchema.parse(item));
+}
+
+export async function createQuestion(
+  noteId: string,
+  input: CreateQuestionInput,
+): Promise<QuestionDto> {
+  const res = await apiFetch(`/notes/${encodeURIComponent(noteId)}/questions`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error(`Create question failed with status ${res.status}`);
+  }
+  const data = (await res.json()) as { question: unknown };
+  return questionSchema.parse(data.question);
+}
+
+export async function deleteQuestion(questionId: string): Promise<void> {
+  const res = await apiFetch(`/questions/${encodeURIComponent(questionId)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    throw new Error(`Delete question failed with status ${res.status}`);
   }
 }

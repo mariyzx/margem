@@ -12,7 +12,7 @@ import { messages } from "../../messages/pt-br";
 import { BlockId } from "./block-id";
 import { Callout } from "./callout-node";
 import { Cloze } from "./cloze-mark";
-import { SelectionToolbar } from "./selection-toolbar";
+import { QuestionAnchorDraft, SelectionToolbar } from "./selection-toolbar";
 import { SlashMenu } from "./slash-menu";
 
 const lowlight = createLowlight(common);
@@ -35,7 +35,7 @@ interface NoteEditorProps {
   initialDoc: Record<string, unknown>;
   placeholder: string;
   onChangeDoc: (doc: Record<string, unknown>) => void;
-  onCreateQuestion: (quote: string, blockId: string | null) => void;
+  onCreateQuestion: (draft: QuestionAnchorDraft) => void;
 }
 
 export function NoteEditor({

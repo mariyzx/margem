@@ -20,6 +20,7 @@ model User {
   auditLogs AuditLog[]
   notebooks Notebook[]
   notes     Note[]
+  questions Question[]
 }
 
 enum NotebookColor {
@@ -57,8 +58,11 @@ model Note {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  notebook Notebook @relation(fields: [notebookId], references: [id], onDelete: Cascade)
-  author   User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  notebook  Notebook @relation(fields: [notebookId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  anchors   Anchor[]
+  clozes    Cloze[]
+  questions Question[]
 
   @@index([notebookId, deletedAt, updatedAt])
   @@index([authorId, deletedAt, updatedAt])
@@ -100,4 +104,75 @@ model AuditLog {
 
   @@index([userId, createdAt])
   @@index([action, createdAt])
+}
+
+enum AnchorStatus {
+  active
+  orphaned
+}
+
+enum QuestionAuthorType {
+  self
+  group
+  ai
+}
+
+enum QuestionStatus {
+  pending
+  approved
+  discarded
+}
+
+model Anchor {
+  id        String       @id @default(cuid())
+  noteId    String?
+  blockId   String
+  quote     String
+  prefix    String       @default("")
+  suffix    String       @default("")
+  status    AnchorStatus @default(active)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  deletedAt DateTime?    @map("deleted_date")
+
+  note      Note?      @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  clozes    Cloze[]
+  questions Question[]
+
+  @@index([noteId, deletedAt])
+}
+
+model Cloze {
+  id        String    @id @default(cuid())
+  noteId    String
+  anchorId  String
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime? @map("deleted_date")
+
+  note   Note   @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  anchor Anchor @relation(fields: [anchorId], references: [id], onDelete: Cascade)
+
+  @@index([noteId, deletedAt])
+}
+
+model Question {
+  id         String             @id @default(cuid())
+  noteId     String
+  anchorId   String?
+  authorType QuestionAuthorType @default(self)
+  authorId   String?
+  text       String
+  answer     String
+  status     QuestionStatus     @default(approved)
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  deletedAt  DateTime?          @map("deleted_date")
+
+  note   Note    @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  anchor Anchor? @relation(fields: [anchorId], references: [id], onDelete: SetNull)
+  author User?   @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([noteId, deletedAt, createdAt])
 }

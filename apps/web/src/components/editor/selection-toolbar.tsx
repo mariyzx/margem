@@ -8,7 +8,14 @@ import { messages } from "../../messages/pt-br";
 
 interface SelectionToolbarProps {
   editor: Editor;
-  onCreateQuestion: (quote: string, blockId: string | null) => void;
+  onCreateQuestion: (draft: QuestionAnchorDraft) => void;
+}
+
+export interface QuestionAnchorDraft {
+  blockId: string;
+  quote: string;
+  prefix: string;
+  suffix: string;
 }
 
 export function SelectionToolbar({ editor, onCreateQuestion }: SelectionToolbarProps) {
@@ -20,8 +27,17 @@ export function SelectionToolbar({ editor, onCreateQuestion }: SelectionToolbarP
     if (!quote) return;
 
     const blockId =
-      typeof $from.parent.attrs.blockId === "string" ? $from.parent.attrs.blockId : null;
-    onCreateQuestion(quote, blockId);
+      typeof $from.parent.attrs.blockId === "string" ? $from.parent.attrs.blockId : "";
+    if (!blockId) return;
+
+    const blockStart = $from.start();
+    const blockEnd = $from.end();
+    const prefix = editor.state.doc
+      .textBetween(Math.max(blockStart, from - 40), from, " ")
+      .slice(-40);
+    const suffix = editor.state.doc.textBetween(to, Math.min(blockEnd, to + 40), " ").slice(0, 40);
+
+    onCreateQuestion({ blockId, quote, prefix, suffix });
   }
 
   return (
