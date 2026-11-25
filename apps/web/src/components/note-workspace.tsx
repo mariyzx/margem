@@ -230,7 +230,7 @@ export function NoteWorkspace({
     );
   }
 
-  if (loadingNote) {
+  if (loadingNote && !selectedNote) {
     return (
       <div className="mx-auto flex w-full max-w-[680px] flex-col gap-4 py-12">
         <Skeleton className="h-9 w-2/3" />

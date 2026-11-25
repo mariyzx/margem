@@ -1,8 +1,10 @@
 "use client";
 
+import { MOTION_DURATIONS, MOTION_EASINGS } from "@margem/config/motion";
 import type { AuthUser, NotebookColor, NotebookDto, NoteDto } from "@margem/shared";
 import { Skeleton, Toast, ToastClose, ToastTitle } from "@margem/ui";
 import { Menu } from "lucide-react";
+import { AnimatePresence, m } from "motion/react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { NotebookSidebar } from "../components/notebook-sidebar";
@@ -261,18 +263,34 @@ export default function HomePage() {
         </header>
 
         <main className="flex-1 px-6 py-8">
-          <NoteWorkspace
-            key={selectedNote?.id ?? selectedNotebookId ?? "empty"}
-            notebooks={notebooks}
-            selectedNotebook={selectedNotebook}
-            selectedNote={selectedNote}
-            loadingNote={loadingNote}
-            creatingNotebook={creatingNotebook}
-            onCancelCreateNotebook={() => setCreatingNotebook(false)}
-            onCreateNotebook={handleCreateNotebook}
-            onCreateNote={handleCreateNote}
-            onSaveNote={handleSaveNote}
-          />
+          <AnimatePresence mode="wait" initial={false}>
+            <m.div
+              key={
+                selectedNote?.id ??
+                (creatingNotebook ? "new-notebook" : (selectedNotebookId ?? "empty"))
+              }
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{
+                duration: MOTION_DURATIONS.fast,
+                ease: [...MOTION_EASINGS.out],
+              }}
+            >
+              <NoteWorkspace
+                key={selectedNote?.id ?? selectedNotebookId ?? "empty"}
+                notebooks={notebooks}
+                selectedNotebook={selectedNotebook}
+                selectedNote={selectedNote}
+                loadingNote={loadingNote}
+                creatingNotebook={creatingNotebook}
+                onCancelCreateNotebook={() => setCreatingNotebook(false)}
+                onCreateNotebook={handleCreateNotebook}
+                onCreateNote={handleCreateNote}
+                onSaveNote={handleSaveNote}
+              />
+            </m.div>
+          </AnimatePresence>
         </main>
       </div>
 
