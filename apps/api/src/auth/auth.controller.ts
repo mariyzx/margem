@@ -5,16 +5,19 @@ import {
   Get,
   HttpCode,
   Post,
+  Query,
   Req,
   Res,
 } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
-import type { Response } from "express";
+import type { Request, Response } from "express";
 import { magicLinkRequestSchema, magicLinkVerifySchema } from "@margem/shared";
 import { loadEnv } from "../config/env";
 import { RequirePolicy } from "../policies/require-policy.decorator";
 import { AuthService } from "./auth.service";
 import { type AuthenticatedRequest, SESSION_COOKIE_NAME } from "./session.middleware";
+
+const OAUTH_STATE_COOKIE_NAME = "margem_oauth_state";
 
 @Controller("auth")
 export class AuthController {
@@ -80,5 +83,59 @@ export class AuthController {
     }
     res.clearCookie(SESSION_COOKIE_NAME, { path: "/" });
     return { ok: true };
+  }
+
+  @Get("google")
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  async googleLogin(@Res() res: Response) {
+    const env = loadEnv();
+    try {
+      const { url, state } = await this.authService.startGoogleOAuth();
+      res.cookie(OAUTH_STATE_COOKIE_NAME, state, {
+        httpOnly: true,
+        secure: env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 10 * 60 * 1000,
+      });
+      res.redirect(url);
+    } catch {
+      res.redirect(`${env.APP_URL}/entrar?error=google`);
+    }
+  }
+
+  @Get("google/callback")
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  async googleCallback(
+    @Query("code") code: string | undefined,
+    @Query("state") state: string | undefined,
+    @Query("error") error: string | undefined,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    const env = loadEnv();
+    const cookieState = (req.cookies as Record<string, string | undefined> | undefined)?.[
+      OAUTH_STATE_COOKIE_NAME
+    ];
+    res.clearCookie(OAUTH_STATE_COOKIE_NAME, { path: "/" });
+
+    if (error || !code || !state || !cookieState || state !== cookieState) {
+      res.redirect(`${env.APP_URL}/entrar?error=google`);
+      return;
+    }
+
+    try {
+      const result = await this.authService.completeGoogleOAuth({ code, state });
+      res.cookie(SESSION_COOKIE_NAME, result.sessionToken, {
+        httpOnly: true,
+        secure: env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        expires: result.expiresAt,
+      });
+      res.redirect(`${env.APP_URL}/`);
+    } catch {
+      res.redirect(`${env.APP_URL}/entrar?error=google`);
+    }
   }
 }

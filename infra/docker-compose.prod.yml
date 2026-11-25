@@ -53,6 +53,9 @@ services:
       SENTRY_DSN: ${SENTRY_DSN:-}
       APP_VERSION: ${APP_VERSION:-0.0.0}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
     depends_on:
       postgres:
         condition: service_healthy

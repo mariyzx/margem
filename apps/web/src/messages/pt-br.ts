@@ -18,6 +18,9 @@ export const messages = {
     signedInAs: "Conectado como",
     logout: "Sair",
     logoutAll: "Sair de todos os aparelhos",
+    continueWithGoogle: "Continuar com Google",
+    orWithEmail: "ou entre com seu e-mail",
+    googleError: "Não foi possível entrar com o Google. Tente novamente.",
   },
   notebooks: {
     sectionTitle: "Cadernos",
