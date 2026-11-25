@@ -22,7 +22,7 @@
   "dependencies": {
     "@margem/shared": "workspace:*",
     "@margem/ui": "workspace:*",
-    "@sentry/nextjs": "^11.13.0",
+    "@sentry/nextjs": "^11.14.0",
     "@tiptap/core": "^3.34.0",
     "@tiptap/extension-code-block-lowlight": "^3.34.0",
     "@tiptap/extension-color": "^3.34.0",
