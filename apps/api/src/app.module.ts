@@ -11,6 +11,7 @@ import { NotesModule } from "./notes/notes.module";
 import { type MiddlewareConsumer, Module, type NestModule } from "@nestjs/common";
 import { SessionMiddleware } from "./auth/session.middleware";
 import { SentryModule } from "@sentry/nestjs/setup";
+import { QuestionsModule } from "./questions/questions.module";
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { SentryModule } from "@sentry/nestjs/setup";
     NotebooksModule,
     NotesModule,
     SentryModule.forRoot(),
+    QuestionsModule,
   ],
 })
 export class AppModule implements NestModule {

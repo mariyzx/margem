@@ -1,11 +1,14 @@
 "use client";
 
-import type { NotebookColor, NotebookDto, NoteDto } from "@margem/shared";
+import type { NotebookColor, NotebookDto, NoteDto, QuestionDto } from "@margem/shared";
 import { Button, Skeleton } from "@margem/ui";
 import * as React from "react";
 import { messages } from "../messages/pt-br";
 import { NotebookForm } from "./notebook-form";
 import { NoteEditor } from "./editor/note-editor";
+import { createQuestion, deleteQuestion, fetchQuestions } from "../lib/api";
+import { NoteMargin } from "./editor/note-margin";
+import { QuestionAnchorDraft } from "./editor/selection-toolbar";
 
 interface NoteWorkspaceProps {
   notebooks: NotebookDto[];
@@ -33,8 +36,14 @@ export function NoteWorkspace({
   onCreateNote,
   onSaveNote,
 }: NoteWorkspaceProps) {
+  const selectedNoteId = selectedNote?.id;
+
   const [title, setTitle] = React.useState(selectedNote?.title ?? "");
   const [saving, setSaving] = React.useState(false);
+  const [questions, setQuestions] = React.useState<QuestionDto[]>([]);
+  const [questionDraft, setQuestionDraft] = React.useState<QuestionAnchorDraft | null>(null);
+  const [questionHint, setQuestionHint] = React.useState<string | null>(null);
+
   const docRef = React.useRef<Record<string, unknown>>(selectedNote?.doc ?? {});
   const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRef = React.useRef<{
@@ -44,7 +53,6 @@ export function NoteWorkspace({
   } | null>(null);
   const onSaveRef = React.useRef(onSaveNote);
   onSaveRef.current = onSaveNote;
-  const [questionHint, setQuestionHint] = React.useState<string | null>(null);
 
   const flushPending = React.useCallback(async () => {
     if (timerRef.current) {
@@ -62,13 +70,25 @@ export function NoteWorkspace({
     }
   }, []);
 
-  const selectedNoteId = selectedNote?.id;
   React.useEffect(() => {
     docRef.current = selectedNote?.doc ?? {};
     return () => {
       void flushPending();
     };
   }, [selectedNoteId, flushPending]);
+
+  React.useEffect(() => {
+    if (!selectedNoteId) return;
+    let active = true;
+
+    fetchQuestions(selectedNoteId).then((result) => {
+      if (active) setQuestions(result);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [selectedNoteId]);
 
   function scheduleSave(nextTitle: string, nextDoc: Record<string, unknown>) {
     if (!selectedNote) return;
@@ -81,6 +101,14 @@ export function NoteWorkspace({
     if (!selectedNote || nextTitle === selectedNote.title) return;
     pendingRef.current = { noteId: selectedNote.id, title: nextTitle, doc: docRef.current };
     void flushPending();
+  }
+
+  function handleHighlightBlock(blockId: string) {
+    const el = document.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`);
+    if (!(el instanceof HTMLElement)) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("ring-2", "ring-bic/40", "rounded-sm");
+    setTimeout(() => el.classList.remove("ring-2", "ring-bic/40", "rounded-sm"), 1200);
   }
 
   if (creatingNotebook || notebooks.length === 0) {
@@ -132,40 +160,55 @@ export function NoteWorkspace({
   }
 
   return (
-    <article className="mx-auto flex w-full max-w-[680px] flex-col rounded-lg border border-margin-rule bg-paper px-8 py-10 shadow-sm">
-      <div className="mb-2 flex items-center justify-between text-xs text-ink-muted">
-        <span>{selectedNotebook?.name}</span>
-        <span>{saving ? messages.notes.saving : messages.notes.saved}</span>
-      </div>
-
-      <input
-        type="text"
-        aria-label={messages.notes.titlePlaceholder}
-        placeholder={messages.notes.titlePlaceholder}
-        value={title}
-        onChange={(e) => {
-          setTitle(e.target.value);
-          scheduleSave(e.target.value, docRef.current);
+    <div className="mx-auto grid w-full max-w-[1040px] grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,680px)_320px]">
+      <article className="flex flex-col rounded-lg border border-margin-rule bg-paper px-8 py-10 shadow-sm">
+        {" "}
+        <div className="mb-2 flex items-center justify-between text-xs text-ink-muted">
+          <span>{selectedNotebook?.name}</span>
+          <span>{saving ? messages.notes.saving : messages.notes.saved}</span>
+        </div>
+        <input
+          type="text"
+          aria-label={messages.notes.titlePlaceholder}
+          placeholder={messages.notes.titlePlaceholder}
+          value={title}
+          onChange={(e) => {
+            setTitle(e.target.value);
+            scheduleSave(e.target.value, docRef.current);
+          }}
+          onBlur={() => flushTitle(title)}
+          className="mb-4 w-full bg-transparent font-serif text-3xl font-semibold text-ink placeholder:text-ink-muted/50 focus:outline-none"
+        />
+        <NoteEditor
+          initialDoc={selectedNote.doc}
+          placeholder={messages.notes.bodyPlaceholder}
+          onChangeDoc={(nextDoc) => {
+            docRef.current = nextDoc;
+            scheduleSave(title, nextDoc);
+          }}
+          onCreateQuestion={(quote) => {
+            setQuestionHint(
+              `Trecho selecionado para pergunta: "${quote}" (margem entra na próxima etapa)`,
+            );
+          }}
+        />
+        {questionHint ? <p className="mt-4 text-xs text-ink-muted">{questionHint}</p> : null}
+      </article>
+      <NoteMargin
+        questions={questions}
+        draft={questionDraft}
+        onCancelDraft={() => setQuestionDraft(null)}
+        onCreateQuestion={async (input) => {
+          const created = await createQuestion(selectedNote.id, input);
+          setQuestions((prev) => [...prev, created]);
+          setQuestionDraft(null);
         }}
-        onBlur={() => flushTitle(title)}
-        className="mb-4 w-full bg-transparent font-serif text-3xl font-semibold text-ink placeholder:text-ink-muted/50 focus:outline-none"
+        onDeleteQuestion={async (id) => {
+          await deleteQuestion(id);
+          setQuestions((prev) => prev.filter((q) => q.id !== id));
+        }}
+        onHighlightBlock={handleHighlightBlock}
       />
-
-      <NoteEditor
-        initialDoc={selectedNote.doc}
-        placeholder={messages.notes.bodyPlaceholder}
-        onChangeDoc={(nextDoc) => {
-          docRef.current = nextDoc;
-          scheduleSave(title, nextDoc);
-        }}
-        onCreateQuestion={(quote) => {
-          setQuestionHint(
-            `Trecho selecionado para pergunta: "${quote}" (margem entra na próxima etapa)`,
-          );
-        }}
-      />
-
-      {questionHint ? <p className="mt-4 text-xs text-ink-muted">{questionHint}</p> : null}
-    </article>
+    </div>
   );
 }

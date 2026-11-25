@@ -1,0 +1,60 @@
+// apps/api/src/questions/questions.controller.ts
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Req,
+} from "@nestjs/common";
+import { createQuestionSchema, updateQuestionSchema } from "@margem/shared";
+import type { AuthenticatedRequest } from "../auth/session.middleware";
+import { RequirePolicy } from "../policies/require-policy.decorator";
+import { QuestionsService } from "./questions.service";
+
+@Controller()
+export class QuestionsController {
+  constructor(private readonly questionsService: QuestionsService) {}
+
+  @Get("notes/:noteId/questions")
+  @RequirePolicy("read", "note")
+  async listForNote(@Req() req: AuthenticatedRequest, @Param("noteId") noteId: string) {
+    const questions = await this.questionsService.listForNote(req.user!.id, noteId);
+    return { questions };
+  }
+
+  @Post("notes/:noteId/questions")
+  @RequirePolicy("create", "note")
+  async create(
+    @Req() req: AuthenticatedRequest,
+    @Param("noteId") noteId: string,
+    @Body() body: unknown,
+  ) {
+    const parsed = createQuestionSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException(parsed.error.flatten());
+    }
+    const question = await this.questionsService.create(req.user!.id, noteId, parsed.data);
+    return { question };
+  }
+
+  @Patch("questions/:id")
+  @RequirePolicy("update", "note")
+  async update(@Req() req: AuthenticatedRequest, @Param("id") id: string, @Body() body: unknown) {
+    const parsed = updateQuestionSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException(parsed.error.flatten());
+    }
+    const question = await this.questionsService.update(req.user!.id, id, parsed.data);
+    return { question };
+  }
+
+  @Delete("questions/:id")
+  @RequirePolicy("delete", "note")
+  remove(@Req() req: AuthenticatedRequest, @Param("id") id: string) {
+    return this.questionsService.remove(req.user!.id, id);
+  }
+}
