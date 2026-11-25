@@ -14,6 +14,16 @@ describe("@margem/ui", () => {
     expect(button).toHaveAttribute("aria-busy", "true");
   });
 
+  it("renders Button with asChild without Slot multiple-children error", () => {
+    render(
+      <Button asChild>
+        <a href="/entrar">Pedir novo link</a>
+      </Button>,
+    );
+    const link = screen.getByRole("link", { name: "Pedir novo link" });
+    expect(link).toHaveAttribute("href", "/entrar");
+  });
+
   it("associates Field label with input and exposes error via aria-invalid", () => {
     render(<Field label="E-mail" error="Informe um e-mail válido" />);
     const input = screen.getByLabelText("E-mail");
