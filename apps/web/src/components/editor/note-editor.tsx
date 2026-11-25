@@ -99,8 +99,10 @@ export function NoteEditor({
           "[&_p.is-editor-empty:first-child::before]:pointer-events-none [&_p.is-editor-empty:first-child::before]:float-left [&_p.is-editor-empty:first-child::before]:h-0 [&_p.is-editor-empty:first-child::before]:text-ink-muted/50 [&_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]",
       },
     },
-    onUpdate: ({ editor: current }) => {
-      onChangeDocRef.current(current.getJSON() as Record<string, unknown>);
+    onUpdate: ({ editor: current, transaction }) => {
+      if (!transaction.getMeta("margem:init")) {
+        onChangeDocRef.current(current.getJSON() as Record<string, unknown>);
+      }
 
       const { $from, empty } = current.state.selection;
       if (!empty || current.isActive("codeBlock")) {

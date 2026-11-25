@@ -51,7 +51,7 @@ export const BlockId = Extension.create({
   onCreate() {
     const tr = this.editor.state.tr;
     if (assignMissingBlockIds(this.editor.state.doc, tr)) {
-      this.editor.view.dispatch(tr.setMeta("addToHistory", false));
+      this.editor.view.dispatch(tr.setMeta("addToHistory", false).setMeta("margem:init", true));
     }
   },
 

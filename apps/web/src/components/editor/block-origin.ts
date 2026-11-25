@@ -66,7 +66,7 @@ export const BlockOrigin = Extension.create<BlockOriginOptions>({
   onCreate() {
     const tr = this.editor.state.tr;
     if (assignMissingOrigins(this.editor.state.doc, tr, "memory")) {
-      this.editor.view.dispatch(tr.setMeta("addToHistory", false));
+      this.editor.view.dispatch(tr.setMeta("addToHistory", false).setMeta("margem:init", true));
     }
   },
 
