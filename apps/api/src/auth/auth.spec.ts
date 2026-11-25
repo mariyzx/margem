@@ -1,8 +1,8 @@
-import { type MiddlewareConsumer, Module, type NestModule } from "@nestjs/common";
+import { Logger, type MiddlewareConsumer, Module, type NestModule } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import cookieParser from "cookie-parser";
 import request from "supertest";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { REDIS_CLIENT } from "../health/redis.health";
 import { PoliciesModule } from "../policies/policies.module";
 import { PrismaService } from "../prisma/prisma.service";
@@ -10,6 +10,7 @@ import { AuthController } from "./auth.controller";
 import { AuthService, hashToken } from "./auth.service";
 import { MailerService } from "./mailer.service";
 import { SessionMiddleware } from "./session.middleware";
+import { FakeRedis } from "../testing/fake-redis";
 
 describe("Magic link authentication", () => {
   const users = new Map<
@@ -25,29 +26,33 @@ describe("Magic link authentication", () => {
     { id: string; userId: string; tokenHash: string; expiresAt: Date; revokedAt: Date | null }
   >();
   const auditLogs: Array<{ userId?: string; action: string }> = [];
-  const redisCounters = new Map<string, number>();
   const sentEmails: Array<{ email: string; url: string }> = [];
   const authAccounts = new Map<
     string,
     { id: string; userId: string; provider: string; providerAccountId: string }
   >();
-  const redisValues = new Map<string, string>();
+  const redis = new FakeRedis();
 
   beforeEach(() => {
     users.clear();
     tokens.clear();
     sessions.clear();
     auditLogs.length = 0;
-    redisCounters.clear();
     sentEmails.length = 0;
     process.env.DATABASE_URL = "postgresql://margem:margem@localhost:5432/margem";
     process.env.REDIS_URL = "redis://localhost:6379";
     authAccounts.clear();
-    redisValues.clear();
+    redis.clear();
+    delete process.env.MAGIC_LINK_DAILY_CAP;
     process.env.APP_URL = "http://localhost:3000";
     process.env.GOOGLE_CLIENT_ID = "google-client-id";
     process.env.GOOGLE_CLIENT_SECRET = "google-client-secret";
     process.env.GOOGLE_REDIRECT_URI = "http://localhost:3001/auth/google/callback";
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   async function createApp() {
@@ -65,15 +70,18 @@ describe("Magic link authentication", () => {
             where,
             data,
           }: {
-            where: { tokenHash: string; usedAt: null; expiresAt: { gt: Date } };
+            where: { tokenHash?: string; email?: string; usedAt: null; expiresAt: { gt: Date } };
             data: { usedAt: Date };
           }) => {
-            const rec = tokens.get(where.tokenHash);
-            if (!rec || rec.usedAt !== null || rec.expiresAt <= where.expiresAt.gt) {
-              return { count: 0 };
+            let count = 0;
+            for (const rec of tokens.values()) {
+              if (where.tokenHash !== undefined && rec.tokenHash !== where.tokenHash) continue;
+              if (where.email !== undefined && rec.email !== where.email) continue;
+              if (rec.usedAt !== null || rec.expiresAt <= where.expiresAt.gt) continue;
+              rec.usedAt = data.usedAt;
+              count++;
             }
-            rec.usedAt = data.usedAt;
-            return { count: 1 };
+            return { count };
           },
         ),
         findUnique: vi.fn(
@@ -170,22 +178,6 @@ describe("Magic link authentication", () => {
       },
     };
 
-    const fakeRedis = {
-      incr: vi.fn(async (key: string) => {
-        const next = (redisCounters.get(key) ?? 0) + 1;
-        redisCounters.set(key, next);
-        return next;
-      }),
-      ttl: vi.fn(async () => 3600),
-      expire: vi.fn(async () => 1),
-      set: vi.fn(async (key: string, value: string) => {
-        redisValues.set(key, value);
-        return "OK";
-      }),
-      get: vi.fn(async (key: string) => redisValues.get(key) ?? null),
-      del: vi.fn(async (key: string) => (redisValues.delete(key) ? 1 : 0)),
-    };
-
     @Module({
       imports: [PoliciesModule],
       controllers: [AuthController],
@@ -193,7 +185,7 @@ describe("Magic link authentication", () => {
         AuthService,
         SessionMiddleware,
         { provide: PrismaService, useValue: fakePrisma },
-        { provide: REDIS_CLIENT, useValue: fakeRedis },
+        { provide: REDIS_CLIENT, useValue: redis },
         {
           provide: MailerService,
           useValue: {
@@ -260,21 +252,33 @@ describe("Magic link authentication", () => {
     await app.close();
   });
 
-  it("rejects expired magic link and rate-limits after 5 requests per email", async () => {
+  const GENERIC_BODY = {
+    ok: true,
+    message: "Se o endereço existir, enviamos um link de acesso.",
+  };
+
+  function requestLink(app: Awaited<ReturnType<typeof createApp>>, email: string) {
+    return request(app.getHttpServer()).post("/auth/magic-link").send({ email });
+  }
+
+  function tokenFromEmail(index: number): string {
+    return new URL(sentEmails[index]!.url).searchParams.get("token")!;
+  }
+
+  /** Only Date is faked: supertest and Nest still need real timers. */
+  function freezeClock(iso = "2026-11-25T12:00:00.000Z") {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(iso));
+  }
+
+  function advanceClock(ms: number) {
+    vi.setSystemTime(new Date(Date.now() + ms));
+  }
+
+  it("rejects an expired magic link", async () => {
     const app = await createApp();
 
-    for (let i = 0; i < 5; i++) {
-      await request(app.getHttpServer())
-        .post("/auth/magic-link")
-        .send({ email: "rate@margem.local" })
-        .expect(200);
-    }
-    await request(app.getHttpServer())
-      .post("/auth/magic-link")
-      .send({ email: "rate@margem.local" })
-      .expect(429);
-
-    const expiredRaw = "expired-token-sample";
+    const expiredRaw = "e".repeat(43);
     tokens.set(hashToken(expiredRaw), {
       id: "tok-exp",
       email: "rate@margem.local",
@@ -284,9 +288,161 @@ describe("Magic link authentication", () => {
     });
 
     await request(app.getHttpServer()).post("/auth/verify").send({ token: expiredRaw }).expect(401);
+    await request(app.getHttpServer()).post("/auth/verify").send({ token: "short" }).expect(400);
 
     await app.close();
   });
+
+  it("enforces a 60s cooldown per e-mail with the generic 200 response", async () => {
+    freezeClock();
+    const app = await createApp();
+
+    expect((await requestLink(app, "cool@margem.local").expect(200)).body).toEqual(GENERIC_BODY);
+    expect((await requestLink(app, "cool@margem.local").expect(200)).body).toEqual(GENERIC_BODY);
+    expect(sentEmails).toHaveLength(1);
+
+    advanceClock(59_000);
+    await requestLink(app, "cool@margem.local").expect(200);
+    expect(sentEmails).toHaveLength(1);
+
+    advanceClock(2_000);
+    await requestLink(app, "cool@margem.local").expect(200);
+    expect(sentEmails).toHaveLength(2);
+
+    await app.close();
+  });
+
+  it("caps at 5 sends per hour per normalized e-mail without returning 429", async () => {
+    freezeClock();
+    const app = await createApp();
+    const aliases = [
+      "ab@gmail.com",
+      "a.b@gmail.com",
+      "ab+1@gmail.com",
+      "A.B+2@googlemail.com",
+      "a.b.+3@gmail.com",
+      "ab+6@gmail.com",
+    ];
+
+    for (const alias of aliases) {
+      const res = await requestLink(app, alias).expect(200);
+      expect(res.body).toEqual(GENERIC_BODY);
+      advanceClock(61_000);
+    }
+    expect(sentEmails.map((e) => e.email)).toEqual(aliases.slice(0, 5).map((a) => a.toLowerCase()));
+
+    advanceClock(60 * 60 * 1000);
+    await requestLink(app, "ab@gmail.com").expect(200);
+    expect(sentEmails).toHaveLength(6);
+
+    await app.close();
+  });
+
+  it("treats gmail aliases as the same mailbox but keeps other domains distinct", async () => {
+    freezeClock();
+    const app = await createApp();
+
+    await requestLink(app, "ab@gmail.com").expect(200);
+    await requestLink(app, "a.b+x@gmail.com").expect(200);
+    await requestLink(app, "A.B+promo@googlemail.com").expect(200);
+    expect(sentEmails).toHaveLength(1);
+
+    await requestLink(app, "ab@outlook.com").expect(200);
+    await requestLink(app, "a.b@outlook.com").expect(200);
+    await requestLink(app, "ab+x@outlook.com").expect(200);
+    expect(sentEmails.map((e) => e.email)).toEqual([
+      "ab@gmail.com",
+      "ab@outlook.com",
+      "a.b@outlook.com",
+    ]);
+
+    await app.close();
+  });
+
+  it("stops sending after the global daily cap and logs once per hour", async () => {
+    process.env.MAGIC_LINK_DAILY_CAP = "2";
+    const warn = vi.spyOn(Logger.prototype, "warn").mockImplementation(() => undefined);
+    freezeClock("2026-11-25T10:00:00.000Z");
+    const app = await createApp();
+
+    await requestLink(app, "one@margem.local").expect(200);
+    await requestLink(app, "two@margem.local").expect(200);
+    const capped = await requestLink(app, "three@margem.local").expect(200);
+    await requestLink(app, "four@margem.local").expect(200);
+
+    expect(capped.body).toEqual(GENERIC_BODY);
+    expect(sentEmails.map((e) => e.email)).toEqual(["one@margem.local", "two@margem.local"]);
+    expect(tokens.size).toBe(2);
+
+    const capLogs = () =>
+      warn.mock.calls.filter((call) => call[1] === "auth.magic_link_global_cap_reached");
+    expect(capLogs()).toHaveLength(1);
+    expect(JSON.stringify(capLogs()[0])).not.toContain("@");
+
+    const dayKey = "auth:magic:global:2026-11-25";
+    expect(await redis.pttl(dayKey)).toBe(48 * 60 * 60 * 1000);
+
+    advanceClock(61 * 60 * 1000);
+    await requestLink(app, "five@margem.local").expect(200);
+    expect(capLogs()).toHaveLength(2);
+
+    // A new UTC day gets a fresh counter.
+    vi.setSystemTime(new Date("2026-11-26T00:00:01.000Z"));
+    await requestLink(app, "six@margem.local").expect(200);
+    expect(sentEmails.map((e) => e.email)).toContain("six@margem.local");
+
+    await app.close();
+  });
+
+  it("invalidates older links for the same e-mail when a new one is issued", async () => {
+    freezeClock();
+    const app = await createApp();
+
+    await requestLink(app, "multi@margem.local").expect(200);
+    advanceClock(61_000);
+    await requestLink(app, "multi@margem.local").expect(200);
+    expect(sentEmails).toHaveLength(2);
+
+    const [first, second] = [tokenFromEmail(0), tokenFromEmail(1)];
+    expect(tokens.get(hashToken(first))!.usedAt).not.toBeNull();
+
+    await request(app.getHttpServer()).post("/auth/verify").send({ token: first }).expect(401);
+    await request(app.getHttpServer()).post("/auth/verify").send({ token: second }).expect(200);
+
+    await app.close();
+  });
+
+  it("returns an identical response whether or not the e-mail was rate-limited", async () => {
+    freezeClock();
+    const app = await createApp();
+
+    const sent = await requestLink(app, "same@margem.local");
+    const limited = await requestLink(app, "same@margem.local");
+    expect(sentEmails).toHaveLength(1);
+
+    const shape = (res: typeof sent) => ({
+      status: res.status,
+      body: res.body as unknown,
+      contentType: res.headers["content-type"],
+      contentLength: res.headers["content-length"],
+    });
+    expect(shape(limited)).toEqual(shape(sent));
+
+    await app.close();
+  });
+
+  it("leaves no rate-limit key in Redis without a TTL", async () => {
+    freezeClock();
+    const app = await createApp();
+
+    await requestLink(app, "ttl@margem.local").expect(200);
+    await requestLink(app, "ttl@margem.local").expect(200);
+    expect(redis.keys().length).toBeGreaterThan(0);
+    expect(redis.keysWithoutTtl()).toEqual([]);
+
+    await app.close();
+  });
+
   it("completes Google OAuth with PKCE, sets session cookie and links AuthAccount", async () => {
     const app = await createApp();
 

@@ -30,8 +30,10 @@ export const submitReviewSchema = z.object({
 });
 export type SubmitReviewInput = z.infer<typeof submitReviewSchema>;
 
+export const STUDY_ERRORS_MAX_QUESTIONS = 100;
+
 export const enqueueStudyErrorsSchema = z.object({
   noteId: z.string().min(1),
-  questionIds: z.array(z.string().min(1)).min(1),
+  questionIds: z.array(z.string().min(1)).min(1).max(STUDY_ERRORS_MAX_QUESTIONS),
 });
 export type EnqueueStudyErrorsInput = z.infer<typeof enqueueStudyErrorsSchema>;

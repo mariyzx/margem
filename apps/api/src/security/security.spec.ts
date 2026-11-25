@@ -6,6 +6,7 @@ import helmet from "helmet";
 import request from "supertest";
 import { describe, expect, it } from "vitest";
 import { ALLOWED_ORIGIN, CsrfOriginGuard } from "./csrf-origin.guard";
+import { createThrottlers } from "./throttlers";
 
 @Controller("test-security")
 class TestSecurityController {
@@ -16,6 +17,14 @@ class TestSecurityController {
 
   @Post()
   write() {
+    return { ok: true };
+  }
+}
+
+@Controller("test-other")
+class TestOtherController {
+  @Get()
+  read() {
     return { ok: true };
   }
 }
@@ -90,5 +99,33 @@ describe("HTTP security controls", () => {
     await request(app.getHttpServer()).get("/test-security").expect(429);
 
     await app.close();
+  });
+
+  it("global-ip throttler sums requests across all routes for the same IP", async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [
+        ThrottlerModule.forRoot({
+          throttlers: createThrottlers({ defaultPerRoute: 100, globalPerIp: 3 }),
+        }),
+      ],
+      controllers: [TestSecurityController, TestOtherController],
+      providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+    }).compile();
+    const app = moduleRef.createNestApplication();
+    await app.init();
+    const server = app.getHttpServer();
+
+    await request(server).get("/test-security").expect(200);
+    await request(server).get("/test-other").expect(200);
+    await request(server).get("/test-security").expect(200);
+    await request(server).get("/test-other").expect(429);
+
+    await app.close();
+  });
+
+  it("keeps 300 req/min per IP for global-ip and 60/min per route for default", () => {
+    const [perRoute, perIp] = createThrottlers();
+    expect(perRoute).toMatchObject({ name: "default", ttl: 60_000, limit: 60 });
+    expect(perIp).toMatchObject({ name: "global-ip", ttl: 60_000, limit: 300 });
   });
 });
