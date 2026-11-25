@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@margem/shared": "workspace:*",
+    "@margem/srs": "workspace:*",
     "@nestjs/common": "^12.5.1",
     "@nestjs/core": "^12.5.1",
     "@nestjs/platform-express": "^12.5.1",

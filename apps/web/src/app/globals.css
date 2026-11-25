@@ -1,3 +1,31 @@
 @import "tailwindcss";
 @import "@margem/config/tokens.css";
 @source "../../../../packages/ui/src";
+
+[data-study-mode="true"] mark[data-cloze="true"] {
+  color: transparent;
+  background-color: var(--color-marker);
+  border-bottom: 2px solid var(--color-bic);
+  border-radius: 2px;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    color var(--dur-base) var(--ease-in-out),
+    background-color var(--dur-base) var(--ease-in-out);
+}
+
+[data-study-mode="true"] mark[data-cloze="true"][data-revealed="true"] {
+  color: var(--color-ink);
+  background-color: var(--color-marker-soft);
+  user-select: text;
+}
+
+.margem-origin-bars [data-origin="memory"] {
+  border-left: 3px solid var(--color-margin-rule);
+  padding-left: 0.75rem;
+}
+
+.margem-origin-bars [data-origin="material"] {
+  border-left: 3px solid var(--color-bic);
+  padding-left: 0.75rem;
+}

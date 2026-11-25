@@ -1,28 +1,110 @@
 "use client";
 
-import type { AuthUser } from "@margem/shared";
-import { Button, Skeleton } from "@margem/ui";
+import { MOTION_DURATIONS, MOTION_EASINGS } from "@margem/config/motion";
+import type { AuthUser, NotebookColor, NotebookDto, NoteDto } from "@margem/shared";
+import { Skeleton, Toast, ToastClose, ToastTitle } from "@margem/ui";
+import { Menu } from "lucide-react";
+import { AnimatePresence, m } from "motion/react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
-import { fetchCurrentUser, logout, logoutAll } from "../lib/api";
+import { NotebookSidebar } from "../components/notebook-sidebar";
+import { NoteWorkspace } from "../components/note-workspace";
+import {
+  createNotebook,
+  createNote,
+  fetchCurrentUser,
+  fetchNote,
+  fetchNotebooks,
+  logout,
+  logoutAll,
+  updateNote,
+} from "../lib/api";
 import { messages } from "../messages/pt-br";
 
 export default function HomePage() {
   const router = useRouter();
   const [user, setUser] = React.useState<AuthUser | null>(null);
   const [checking, setChecking] = React.useState(true);
+  const [notebooks, setNotebooks] = React.useState<NotebookDto[]>([]);
+  const [selectedNotebookId, setSelectedNotebookId] = React.useState<string | null>(null);
+  const [selectedNote, setSelectedNote] = React.useState<NoteDto | null>(null);
+  const [loadingNote, setLoadingNote] = React.useState(false);
+  const [creatingNotebook, setCreatingNotebook] = React.useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const [errorToast, setErrorToast] = React.useState<string | null>(null);
+  const noteRequestIdRef = React.useRef(0);
+
+  const loadNoteById = React.useCallback(async (noteId: string) => {
+    const requestId = ++noteRequestIdRef.current;
+    setLoadingNote(true);
+    try {
+      const note = await fetchNote(noteId);
+      if (noteRequestIdRef.current === requestId) {
+        setSelectedNote(note);
+      }
+    } catch {
+      if (noteRequestIdRef.current === requestId) {
+        setErrorToast(messages.notes.saveError);
+      }
+    } finally {
+      if (noteRequestIdRef.current === requestId) {
+        setLoadingNote(false);
+      }
+    }
+  }, []);
+
+  const loadFirstNoteOfNotebook = React.useCallback(
+    async (notebook: NotebookDto) => {
+      const firstNote = notebook.notes?.[0];
+      if (!firstNote) {
+        noteRequestIdRef.current++;
+        setSelectedNote(null);
+        setLoadingNote(false);
+        return;
+      }
+      await loadNoteById(firstNote.id);
+    },
+    [loadNoteById],
+  );
+
+  const loadWorkspace = React.useCallback(async () => {
+    const list = await fetchNotebooks();
+    setNotebooks(list);
+    if (list.length === 0) {
+      setSelectedNotebookId(null);
+      setSelectedNote(null);
+      return;
+    }
+
+    const requestedNoteId = new URLSearchParams(window.location.search).get("note");
+    if (requestedNoteId) {
+      const targetNotebook = list.find((nb) =>
+        (nb.notes ?? []).some((note) => note.id === requestedNoteId),
+      );
+      if (targetNotebook) {
+        setSelectedNotebookId(targetNotebook.id);
+        await loadNoteById(requestedNoteId);
+        return;
+      }
+    }
+
+    const firstNotebook = list[0]!;
+    setSelectedNotebookId(firstNotebook.id);
+    await loadFirstNoteOfNotebook(firstNotebook);
+  }, [loadFirstNoteOfNotebook, loadNoteById]);
 
   React.useEffect(() => {
     let active = true;
     fetchCurrentUser()
-      .then((current) => {
+      .then(async (current) => {
         if (!active) return;
         if (!current) {
           router.replace("/entrar");
           return;
         }
         setUser(current);
-        setChecking(false);
+        await loadWorkspace();
+        if (active) setChecking(false);
       })
       .catch(() => {
         if (active) router.replace("/entrar");
@@ -30,7 +112,100 @@ export default function HomePage() {
     return () => {
       active = false;
     };
-  }, [router]);
+  }, [router, loadWorkspace]);
+
+  async function handleSelectNotebook(notebookId: string) {
+    setCreatingNotebook(false);
+    setMobileMenuOpen(false);
+    setSelectedNotebookId(notebookId);
+
+    const nb = notebooks.find((item) => item.id === notebookId);
+    if (!nb) {
+      noteRequestIdRef.current++;
+      setSelectedNote(null);
+      return;
+    }
+
+    await loadFirstNoteOfNotebook(nb);
+  }
+
+  async function handleSelectNote(notebookId: string, noteId: string) {
+    setCreatingNotebook(false);
+    setMobileMenuOpen(false);
+    setSelectedNotebookId(notebookId);
+    await loadNoteById(noteId);
+  }
+
+  async function handleCreateNotebook(values: { name: string; color: NotebookColor }) {
+    try {
+      const created = await createNotebook(values);
+      setNotebooks((prev) => [created, ...prev]);
+      setSelectedNotebookId(created.id);
+      noteRequestIdRef.current++;
+      setSelectedNote(null);
+      setCreatingNotebook(false);
+    } catch {
+      setErrorToast(messages.notes.saveError);
+    }
+  }
+
+  async function handleCreateNote(notebookId: string, sourceId?: string) {
+    setCreatingNotebook(false);
+    setMobileMenuOpen(false);
+    const created = await createNote({ notebookId, ...(sourceId ? { sourceId } : {}) });
+    setSelectedNotebookId(notebookId);
+    setSelectedNote(created);
+    setNotebooks((prev) =>
+      prev.map((nb) =>
+        nb.id === notebookId
+          ? {
+              ...nb,
+              notes: [
+                {
+                  id: created.id,
+                  notebookId: created.notebookId,
+                  title: created.title,
+                  createdAt: created.createdAt,
+                  updatedAt: created.updatedAt,
+                },
+                ...(nb.notes ?? []),
+              ],
+            }
+          : nb,
+      ),
+    );
+  }
+
+  async function handleSaveNote(
+    noteId: string,
+    values: {
+      title?: string;
+      doc?: Record<string, unknown>;
+      sourceId?: string;
+      materialOpenedAt?: string;
+    },
+  ) {
+    try {
+      const updated = await updateNote(noteId, values);
+      setSelectedNote((prev) => (prev?.id === updated.id ? updated : prev));
+      setNotebooks((prev) =>
+        prev.map((nb) =>
+          nb.id === updated.notebookId
+            ? {
+                ...nb,
+                notes: (nb.notes ?? []).map((n) =>
+                  n.id === updated.id
+                    ? { ...n, title: updated.title, updatedAt: updated.updatedAt }
+                    : n,
+                ),
+              }
+            : nb,
+        ),
+      );
+    } catch {
+      setErrorToast(messages.notes.saveError);
+    }
+  }
 
   async function handleLogout() {
     await logout();
@@ -51,20 +226,84 @@ export default function HomePage() {
     );
   }
 
+  const selectedNotebook = notebooks.find((nb) => nb.id === selectedNotebookId) ?? null;
+
   return (
-    <main className="mx-auto flex min-h-screen max-w-2xl flex-col items-start justify-center gap-4 px-6">
-      <h1 className="font-serif text-3xl font-semibold text-ink">{messages.appName}</h1>
-      <p className="text-sm text-ink-muted">
-        {messages.auth.signedInAs} <span className="font-medium text-ink">{user.email}</span>
-      </p>
-      <div className="flex flex-wrap gap-3">
-        <Button type="button" variant="secondary" onClick={handleLogout}>
-          {messages.auth.logout}
-        </Button>
-        <Button type="button" variant="ghost" onClick={handleLogoutAll}>
-          {messages.auth.logoutAll}
-        </Button>
+    <div className="flex min-h-screen bg-ground">
+      <NotebookSidebar
+        user={user}
+        notebooks={notebooks}
+        selectedNotebookId={selectedNotebookId}
+        selectedNoteId={selectedNote?.id ?? null}
+        onSelectNotebook={(id) => void handleSelectNotebook(id)}
+        onSelectNote={(nbId, noteId) => void handleSelectNote(nbId, noteId)}
+        onStartNewNotebook={() => {
+          setCreatingNotebook(true);
+          setMobileMenuOpen(false);
+        }}
+        onCreateNote={(nbId) => void handleCreateNote(nbId)}
+        onLogout={() => void handleLogout()}
+        onLogoutAll={() => void handleLogoutAll()}
+        mobileOpen={mobileMenuOpen}
+        onCloseMobile={() => setMobileMenuOpen(false)}
+      />
+
+      <div className="flex flex-1 flex-col">
+        <header className="flex items-center justify-between border-b border-margin-rule bg-paper px-4 py-3 md:hidden">
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(true)}
+            aria-label={messages.notebooks.openMenu}
+            className="rounded-md p-1.5 text-ink hover:bg-margin"
+          >
+            <Menu className="h-5 w-5" strokeWidth={1.5} />
+          </button>
+          <span className="font-serif text-lg font-semibold text-ink">{messages.appName}</span>
+          <span className="w-8" aria-hidden="true" />
+        </header>
+
+        <main className="flex-1 px-6 py-8">
+          <AnimatePresence mode="wait" initial={false}>
+            <m.div
+              key={
+                selectedNote?.id ??
+                (creatingNotebook ? "new-notebook" : (selectedNotebookId ?? "empty"))
+              }
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{
+                duration: MOTION_DURATIONS.fast,
+                ease: [...MOTION_EASINGS.out],
+              }}
+            >
+              <NoteWorkspace
+                key={selectedNote?.id ?? selectedNotebookId ?? "empty"}
+                notebooks={notebooks}
+                selectedNotebook={selectedNotebook}
+                selectedNote={selectedNote}
+                loadingNote={loadingNote}
+                creatingNotebook={creatingNotebook}
+                onCancelCreateNotebook={() => setCreatingNotebook(false)}
+                onCreateNotebook={handleCreateNotebook}
+                onCreateNote={handleCreateNote}
+                onSaveNote={handleSaveNote}
+              />
+            </m.div>
+          </AnimatePresence>
+        </main>
       </div>
-    </main>
+
+      <Toast
+        open={Boolean(errorToast)}
+        onOpenChange={(open) => {
+          if (!open) setErrorToast(null);
+        }}
+        variant="danger"
+      >
+        <ToastTitle>{errorToast}</ToastTitle>
+        <ToastClose />
+      </Toast>
+    </div>
   );
 }

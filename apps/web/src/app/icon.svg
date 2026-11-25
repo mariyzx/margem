@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <rect width="64" height="64" rx="14" fill="#ffffff" />
+  <rect x="0.75" y="0.75" width="62.5" height="62.5" rx="13.25" stroke="#dce3f5" stroke-width="1.5" />
+  <path
+    d="M13 38V51H26"
+    stroke="#2747d9"
+    stroke-width="3.5"
+    stroke-linecap="square"
+    stroke-linejoin="miter"
+  />
+  <path
+    d="M38 13H51V26"
+    stroke="#2747d9"
+    stroke-width="3.5"
+    stroke-linecap="square"
+    stroke-linejoin="miter"
+  />
+  <text
+    x="32"
+    y="43"
+    text-anchor="middle"
+    fill="#1a1d29"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-size="34"
+    font-weight="700"
+  >
+    M
+  </text>
+</svg>
