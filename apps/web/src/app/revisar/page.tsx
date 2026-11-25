@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { Wordmark } from "../../components/wordmark";
+import { ThemeToggle } from "../../components/theme-toggle";
 import { fetchCurrentUser, fetchDueReviews, submitReview } from "../../lib/api";
 import { messages } from "../../messages/pt-br";
 
@@ -79,12 +80,15 @@ export default function ReviewPage() {
     <main className="mx-auto flex min-h-screen max-w-xl flex-col px-6 py-8">
       <header className="mb-8 flex items-center justify-between">
         <Wordmark />
-        <Link
-          href="/"
-          className="text-sm font-medium text-ink-muted transition-colors duration-fast hover:text-ink"
-        >
-          {messages.review.backToNotebooks}
-        </Link>
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
+          <Link
+            href="/"
+            className="text-sm font-medium text-ink-muted transition-colors duration-fast hover:text-ink"
+          >
+            {messages.review.backToNotebooks}
+          </Link>
+        </div>
       </header>
 
       <h1 className="mb-4 text-xs font-medium tracking-wide text-ink-muted uppercase">

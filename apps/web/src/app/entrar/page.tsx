@@ -4,6 +4,7 @@ import { magicLinkRequestSchema } from "@margem/shared";
 import { Button, Field, Toast, ToastClose, ToastDescription, ToastTitle } from "@margem/ui";
 import * as React from "react";
 import { Wordmark } from "../../components/wordmark";
+import { ThemeToggle } from "../../components/theme-toggle";
 import { requestMagicLink } from "../../lib/api";
 import { messages } from "../../messages/pt-br";
 
@@ -53,7 +54,10 @@ export default function SignInPage() {
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6">
       <div className="rounded-lg border border-margin-rule bg-paper p-8 shadow-sm">
         <div className="mb-6 flex flex-col items-start gap-2">
-          <Wordmark />
+          <div className="flex w-full items-center justify-between">
+            <Wordmark />
+            <ThemeToggle />
+          </div>
           <h1 className="font-sans text-lg font-medium text-ink">{messages.auth.title}</h1>
           <p className="text-sm text-ink-muted">{messages.auth.subtitle}</p>
         </div>

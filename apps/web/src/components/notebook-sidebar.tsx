@@ -9,6 +9,7 @@ import { AnimatePresence, m, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import * as React from "react";
 import { messages } from "../messages/pt-br";
+import { ThemeToggle } from "./theme-toggle";
 import { Wordmark } from "./wordmark";
 
 const EASE = [...MOTION_EASINGS.out] as [number, number, number, number];
@@ -92,16 +93,19 @@ export function NotebookSidebar({
     >
       <div className="flex items-center justify-between border-b border-margin-rule px-4 py-3">
         <Wordmark />
-        {onCloseMobile ? (
-          <button
-            type="button"
-            onClick={onCloseMobile}
-            aria-label={messages.notebooks.closeMenu}
-            className="rounded-md p-1.5 text-ink-muted hover:bg-paper hover:text-ink md:hidden"
-          >
-            <X className="h-4 w-4" strokeWidth={1.5} />
-          </button>
-        ) : null}
+        <div className="flex items-center gap-1">
+          <ThemeToggle />
+          {onCloseMobile ? (
+            <button
+              type="button"
+              onClick={onCloseMobile}
+              aria-label={messages.notebooks.closeMenu}
+              className="rounded-md p-1.5 text-ink-muted hover:bg-paper hover:text-ink md:hidden"
+            >
+              <X className="h-4 w-4" strokeWidth={1.5} />
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <div className="px-3 pt-3">
