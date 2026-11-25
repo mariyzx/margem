@@ -42,7 +42,6 @@ export function NoteWorkspace({
   const [saving, setSaving] = React.useState(false);
   const [questions, setQuestions] = React.useState<QuestionDto[]>([]);
   const [questionDraft, setQuestionDraft] = React.useState<QuestionAnchorDraft | null>(null);
-  const [questionHint, setQuestionHint] = React.useState<string | null>(null);
 
   const docRef = React.useRef<Record<string, unknown>>(selectedNote?.doc ?? {});
   const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -81,9 +80,13 @@ export function NoteWorkspace({
     if (!selectedNoteId) return;
     let active = true;
 
-    fetchQuestions(selectedNoteId).then((result) => {
-      if (active) setQuestions(result);
-    });
+    fetchQuestions(selectedNoteId)
+      .then((result) => {
+        if (active) setQuestions(result);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch questions", err);
+      });
 
     return () => {
       active = false;
@@ -186,13 +189,8 @@ export function NoteWorkspace({
             docRef.current = nextDoc;
             scheduleSave(title, nextDoc);
           }}
-          onCreateQuestion={(quote) => {
-            setQuestionHint(
-              `Trecho selecionado para pergunta: "${quote}" (margem entra na próxima etapa)`,
-            );
-          }}
+          onCreateQuestion={(draft) => setQuestionDraft(draft)}
         />
-        {questionHint ? <p className="mt-4 text-xs text-ink-muted">{questionHint}</p> : null}
       </article>
       <NoteMargin
         questions={questions}
