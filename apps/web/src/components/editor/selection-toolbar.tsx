@@ -4,6 +4,7 @@ import { cn } from "@margem/config/cn";
 import type { Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import { Highlighter, MessageSquarePlus } from "lucide-react";
+import { messages } from "../../messages/pt-br";
 
 interface SelectionToolbarProps {
   editor: Editor;
@@ -36,7 +37,7 @@ export function SelectionToolbar({ editor, onCreateQuestion }: SelectionToolbarP
     >
       <div
         role="toolbar"
-        aria-label="Ações para o trecho selecionado"
+        aria-label={messages.editor.toolbarLabel}
         className="flex items-center gap-1 rounded-md border border-margin-rule bg-paper p-1 font-sans text-xs shadow-md"
       >
         <button
@@ -48,7 +49,7 @@ export function SelectionToolbar({ editor, onCreateQuestion }: SelectionToolbarP
           )}
         >
           <Highlighter className="h-3.5 w-3.5" strokeWidth={1.5} />
-          <span>{isCloze ? "Tirar lacuna" : "Esconder como lacuna"}</span>
+          <span>{isCloze ? messages.editor.removeCloze : messages.editor.hideAsCloze}</span>
         </button>
 
         <span aria-hidden="true" className="h-4 w-px bg-margin-rule" />
@@ -59,7 +60,7 @@ export function SelectionToolbar({ editor, onCreateQuestion }: SelectionToolbarP
           className="flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-bic transition-colors duration-fast ease-margem-out hover:bg-margin focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-bic"
         >
           <MessageSquarePlus className="h-3.5 w-3.5" strokeWidth={1.5} />
-          <span>Virar pergunta</span>
+          <span>{messages.editor.turnIntoQuestion}</span>
         </button>
       </div>
     </BubbleMenu>

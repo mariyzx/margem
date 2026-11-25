@@ -1,5 +1,6 @@
 "use client";
 
+import { Button, Field, Popover, PopoverAnchor, PopoverContent } from "@margem/ui";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -7,6 +8,7 @@ import { EditorContent, useEditor, type JSONContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
 import * as React from "react";
+import { messages } from "../../messages/pt-br";
 import { BlockId } from "./block-id";
 import { Callout } from "./callout-node";
 import { Cloze } from "./cloze-mark";
@@ -19,6 +21,13 @@ interface SlashState {
   open: boolean;
   query: string;
   range: { from: number; to: number } | null;
+  position: { top: number; left: number };
+}
+
+interface ImagePromptState {
+  open: boolean;
+  url: string;
+  error?: string;
   position: { top: number; left: number };
 }
 
@@ -39,6 +48,11 @@ export function NoteEditor({
     open: false,
     query: "",
     range: null,
+    position: { top: 0, left: 0 },
+  });
+  const [imagePrompt, setImagePrompt] = React.useState<ImagePromptState>({
+    open: false,
+    url: "",
     position: { top: 0, left: 0 },
   });
 
@@ -99,6 +113,34 @@ export function NoteEditor({
     },
   });
 
+  function handleRequestImage() {
+    if (!editor) return;
+    const coords = editor.view.coordsAtPos(editor.state.selection.from);
+    setImagePrompt({
+      open: true,
+      url: "",
+      error: undefined,
+      position: { top: coords.bottom + 6, left: coords.left },
+    });
+  }
+
+  function handleInsertImage(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editor) return;
+
+    try {
+      const parsed = new URL(imagePrompt.url.trim());
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        setImagePrompt((prev) => ({ ...prev, error: messages.editor.imageUrlInvalid }));
+        return;
+      }
+      editor.chain().focus().setImage({ src: parsed.toString() }).run();
+      setImagePrompt((prev) => ({ ...prev, open: false, url: "", error: undefined }));
+    } catch {
+      setImagePrompt((prev) => ({ ...prev, error: messages.editor.imageUrlInvalid }));
+    }
+  }
+
   if (!editor) return null;
 
   return (
@@ -111,14 +153,55 @@ export function NoteEditor({
         query={slash.query}
         position={slash.position}
         onClose={() => setSlash((prev) => ({ ...prev, open: false }))}
+        onRequestImage={handleRequestImage}
         onExecute={(run) => {
           if (slash.range) {
             editor.chain().focus().deleteRange(slash.range).run();
           }
-          run(editor);
+          run(editor, { onRequestImage: handleRequestImage });
           setSlash((prev) => ({ ...prev, open: false, range: null }));
         }}
       />
+
+      <Popover
+        open={imagePrompt.open}
+        onOpenChange={(open) => setImagePrompt((prev) => ({ ...prev, open }))}
+      >
+        <PopoverAnchor asChild>
+          <span
+            aria-hidden="true"
+            style={{ top: imagePrompt.position.top, left: imagePrompt.position.left }}
+            className="pointer-events-none fixed h-px w-px"
+          />
+        </PopoverAnchor>
+        <PopoverContent>
+          <form onSubmit={handleInsertImage} className="flex flex-col gap-3" noValidate>
+            <Field
+              label={messages.editor.imageUrlLabel}
+              placeholder={messages.editor.imageUrlPlaceholder}
+              value={imagePrompt.url}
+              onChange={(e) =>
+                setImagePrompt((prev) => ({ ...prev, url: e.target.value, error: undefined }))
+              }
+              error={imagePrompt.error}
+              autoFocus
+            />
+            <div className="flex items-center gap-2">
+              <Button type="submit" size="sm">
+                {messages.editor.insertImage}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setImagePrompt((prev) => ({ ...prev, open: false }))}
+              >
+                {messages.editor.cancel}
+              </Button>
+            </div>
+          </form>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { Extension } from "@tiptap/core";
-import { Plugin, PluginKey } from "@tiptap/pm/state";
+import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
+import { Plugin, PluginKey, type Transaction } from "@tiptap/pm/state";
 
 const BLOCK_TYPES = [
   "paragraph",
@@ -10,6 +11,23 @@ const BLOCK_TYPES = [
   "callout",
   "image",
 ];
+
+function assignMissingBlockIds(doc: ProseMirrorNode, tr: Transaction): boolean {
+  let modified = false;
+
+  doc.descendants((node, pos) => {
+    if (!BLOCK_TYPES.includes(node.type.name)) return;
+    if (!node.attrs.blockId) {
+      tr.setNodeMarkup(pos, undefined, {
+        ...node.attrs,
+        blockId: crypto.randomUUID(),
+      });
+      modified = true;
+    }
+  });
+
+  return modified;
+}
 
 export const BlockId = Extension.create({
   name: "blockId",
@@ -30,6 +48,13 @@ export const BlockId = Extension.create({
     ];
   },
 
+  onCreate() {
+    const tr = this.editor.state.tr;
+    if (assignMissingBlockIds(this.editor.state.doc, tr)) {
+      this.editor.view.dispatch(tr.setMeta("addToHistory", false));
+    }
+  },
+
   addProseMirrorPlugins() {
     return [
       new Plugin({
@@ -38,20 +63,7 @@ export const BlockId = Extension.create({
           if (!transactions.some((tr) => tr.docChanged)) return null;
 
           const tr = newState.tr;
-          let modified = false;
-
-          newState.doc.descendants((node, pos) => {
-            if (!BLOCK_TYPES.includes(node.type.name)) return;
-            if (!node.attrs.blockId) {
-              tr.setNodeMarkup(pos, undefined, {
-                ...node.attrs,
-                blockId: crypto.randomUUID(),
-              });
-              modified = true;
-            }
-          });
-
-          return modified ? tr : null;
+          return assignMissingBlockIds(newState.doc, tr) ? tr : null;
         },
       }),
     ];

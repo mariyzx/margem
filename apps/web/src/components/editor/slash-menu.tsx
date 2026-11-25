@@ -14,73 +14,66 @@ import {
   ListOrdered,
 } from "lucide-react";
 import * as React from "react";
+import { messages } from "../../messages/pt-br";
 
 interface SlashCommandItem {
   id: string;
   label: string;
   description: string;
   icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
-  run: (editor: Editor) => void;
+  run: (editor: Editor, helpers: { onRequestImage: () => void }) => void;
 }
 
 const SLASH_ITEMS: SlashCommandItem[] = [
   {
     id: "h2",
-    label: "Título",
-    description: "Seção principal",
+    label: messages.editor.blocks.h2.label,
+    description: messages.editor.blocks.h2.description,
     icon: Heading2,
     run: (editor) => editor.chain().focus().toggleHeading({ level: 2 }).run(),
   },
   {
     id: "h3",
-    label: "Subtítulo",
-    description: "Subseção da nota",
+    label: messages.editor.blocks.h3.label,
+    description: messages.editor.blocks.h3.description,
     icon: Heading3,
     run: (editor) => editor.chain().focus().toggleHeading({ level: 3 }).run(),
   },
   {
     id: "bullet",
-    label: "Lista",
-    description: "Itens com marcador",
+    label: messages.editor.blocks.bullet.label,
+    description: messages.editor.blocks.bullet.description,
     icon: List,
     run: (editor) => editor.chain().focus().toggleBulletList().run(),
   },
   {
     id: "ordered",
-    label: "Lista numerada",
-    description: "Passos em ordem",
+    label: messages.editor.blocks.ordered.label,
+    description: messages.editor.blocks.ordered.description,
     icon: ListOrdered,
     run: (editor) => editor.chain().focus().toggleOrderedList().run(),
   },
   {
     id: "code",
-    label: "Código",
-    description: "Bloco monoespaçado",
+    label: messages.editor.blocks.code.label,
+    description: messages.editor.blocks.code.description,
     icon: Code2,
     run: (editor) => editor.chain().focus().toggleCodeBlock().run(),
   },
   {
     id: "callout",
-    label: "Dúvida",
-    description: "Destaque para investigar depois",
+    label: messages.editor.blocks.callout.label,
+    description: messages.editor.blocks.callout.description,
     icon: HelpCircle,
     run: (editor) => editor.chain().focus().setNode("callout").run(),
   },
   {
     id: "image",
-    label: "Imagem",
-    description: "Inserir por endereço (URL)",
+    label: messages.editor.blocks.image.label,
+    description: messages.editor.blocks.image.description,
     icon: ImageIcon,
-    run: (editor) => {
-      const raw = window.prompt("Endereço da imagem (https://...)");
-      if (!raw) return;
-      try {
-        const parsed = new URL(raw.trim());
-        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return;
-        editor.chain().focus().setImage({ src: parsed.toString() }).run();
-      } catch {
-        // Ignora URL inválida
-      }
+    run: (_editor, { onRequestImage }) => {
+      onRequestImage();
     },
   },
 ];
@@ -91,11 +84,13 @@ interface SlashMenuProps {
   query: string;
   position: { top: number; left: number };
   onClose: () => void;
-  onExecute: (run: (editor: Editor) => void) => void;
+  onRequestImage: () => void;
+  onExecute: (run: (editor: Editor, helpers: { onRequestImage: () => void }) => void) => void;
 }
 
 export function SlashMenu({ open, query, position, onClose, onExecute }: SlashMenuProps) {
   const [selectedIndex, setSelectedIndex] = React.useState(0);
+  const menuRef = React.useRef<HTMLDivElement | null>(null);
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -133,16 +128,27 @@ export function SlashMenu({ open, query, position, onClose, onExecute }: SlashMe
       }
     }
 
+    function handlePointerDown(event: PointerEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    }
+
     window.addEventListener("keydown", handleKeyDown, true);
-    return () => window.removeEventListener("keydown", handleKeyDown, true);
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown, true);
+      window.removeEventListener("pointerdown", handlePointerDown);
+    };
   }, [open, filtered, selectedIndex, onClose, onExecute]);
 
   if (!open || filtered.length === 0) return null;
 
   return (
     <div
+      ref={menuRef}
       role="listbox"
-      aria-label="Inserir bloco"
+      aria-label={messages.editor.slashMenuLabel}
       style={{ top: position.top, left: position.left }}
       className="fixed z-40 w-64 rounded-md border border-margin-rule bg-paper p-1.5 font-sans shadow-md"
     >
