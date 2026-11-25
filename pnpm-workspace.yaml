@@ -7,7 +7,7 @@ allowBuilds:
   "@prisma/engines": false
   "@swc/core": false
   esbuild: false
-  msgpackr-extract: set this to true or false
+  msgpackr-extract: false
   prisma: false
 
 blockExoticSubdeps: true
