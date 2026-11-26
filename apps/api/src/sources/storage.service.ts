@@ -15,8 +15,10 @@ export class StorageService {
     const env = loadEnv();
     const accessKeyId = env.AWS_ACCESS_KEY_ID;
     const secretAccessKey = env.AWS_SECRET_ACCESS_KEY;
-    const endpoint = env.S3_ENDPOINT || env.BACKUP_S3_ENDPOINT;
-    const bucket = env.S3_BUCKET || env.BACKUP_S3_BUCKET;
+    // No fallback to BACKUP_S3_*: a missing S3_BUCKET must fail loudly (503), never send
+    // user uploads into the bucket that holds the Postgres dumps.
+    const endpoint = env.S3_ENDPOINT;
+    const bucket = env.S3_BUCKET;
 
     if (!accessKeyId || !secretAccessKey || !endpoint || !bucket) {
       throw new ServiceUnavailableException("Object storage is not configured");
@@ -61,6 +63,11 @@ export class StorageService {
     }
   }
 
+  async deleteObject(key: string): Promise<void> {
+    const { client, bucket } = this.getConfig();
+    await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+  }
+
   async getObjectBuffer(key: string): Promise<Buffer> {
     const { client, bucket } = this.getConfig();
     const res = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
@@ -85,10 +92,5 @@ export class StorageService {
       ResponseContentDisposition: `inline; filename="${safeFilename}"`,
     });
     return getSignedUrl(client, command, { expiresIn: expiresInSeconds });
-  }
-
-  async deleteObject(key: string): Promise<void> {
-    const { client, bucket } = this.getConfig();
-    await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
   }
 }

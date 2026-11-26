@@ -40,8 +40,16 @@
 		}
 	}
 
-	request_body {
+	# 1 MB for everything except the PDF upload, whose cap follows MAX_PDF_BYTES (25 MB,
+	# apps/api/src/sources/pdf-validation.ts) plus room for the multipart envelope. The
+	# matchers are disjoint so exactly one limit applies to each request.
+	@pdfUpload path /api/sources/file
+	@notPdfUpload not path /api/sources/file
+	request_body @notPdfUpload {
 		max_size 1MB
+	}
+	request_body @pdfUpload {
+		max_size 26MB
 	}
 
 	# Permanent IP blocks, kept only on the VPS (*.caddy is gitignored; see

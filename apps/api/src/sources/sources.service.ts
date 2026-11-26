@@ -12,9 +12,10 @@ import type {
   MemoryGapDto,
   SourceDto,
 } from "@margem/shared";
+import type { Source } from "@prisma/client";
 import { PolicyService } from "../policies/policy.service";
 import { PrismaService } from "../prisma/prisma.service";
-import { assertWithinQuota } from "../quotas/quota";
+import { assertWithinQuota, assertWithinStorageQuota } from "../quotas/quota";
 import { chunkText } from "./chunk-text";
 import { randomUUID } from "node:crypto";
 import { withAuditContext } from "../security/request-context";
@@ -213,30 +214,50 @@ export class SourcesService {
       throw new ServiceUnavailableException("PDF upload is not available");
     }
 
+    // Soft-deleted sources still hold their object in the bucket, so they count too.
+    const used = await this.prisma.source.aggregate({
+      where: { type: "file", notebook: { ownerId: userId } },
+      _sum: { sizeBytes: true },
+    });
+    assertWithinStorageQuota(used._sum.sizeBytes ?? 0, input.buffer.length);
+
     const storageKey = `sources/${input.notebookId}/${randomUUID()}.pdf`;
     await this.storage.putObject(storageKey, input.buffer, "application/pdf");
 
     const safeTitle = input.title.trim().slice(0, 200) || "Documento.pdf";
 
-    const created = await this.prisma.$transaction(async (tx) => {
-      const source = await tx.source.create({
-        data: {
-          notebookId: input.notebookId,
-          type: "file",
-          title: safeTitle,
-          storageKey,
-          status: "queued",
-        },
+    let created: Source;
+    try {
+      created = await this.prisma.$transaction(async (tx) => {
+        const source = await tx.source.create({
+          data: {
+            notebookId: input.notebookId,
+            type: "file",
+            title: safeTitle,
+            storageKey,
+            sizeBytes: input.buffer.length,
+            status: "queued",
+          },
+        });
+        await tx.auditLog.create({
+          data: withAuditContext({
+            userId,
+            action: "source.created",
+            metadata: { sourceId: source.id, notebookId: source.notebookId, type: source.type },
+          }),
+        });
+        return source;
       });
-      await tx.auditLog.create({
-        data: withAuditContext({
-          userId,
-          action: "source.created",
-          metadata: { sourceId: source.id, notebookId: source.notebookId, type: source.type },
-        }),
+    } catch (error) {
+      // No row points at the object: remove it so it does not eat bucket space forever.
+      await this.storage.deleteObject(storageKey).catch((cleanupError: unknown) => {
+        this.logger.warn(
+          { storageKey, err: cleanupError },
+          "Failed to remove orphan object after source insert failed",
+        );
       });
-      return source;
-    });
+      throw error;
+    }
 
     await this.ingestQueue.enqueue(created.id);
 

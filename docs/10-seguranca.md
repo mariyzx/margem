@@ -79,10 +79,17 @@ Análise de ameaças e controles do Margem. Leia antes de mexer em auth, permiss
 
 ### Upload de arquivos — obrigatório
 - [ ] Limite de tamanho (ex.: 25 MB) e cota de armazenamento por usuário (o Object Storage gratuito é pequeno).
+  - PDF até 25 MB (`MAX_PDF_BYTES`). O Caddy aceita 26 MB só em `POST /api/sources/file`; o resto continua em 1 MB.
+  - Cota de espaço: soma de `Source.sizeBytes` dos PDFs da pessoa, **incluindo os apagados** (o objeto continua no bucket), contra `MAX_SOURCE_STORAGE_MB_PER_USER` (padrão 500). Estourou, 422 `quota_exceeded` com `resource: "storage"` e `limit` em MB, antes de subir o arquivo.
 - [ ] Tipo conferido pelo conteúdo, não pela extensão.
 - [ ] Bucket privado; download só por URL assinada de curta duração, depois de checar permissão.
+  - Bucket de upload (`S3_BUCKET`) separado do de backup (`BACKUP_S3_BUCKET`), sem fallback entre eles: sem `S3_BUCKET`, o upload responde 503. O container da API não recebe `BACKUP_S3_*`.
+  - `TODO(decisão)`: a API e o script de backup ainda usam a mesma chave (`AWS_*`), então uma API comprometida alcança os backups. Para isolar de verdade, crie uma chave com acesso só ao bucket de upload.
+  - Se o insert da fonte falhar depois do upload, o objeto é apagado na hora.
 - [ ] Nome original guardado como metadado, nunca usado como caminho.
 - [ ] Parsing no worker com timeout e limite de memória; falhou, a fonte fica `failed` com motivo.
+  - O pdf.js roda numa `worker_thread` com heap de 256 MB e é encerrado (`terminate()`) depois de 30 s, então um PDF hostil não trava o event loop da API.
+  - `TODO(decisão)`: mover a fila de ingestão para um container próprio, sem a rede `internal`, como pede a seção de SSRF.
 
 ### Abuso e disponibilidade
 - [ ] Limite de taxa global e por usuário (throttler do NestJS com Redis), mais apertado em login, upload, link e IA.

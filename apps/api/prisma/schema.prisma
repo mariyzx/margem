@@ -261,6 +261,8 @@ model Source {
   title         String
   content       String?
   storageKey    String?
+  /// Bytes of the uploaded file (type "file"); summed for the per-user storage quota.
+  sizeBytes     Int?
   url           String?
   status        SourceStatus @default(ready)
   failureReason String?
