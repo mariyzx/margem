@@ -35,6 +35,9 @@ export const envSchema = z.object({
   /** Upload bucket. Never falls back to BACKUP_S3_* (the Postgres dumps bucket). */
   S3_ENDPOINT: z.string().url().optional().or(z.literal("")),
   S3_BUCKET: z.string().trim().optional().or(z.literal("")),
+  ELASTICSEARCH_URL: z.string().url().optional().or(z.literal("")),
+  OLLAMA_URL: z.string().url().optional().or(z.literal("")),
+  OLLAMA_EMBED_MODEL: z.string().trim().min(1).default("nomic-embed-text"),
 });
 
 export type Env = z.infer<typeof envSchema>;

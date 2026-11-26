@@ -11,6 +11,7 @@ import { isPdfBuffer } from "./pdf-validation";
 import { SourceIngestQueue } from "./source-ingest.queue";
 import { SourcesService } from "./sources.service";
 import type { StorageService } from "./storage.service";
+import { extractMemoryParagraphs, findMemoryGaps } from "./memory-gaps";
 
 describe("chunkText", () => {
   it("returns empty array for blank text and single chunk for short text", () => {
@@ -106,6 +107,7 @@ describe("SourcesService", () => {
     ).rejects.toThrow(NotFoundException);
     await expect(service.getById("user-2", "src-1")).rejects.toThrow(NotFoundException);
     await expect(service.getSignedFileUrl("user-2", "src-1")).rejects.toThrow(NotFoundException);
+    await expect(service.remove("user-2", "src-1")).rejects.toThrow(NotFoundException);
   });
 
   it("uploads a valid PDF with generated storageKey, enqueues ingestion and rejects non-PDF", async () => {
@@ -311,5 +313,66 @@ describe("SourcesService", () => {
     expect(created.status).toBe("queued");
     expect(created.url).toBe("https://93.184.216.34/artigo");
     expect(enqueue).toHaveBeenCalledWith("src-link-1");
+  });
+});
+
+describe("memory-gaps", () => {
+  it("extracts only memory blocks and ignores material blocks", () => {
+    const doc = {
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          attrs: { origin: "memory" },
+          content: [{ type: "text", text: "Eleição de líder no Raft" }],
+        },
+        {
+          type: "paragraph",
+          attrs: { origin: "material" },
+          content: [{ type: "text", text: "Log replication" }],
+        },
+      ],
+    };
+    expect(extractMemoryParagraphs(doc)).toEqual(["Eleição de líder no Raft"]);
+  });
+
+  it("identifies source chunks missing from memory using lexical fallback", () => {
+    const gaps = findMemoryGaps({
+      memoryParagraphs: ["O algoritmo Raft usa eleição de líder com heartbeat."],
+      chunks: [
+        {
+          id: "c1",
+          ord: 0,
+          page: 1,
+          text: "O algoritmo Raft coordena eleição de líder e heartbeat.",
+        },
+        {
+          id: "c2",
+          ord: 1,
+          page: 2,
+          text: "Snapshots compactam o log persistente para economizar disco.",
+        },
+      ],
+    });
+    expect(gaps).toHaveLength(1);
+    expect(gaps[0]?.chunkId).toBe("c2");
+  });
+
+  it("returns 404 when another user requests memory gaps for someone else's note", async () => {
+    const prisma = {
+      note: {
+        findUnique: vi.fn(async () => ({
+          id: "note-1",
+          authorId: "user-1",
+          deletedAt: null,
+          doc: {},
+          sourceId: "src-1",
+          source: { id: "src-1", deletedAt: null, status: "ready" },
+        })),
+      },
+    } as unknown as PrismaService;
+
+    const service = new SourcesService(prisma, new PolicyService());
+    await expect(service.getMemoryGaps("user-2", "note-1")).rejects.toThrow(NotFoundException);
   });
 });

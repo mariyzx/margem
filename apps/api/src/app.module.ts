@@ -17,6 +17,7 @@ import { SentryModule } from "@sentry/nestjs/setup";
 import { QuestionsModule } from "./questions/questions.module";
 import { ReviewsModule } from "./reviews/reviews.module";
 import { SourcesModule } from "./sources/sources.module";
+import { SearchModule } from "./search/search.module";
 
 @Module({
   imports: [
@@ -35,11 +36,11 @@ import { SourcesModule } from "./sources/sources.module";
     SourcesModule,
     ScheduleModule.forRoot(),
     MaintenanceModule,
+    SearchModule,
   ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    // Only stores the request in AsyncLocalStorage (no I/O): safe before the throttlers.
     consumer.apply(RequestContextMiddleware).forRoutes("*");
   }
 }

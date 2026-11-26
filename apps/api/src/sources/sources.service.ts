@@ -6,7 +6,12 @@ import {
   Optional,
   ServiceUnavailableException,
 } from "@nestjs/common";
-import type { CreateLinkSourceInput, CreateTextSourceInput, SourceDto } from "@margem/shared";
+import type {
+  CreateLinkSourceInput,
+  CreateTextSourceInput,
+  MemoryGapDto,
+  SourceDto,
+} from "@margem/shared";
 import type { Source } from "@prisma/client";
 import { PolicyService } from "../policies/policy.service";
 import { PrismaService } from "../prisma/prisma.service";
@@ -18,6 +23,8 @@ import { isPdfBuffer, MAX_PDF_BYTES } from "./pdf-validation";
 import { SourceIngestQueue } from "./source-ingest.queue";
 import { resolveAndValidateUrl, SsrfBlockedError } from "./ssrf-guard";
 import { StorageService } from "./storage.service";
+import { EmbeddingsService } from "../search/embeddings.service";
+import { extractMemoryParagraphs, findMemoryGaps } from "./memory-gaps";
 
 @Injectable()
 export class SourcesService {
@@ -28,6 +35,7 @@ export class SourcesService {
     private readonly policyService: PolicyService,
     @Optional() private readonly ingestQueue?: SourceIngestQueue,
     @Optional() private readonly storage?: StorageService,
+    @Optional() private readonly embeddings?: EmbeddingsService,
   ) {}
 
   async createText(userId: string, input: CreateTextSourceInput): Promise<SourceDto> {
@@ -276,5 +284,113 @@ export class SourcesService {
     }
 
     return this.storage.getSignedDownloadUrl(source.storageKey, source.title);
+  }
+
+  async remove(userId: string, sourceId: string): Promise<{ ok: true }> {
+    const source = await this.prisma.source.findUnique({
+      where: { id: sourceId },
+      include: { notebook: { select: { ownerId: true, deletedAt: true } } },
+    });
+    const isOwnedNotebook = source && !source.notebook.deletedAt;
+    this.policyService.assertOwner(userId, isOwnedNotebook ? source.notebook.ownerId : null);
+    if (!source || source.notebook.deletedAt) {
+      throw new NotFoundException("Resource not found");
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      if (!source.deletedAt) {
+        await tx.source.update({
+          where: { id: sourceId },
+          data: { deletedAt: new Date() },
+        });
+      }
+      await tx.note.updateMany({
+        where: { sourceId, deletedAt: null },
+        data: { sourceId: null },
+      });
+      await tx.auditLog.create({
+        data: withAuditContext({
+          userId,
+          action: "source.deleted",
+          metadata: { sourceId },
+        }),
+      });
+    });
+
+    if (source.type === "file" && source.storageKey && this.storage) {
+      await this.storage.deleteObject(source.storageKey).catch((err) => {
+        this.logger.warn(
+          { sourceId, error: err instanceof Error ? err.message : String(err) },
+          "Failed to delete source object from storage",
+        );
+      });
+    }
+
+    this.logger.log({ sourceId, userId }, "Source soft-deleted");
+    return { ok: true };
+  }
+
+  async getMemoryGaps(
+    userId: string,
+    noteId: string,
+  ): Promise<{ gaps: MemoryGapDto[]; hasMemoryText: boolean }> {
+    const note = await this.prisma.note.findUnique({
+      where: { id: noteId },
+      select: {
+        id: true,
+        authorId: true,
+        deletedAt: true,
+        doc: true,
+        sourceId: true,
+        source: { select: { id: true, deletedAt: true, status: true } },
+      },
+    });
+
+    this.policyService.assertOwner(userId, note?.deletedAt ? null : note?.authorId);
+    if (
+      !note ||
+      !note.sourceId ||
+      !note.source ||
+      note.source.deletedAt ||
+      note.source.status !== "ready"
+    ) {
+      return { gaps: [], hasMemoryText: false };
+    }
+
+    const memoryParagraphs = extractMemoryParagraphs(note.doc);
+    if (memoryParagraphs.length === 0) {
+      return { gaps: [], hasMemoryText: false };
+    }
+
+    const chunks = await this.prisma.sourceChunk.findMany({
+      where: { sourceId: note.sourceId },
+      orderBy: { ord: "asc" },
+      take: 40,
+      select: { id: true, ord: true, page: true, text: true },
+    });
+
+    if (chunks.length === 0) {
+      return { gaps: [], hasMemoryText: true };
+    }
+
+    let memoryVectors: number[][] | null = null;
+    let chunkVectors: number[][] | null = null;
+    if (this.embeddings) {
+      const allTexts = [...memoryParagraphs, ...chunks.map((c) => c.text)];
+      const allVectors = await this.embeddings.embed(allTexts);
+      if (allVectors && allVectors.length === allTexts.length) {
+        memoryVectors = allVectors.slice(0, memoryParagraphs.length);
+        chunkVectors = allVectors.slice(memoryParagraphs.length);
+      }
+    }
+
+    const gaps = findMemoryGaps({
+      memoryParagraphs,
+      chunks,
+      memoryVectors,
+      chunkVectors,
+    });
+
+    return { gaps, hasMemoryText: true };
   }
 }

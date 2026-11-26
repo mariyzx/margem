@@ -37,7 +37,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       data-nonce={nonce}
       className={`${literata.variable} ${instrumentSans.variable} ${jetbrainsMono.variable}`}
     >
-      <body className="min-h-screen bg-ground font-sans text-ink antialiased">
+      <body
+        suppressHydrationWarning
+        className="min-h-screen bg-ground font-sans text-ink antialiased"
+      >
         <Providers>{children}</Providers>
       </body>
     </html>

@@ -47,3 +47,12 @@ export const createLinkSourceSchema = z.object({
     }, "Informe um endereço começando com http:// ou https://"),
 });
 export type CreateLinkSourceInput = z.infer<typeof createLinkSourceSchema>;
+
+export const memoryGapSchema = z.object({
+  chunkId: z.string(),
+  ord: z.number().int(),
+  page: z.number().int().nullable(),
+  excerpt: z.string(),
+  score: z.number(),
+});
+export type MemoryGapDto = z.infer<typeof memoryGapSchema>;

@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit, Optional } from "@nestjs/common";
 import { type Job, Queue, Worker } from "bullmq";
 import { loadEnv } from "../config/env";
 import { PrismaService } from "../prisma/prisma.service";
@@ -6,6 +6,8 @@ import { chunkText } from "./chunk-text";
 import { extractPdfPages, type PdfPageText } from "./pdf-text-extractor";
 import { extractTextFromHtml, fetchSafeUrl } from "./ssrf-guard";
 import { StorageService } from "./storage.service";
+import { EmbeddingsService } from "../search/embeddings.service";
+import { SearchIndexService } from "../search/search-index.service";
 
 export const SOURCE_INGEST_QUEUE = "source-ingest";
 export const SOURCE_INGEST_DLQ = "source-ingest-dlq";
@@ -27,6 +29,8 @@ export class SourceIngestQueue implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    @Optional() private readonly embeddings?: EmbeddingsService,
+    @Optional() private readonly searchIndex?: SearchIndexService,
   ) {}
 
   onModuleInit() {
@@ -147,6 +151,33 @@ export class SourceIngestQueue implements OnModuleInit, OnModuleDestroy {
         },
       });
     });
+
+    if (this.searchIndex) {
+      try {
+        const savedChunks = await this.prisma.sourceChunk.findMany({
+          where: { sourceId },
+          orderBy: { ord: "asc" },
+          select: { id: true, ord: true, page: true, text: true },
+        });
+        const vectors = await this.embeddings?.embed(savedChunks.map((c) => c.text));
+        await this.searchIndex.indexChunks(
+          savedChunks.map((chunk, i) => ({
+            id: chunk.id,
+            sourceId,
+            notebookId: source.notebookId,
+            ord: chunk.ord,
+            page: chunk.page,
+            text: chunk.text,
+            ...(vectors?.[i] ? { embedding: vectors[i] } : {}),
+          })),
+        );
+      } catch (err) {
+        this.logger.warn(
+          { sourceId, error: err instanceof Error ? err.message : String(err) },
+          "Search indexing failed, chunks remain in Postgres",
+        );
+      }
+    }
 
     this.logger.log({ sourceId, chunkCount: chunkEntries.length }, "Source ingested");
   }

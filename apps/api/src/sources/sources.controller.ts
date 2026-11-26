@@ -2,9 +2,11 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
+  Query,
   Req,
   UploadedFile,
   UseInterceptors,
@@ -80,6 +82,18 @@ export class SourcesController {
     return { source };
   }
 
+  @Get("memory-gaps")
+  @RequirePolicy("read", "notebook")
+  async getMemoryGaps(
+    @Req() req: AuthenticatedRequest,
+    @Query("noteId") noteId: string | undefined,
+  ) {
+    if (!noteId?.trim()) {
+      throw new BadRequestException("noteId is required");
+    }
+    return this.sourcesService.getMemoryGaps(req.user!.id, noteId.trim());
+  }
+
   @Get(":id")
   @RequirePolicy("read", "notebook")
   async getById(@Req() req: AuthenticatedRequest, @Param("id") id: string) {
@@ -92,5 +106,11 @@ export class SourcesController {
   async getFileUrl(@Req() req: AuthenticatedRequest, @Param("id") id: string) {
     const url = await this.sourcesService.getSignedFileUrl(req.user!.id, id);
     return { url };
+  }
+
+  @Delete(":id")
+  @RequirePolicy("delete", "notebook")
+  remove(@Req() req: AuthenticatedRequest, @Param("id") id: string) {
+    return this.sourcesService.remove(req.user!.id, id);
   }
 }

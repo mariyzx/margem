@@ -132,15 +132,27 @@ export class NotesService {
   async remove(userId: string, noteId: string): Promise<{ ok: true }> {
     const existing = await this.prisma.note.findUnique({
       where: { id: noteId },
-      select: { id: true, authorId: true, deletedAt: true },
+      select: { id: true, authorId: true, sourceId: true, deletedAt: true },
     });
     this.policyService.assertOwner(userId, existing?.deletedAt ? null : existing?.authorId);
 
     await this.prisma.$transaction(async (tx) => {
+      const now = new Date();
       await tx.note.update({
         where: { id: noteId },
-        data: { deletedAt: new Date() },
+        data: { deletedAt: now },
       });
+      if (existing?.sourceId) {
+        const remaining = await tx.note.count({
+          where: { sourceId: existing.sourceId, deletedAt: null },
+        });
+        if (remaining === 0) {
+          await tx.source.updateMany({
+            where: { id: existing.sourceId, deletedAt: null },
+            data: { deletedAt: now },
+          });
+        }
+      }
       await tx.auditLog.create({
         data: withAuditContext({
           userId,
