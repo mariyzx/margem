@@ -102,6 +102,7 @@ describe("SourcesService", () => {
     ).rejects.toThrow(NotFoundException);
     await expect(service.getById("user-2", "src-1")).rejects.toThrow(NotFoundException);
     await expect(service.getSignedFileUrl("user-2", "src-1")).rejects.toThrow(NotFoundException);
+    await expect(service.remove("user-2", "src-1")).rejects.toThrow(NotFoundException);
   });
 
   it("uploads a valid PDF with generated storageKey, enqueues ingestion and rejects non-PDF", async () => {

@@ -173,6 +173,7 @@ export const messages = {
     linkPlaceholder: "https://exemplo.com/artigo",
     createNoteWithLink: "Anexar link à nota",
     openLink: "Abrir link",
+    removeSource: "Remover material",
   },
   quota: {
     notebooks: "Você chegou ao limite de {limit} cadernos. Apague algum para criar outro.",

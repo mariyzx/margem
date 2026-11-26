@@ -9,6 +9,7 @@ import {
   createLinkSource,
   createTextSource,
   deleteQuestion,
+  deleteSource,
   enqueueStudyErrors,
   fetchQuestions,
   fetchSource,
@@ -244,6 +245,17 @@ export function NoteWorkspace({
     });
   }
 
+  async function handleRemoveSource(targetSourceId: string) {
+    if (!selectedNote) return;
+    await flushPending();
+    await deleteSource(targetSourceId);
+    setSource(null);
+    await onSaveNote(selectedNote.id, {
+      title: titleRef.current,
+      doc: docRef.current,
+    });
+  }
+
   if (creatingNotebook || notebooks.length === 0) {
     return (
       <div className="mx-auto flex w-full max-w-md flex-col justify-center py-12">
@@ -396,6 +408,7 @@ export function NoteWorkspace({
             onCreateNoteWithMaterial={handleCreateNoteWithMaterial}
             onAttachPdfSource={handleAttachPdfSource}
             onAttachLinkSource={handleAttachLinkSource}
+            onRemoveSource={handleRemoveSource}
           />
           <NoteMargin
             mode={mode}

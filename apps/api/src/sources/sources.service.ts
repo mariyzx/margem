@@ -256,4 +256,34 @@ export class SourcesService {
 
     return this.storage.getSignedDownloadUrl(source.storageKey, source.title);
   }
+
+  async remove(userId: string, sourceId: string): Promise<{ ok: true }> {
+    const source = await this.prisma.source.findUnique({
+      where: { id: sourceId },
+      include: { notebook: { select: { ownerId: true, deletedAt: true } } },
+    });
+    const isActive = source && !source.deletedAt && !source.notebook.deletedAt;
+    this.policyService.assertOwner(userId, isActive ? source.notebook.ownerId : null);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.source.update({
+        where: { id: sourceId },
+        data: { deletedAt: new Date() },
+      });
+      await tx.note.updateMany({
+        where: { sourceId, deletedAt: null },
+        data: { sourceId: null },
+      });
+      await tx.auditLog.create({
+        data: withAuditContext({
+          userId,
+          action: "source.deleted",
+          metadata: { sourceId },
+        }),
+      });
+    });
+
+    this.logger.log({ sourceId, userId }, "Source soft-deleted");
+    return { ok: true };
+  }
 }

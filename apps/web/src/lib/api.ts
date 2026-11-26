@@ -362,6 +362,13 @@ export async function createLinkSource(input: CreateLinkSourceInput): Promise<So
   return sourceSchema.parse(data.source);
 }
 
+export async function deleteSource(sourceId: string): Promise<void> {
+  const res = await apiFetch(`/sources/${encodeURIComponent(sourceId)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) await failed(res, "Delete source");
+}
+
 export async function searchNotebook(
   notebookId: string,
   q: string,

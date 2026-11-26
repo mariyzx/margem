@@ -2,7 +2,7 @@
 
 import { createLinkSourceSchema, createTextSourceSchema, type SourceDto } from "@margem/shared";
 import { Button, Field } from "@margem/ui";
-import { BookOpenCheck, ExternalLink, FilePlus2, FileUp, Link2 } from "lucide-react";
+import { BookOpenCheck, ExternalLink, FilePlus2, FileUp, Link2, Trash2 } from "lucide-react";
 import * as React from "react";
 import { fetchSourceFileUrl } from "../../lib/api";
 import { createErrorMessage } from "../../lib/errors";
@@ -21,6 +21,7 @@ interface SourcePanelProps {
   }) => Promise<void>;
   onAttachPdfSource: (input: { notebookId: string; file: File }) => Promise<void>;
   onAttachLinkSource: (input: { notebookId: string; url: string; title?: string }) => Promise<void>;
+  onRemoveSource?: (sourceId: string) => Promise<void>;
 }
 
 export function SourcePanel({
@@ -32,6 +33,7 @@ export function SourcePanel({
   onCreateNoteWithMaterial,
   onAttachPdfSource,
   onAttachLinkSource,
+  onRemoveSource,
 }: SourcePanelProps) {
   const [formMode, setFormMode] = React.useState<"closed" | "text" | "link">("closed");
   const [title, setTitle] = React.useState("");
@@ -42,6 +44,7 @@ export function SourcePanel({
   const [opening, setOpening] = React.useState(false);
   const [uploadingPdf, setUploadingPdf] = React.useState(false);
   const [openingPdf, setOpeningPdf] = React.useState(false);
+  const [removing, setRemoving] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -136,6 +139,19 @@ export function SourcePanel({
       setError(createErrorMessage(err, messages.source.loadError));
     } finally {
       setOpeningPdf(false);
+    }
+  }
+
+  async function handleRemoveClick() {
+    if (!sourceId || !onRemoveSource) return;
+    setRemoving(true);
+    setError(undefined);
+    try {
+      await onRemoveSource(sourceId);
+    } catch (err) {
+      setError(createErrorMessage(err, messages.source.loadError));
+    } finally {
+      setRemoving(false);
     }
   }
 
@@ -297,6 +313,18 @@ export function SourcePanel({
             <span className="h-2 w-0.5 bg-bic" aria-hidden="true" />
             {messages.source.materialLegend}
           </span>
+          {onRemoveSource ? (
+            <button
+              type="button"
+              disabled={removing}
+              aria-label={messages.source.removeSource}
+              title={messages.source.removeSource}
+              onClick={() => void handleRemoveClick()}
+              className="rounded p-1 text-ink-muted transition-colors hover:bg-paper hover:text-danger disabled:opacity-50"
+            >
+              <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+            </button>
+          ) : null}
         </div>
       </div>
 
