@@ -174,6 +174,12 @@ export const messages = {
     createNoteWithLink: "Anexar link à nota",
     openLink: "Abrir link",
     removeSource: "Remover material",
+    gapsTitle: "O que faltou na sua memória",
+    gapsCheckButton: "Comparar com minha nota",
+    gapsChecking: "Comparando...",
+    gapsNoMemory: "Escreva primeiro o que você lembra para comparar com o material.",
+    gapsNoneFound: "Você cobriu os principais pontos deste material!",
+    gapsTurnIntoQuestion: "Virar pergunta",
   },
   quota: {
     notebooks: "Você chegou ao limite de {limit} cadernos. Apague algum para criar outro.",
