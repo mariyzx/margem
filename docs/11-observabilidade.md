@@ -108,3 +108,13 @@ Cada etapa é pequena e já deixa o projeto melhor.
 8. **SLOs e alertas:** escolher metas, alertar por sintoma, escrever o "o que conferir primeiro".
 9. **Front:** Web Vitals e `traceparent` do navegador até a api.
 10. **Exercício de incidente:** derrubar o Elasticsearch de propósito e ver se os alertas, os painéis e a degradação pra busca no Postgres funcionam como o planejado.
+
+## Sinais de abuso (já implementados)
+
+Runbook com comandos e consultas: [`infra/docs/investigar-abuso.md`](../infra/docs/investigar-abuso.md).
+
+- **Identificação do cliente:** `ipHash` = HMAC-SHA256 do IP (IPv6 reduzido ao /64) com `LOG_HASH_SECRET`, 16 hex; `userAgent` até 200 caracteres. IP puro não vai para log, AuditLog nem Sentry. O access log do Caddy mascara o IP (/24 e /64) e tira `token`, `code`, `state`, `Cookie`, `Authorization` e `Set-Cookie`.
+- **Eventos (`warn`):** `security.rate_limited` (com o nome do throttler), `security.csrf_blocked` (com o motivo) e `security.quota_exceeded` (com o recurso). Cada um é logado no máximo uma vez a cada 5 min por `ipHash` + rota; todos são somados no hash `security:daily:<dia UTC>` do Redis.
+- **AuditLog:** toda escrita leva `ipHash` e `userAgent`. Eventos de auth: `auth.magic_link_requested` (`emailHash`, `outcome`: `sent` | `email_limited` | `global_cap`), `auth.magic_link_verify_failed` (`reason`: `invalid` | `expired` | `used`), `auth.google_failed` (`reason`: `state_mismatch` | `email_not_verified` | `token_invalid`). Uma falha ao gravar vira `audit.write_failed` e não interrompe o fluxo.
+- **Resumo diário:** o job das 03:30 (America/Sao_Paulo) loga `security.daily_summary` com os contadores do dia UTC anterior e apaga o hash. No mesmo job, AuditLog mais antigo que `AUDIT_RETENTION_DAYS` (padrão 90) é apagado em lotes de 1.000.
+- **`x-request-id`:** só é aceito do cliente se casar com `^[A-Za-z0-9-]{8,64}$`; senão a API gera um UUID.

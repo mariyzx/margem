@@ -14,6 +14,9 @@ export const envSchema = z.object({
   MAIL_FROM: z.string().min(1).default("Margem <no-reply@margem.local>"),
   SESSION_TTL_DAYS: z.coerce.number().int().positive().default(14),
   MAGIC_LINK_DAILY_CAP: z.coerce.number().int().positive().default(300),
+  /** HMAC key for ipHash/emailHash. Required in production (see loadEnv). */
+  LOG_HASH_SECRET: z.string().min(32).optional(),
+  AUDIT_RETENTION_DAYS: z.coerce.number().int().positive().default(90),
   MAX_ACTIVE_SESSIONS_PER_USER: z.coerce.number().int().positive().default(10),
   MAX_NOTEBOOKS_PER_USER: z.coerce.number().int().positive().default(100),
   MAX_NOTES_PER_USER: z.coerce.number().int().positive().default(5000),
@@ -39,6 +42,9 @@ export function loadEnv(raw: NodeJS.ProcessEnv = process.env): Env {
   const parsed = envSchema.safeParse(raw);
   if (!parsed.success) {
     throw new Error(`Invalid environment variables: ${parsed.error.message}`);
+  }
+  if (parsed.data.NODE_ENV === "production" && !parsed.data.LOG_HASH_SECRET) {
+    throw new Error("Invalid environment variables: LOG_HASH_SECRET is required in production");
   }
   return parsed.data;
 }

@@ -12,6 +12,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { assertWithinQuota } from "../quotas/quota";
 import { chunkText } from "./chunk-text";
 import { randomUUID } from "node:crypto";
+import { withAuditContext } from "../security/request-context";
 import { isPdfBuffer, MAX_PDF_BYTES } from "./pdf-validation";
 import { SourceIngestQueue } from "./source-ingest.queue";
 import { StorageService } from "./storage.service";
@@ -62,11 +63,11 @@ export class SourcesService {
       }
 
       await tx.auditLog.create({
-        data: {
+        data: withAuditContext({
           userId,
           action: "source.created",
           metadata: { sourceId: source.id, notebookId: source.notebookId, type: source.type },
-        },
+        }),
       });
       return source;
     });
@@ -158,11 +159,11 @@ export class SourcesService {
         },
       });
       await tx.auditLog.create({
-        data: {
+        data: withAuditContext({
           userId,
           action: "source.created",
           metadata: { sourceId: source.id, notebookId: source.notebookId, type: source.type },
-        },
+        }),
       });
       return source;
     });

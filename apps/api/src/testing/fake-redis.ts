@@ -57,6 +57,21 @@ export class FakeRedis {
         this.store.set(key, { value, expiresAt });
         return "OK";
       }
+      case "hincrby": {
+        // Hashes are kept as JSON in the same entry, so TTL handling stays shared.
+        const [, field, by] = args as [string, string, number];
+        const entry = this.live(key);
+        const hash = entry ? (JSON.parse(entry.value) as Record<string, number>) : {};
+        hash[field] = (hash[field] ?? 0) + Number(by);
+        this.store.set(key, { value: JSON.stringify(hash), expiresAt: entry?.expiresAt ?? null });
+        return hash[field];
+      }
+      case "hgetall": {
+        const entry = this.live(key);
+        if (!entry) return {};
+        const hash = JSON.parse(entry.value) as Record<string, number>;
+        return Object.fromEntries(Object.entries(hash).map(([k, v]) => [k, String(v)]));
+      }
       case "pexpire":
         return this.applyExpire(key, Number(args[1]), args[2]);
       case "expire":
@@ -89,11 +104,24 @@ export class FakeRedis {
   expire = (...args: unknown[]) => this.standalone("expire", args);
   pttl = (...args: unknown[]) => this.standalone("pttl", args);
   ttl = (...args: unknown[]) => this.standalone("ttl", args);
+  hincrby = (...args: unknown[]) => this.standalone("hincrby", args);
+  hgetall = (...args: unknown[]) => this.standalone("hgetall", args);
 
   multi() {
     const queued: Command[] = [];
     const chain: Record<string, (...args: unknown[]) => unknown> = {};
-    for (const name of ["incr", "get", "del", "set", "pexpire", "expire", "pttl", "ttl"]) {
+    for (const name of [
+      "incr",
+      "get",
+      "del",
+      "set",
+      "pexpire",
+      "expire",
+      "pttl",
+      "ttl",
+      "hincrby",
+      "hgetall",
+    ]) {
       chain[name] = (...args: unknown[]) => {
         queued.push({ name, args });
         return chain;

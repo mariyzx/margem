@@ -7,6 +7,9 @@ import request from "supertest";
 import { describe, expect, it } from "vitest";
 import { ALLOWED_ORIGIN, CsrfOriginGuard } from "./csrf-origin.guard";
 import { createThrottlers } from "./throttlers";
+import { REDIS_CLIENT } from "../health/redis.health";
+import { SecurityEventsService } from "../observability/security-events.service";
+import { FakeRedis } from "../testing/fake-redis";
 
 @Controller("test-security")
 class TestSecurityController {
@@ -39,6 +42,8 @@ describe("HTTP security controls", () => {
       ],
       controllers: [TestSecurityController],
       providers: [
+        { provide: REDIS_CLIENT, useValue: new FakeRedis() },
+        SecurityEventsService,
         { provide: ALLOWED_ORIGIN, useValue: "http://localhost:3000" },
         { provide: APP_GUARD, useClass: CsrfOriginGuard },
         { provide: APP_GUARD, useClass: ThrottlerGuard },

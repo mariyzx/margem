@@ -1,7 +1,7 @@
 import { Controller, Get } from "@nestjs/common";
 import { APP_GUARD } from "@nestjs/core";
 import { Test } from "@nestjs/testing";
-import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
+import { ThrottlerModule } from "@nestjs/throttler";
 import cookieParser from "cookie-parser";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -16,6 +16,9 @@ import { RequirePolicy } from "../policies/require-policy.decorator";
 import { PrismaService } from "../prisma/prisma.service";
 import { FakeRedis } from "../testing/fake-redis";
 import { ALLOWED_ORIGIN, CsrfOriginGuard } from "./csrf-origin.guard";
+import { LoggingThrottlerGuard } from "./logging-throttler.guard";
+import { AuditService } from "../observability/audit.service";
+import { SecurityEventsService } from "../observability/security-events.service";
 import { GLOBAL_GUARDS } from "./security.module";
 import { createThrottlers } from "./throttlers";
 
@@ -56,6 +59,8 @@ describe("global guard order", () => {
         { provide: PrismaService, useValue: { session: { findUnique: sessionFindUnique } } },
         { provide: MailerService, useValue: {} },
         { provide: REDIS_CLIENT, useValue: new FakeRedis() },
+        SecurityEventsService,
+        AuditService,
         { provide: ALLOWED_ORIGIN, useValue: "http://localhost:3000" },
         ...GLOBAL_GUARDS,
       ],
@@ -73,7 +78,7 @@ describe("global guard order", () => {
       expect(provide).toBe(APP_GUARD);
       return useClass;
     });
-    expect(classes).toEqual([CsrfOriginGuard, ThrottlerGuard, SessionGuard, PolicyGuard]);
+    expect(classes).toEqual([CsrfOriginGuard, LoggingThrottlerGuard, SessionGuard, PolicyGuard]);
   });
 
   it("answers 429 without touching the session table once the limit is exceeded", async () => {

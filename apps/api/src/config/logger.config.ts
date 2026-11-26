@@ -3,19 +3,24 @@ import type { IncomingMessage } from "node:http";
 import type { Params } from "nestjs-pino";
 import type { Env } from "./env";
 
+/** Client-provided ids are only trusted when they look like an id (no spaces, JSON, CRLF). */
+export const REQUEST_ID_PATTERN = /^[A-Za-z0-9-]{8,64}$/;
+
+export function genReqId(req: Pick<IncomingMessage, "headers">): string {
+  const header = req.headers["x-request-id"];
+  if (typeof header === "string" && REQUEST_ID_PATTERN.test(header)) {
+    return header;
+  }
+  return randomUUID();
+}
+
 export function createLoggerParams(env: Env): Params {
   const isDev = env.NODE_ENV === "development";
 
   return {
     pinoHttp: {
       level: env.LOG_LEVEL,
-      genReqId(req: IncomingMessage) {
-        const header = req.headers["x-request-id"];
-        if (typeof header === "string" && header.length > 0) {
-          return header;
-        }
-        return randomUUID();
-      },
+      genReqId,
       customProps(req: IncomingMessage & { id?: unknown }) {
         return {
           trace_id: typeof req.id === "string" ? req.id : undefined,
