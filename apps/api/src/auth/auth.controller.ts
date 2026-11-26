@@ -14,7 +14,7 @@ import type { Request, Response } from "express";
 import { magicLinkRequestSchema, magicLinkVerifySchema } from "@margem/shared";
 import { loadEnv } from "../config/env";
 import { RequirePolicy } from "../policies/require-policy.decorator";
-import { AuthService } from "./auth.service";
+import { AuthService, GoogleAuthError } from "./auth.service";
 import { type AuthenticatedRequest, SESSION_COOKIE_NAME } from "./session";
 
 const OAUTH_STATE_COOKIE_NAME = "margem_oauth_state";
@@ -119,7 +119,13 @@ export class AuthController {
     ];
     res.clearCookie(OAUTH_STATE_COOKIE_NAME, { path: "/" });
 
-    if (error || !code || !state || !cookieState || state !== cookieState) {
+    if (error || !code) {
+      await this.authService.recordGoogleFailure("token_invalid");
+      res.redirect(`${env.APP_URL}/entrar?error=google`);
+      return;
+    }
+    if (!state || !cookieState || state !== cookieState) {
+      await this.authService.recordGoogleFailure("state_mismatch");
       res.redirect(`${env.APP_URL}/entrar?error=google`);
       return;
     }
@@ -134,7 +140,10 @@ export class AuthController {
         expires: result.expiresAt,
       });
       res.redirect(`${env.APP_URL}/`);
-    } catch {
+    } catch (failure) {
+      await this.authService.recordGoogleFailure(
+        failure instanceof GoogleAuthError ? failure.reason : "token_invalid",
+      );
       res.redirect(`${env.APP_URL}/entrar?error=google`);
     }
   }

@@ -19,3 +19,6 @@ playwright-report/
 
 # Claude Code worktrees (each holds a full checkout of the repo)
 .claude/worktrees/
+
+# Caddy IP blocklist: lives only on the VPS (see infra/caddy/blocklist/README.md)
+infra/caddy/blocklist/*.caddy

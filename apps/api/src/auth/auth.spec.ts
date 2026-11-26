@@ -1,4 +1,4 @@
-import { Logger, Module } from "@nestjs/common";
+import { Logger, type MiddlewareConsumer, Module, type NestModule } from "@nestjs/common";
 import { APP_GUARD } from "@nestjs/core";
 import { Test } from "@nestjs/testing";
 import cookieParser from "cookie-parser";
@@ -13,6 +13,10 @@ import { MailerService } from "./mailer.service";
 import { SessionGuard } from "./session.guard";
 import { PolicyGuard } from "../policies/policy.guard";
 import { FakeRedis } from "../testing/fake-redis";
+import { RequestContextMiddleware } from "../security/request-context";
+import { hashEmailForLogs } from "../security/client-fingerprint";
+import { AuditService } from "../observability/audit.service";
+import { SecurityEventsService } from "../observability/security-events.service";
 import { ThrottlerModule } from "@nestjs/throttler";
 import { ALLOWED_ORIGIN } from "../security/csrf-origin.guard";
 import { GLOBAL_GUARDS } from "../security/security.module";
@@ -40,7 +44,15 @@ describe("Magic link authentication", () => {
       seq: number;
     }
   >();
-  const auditLogs: Array<{ userId?: string; action: string }> = [];
+  type AuditRow = {
+    userId?: string | null;
+    action: string;
+    metadata?: Record<string, unknown>;
+    ipHash?: string;
+    userAgent?: string | null;
+  };
+  const auditLogs: AuditRow[] = [];
+  let failAuditWrites = false;
   const sentEmails: Array<{ email: string; url: string }> = [];
   const authAccounts = new Map<
     string,
@@ -53,6 +65,7 @@ describe("Magic link authentication", () => {
     tokens.clear();
     sessions.clear();
     auditLogs.length = 0;
+    failAuditWrites = false;
     sentEmails.length = 0;
     process.env.DATABASE_URL = "postgresql://margem:margem@localhost:5432/margem";
     process.env.REDIS_URL = "redis://localhost:6379";
@@ -186,7 +199,8 @@ describe("Magic link authentication", () => {
         ),
       },
       auditLog: {
-        create: vi.fn(async ({ data }: { data: { userId?: string; action: string } }) => {
+        create: vi.fn(async ({ data }: { data: AuditRow }) => {
+          if (failAuditWrites) throw new Error("audit table unavailable");
           auditLogs.push(data);
           return data;
         }),
@@ -236,6 +250,8 @@ describe("Magic link authentication", () => {
       controllers: [AuthController],
       providers: [
         AuthService,
+        SecurityEventsService,
+        AuditService,
         ...guards,
         { provide: PrismaService, useValue: fakePrisma },
         { provide: REDIS_CLIENT, useValue: redis },
@@ -249,7 +265,11 @@ describe("Magic link authentication", () => {
         },
       ],
     })
-    class TestAuthModule {}
+    class TestAuthModule implements NestModule {
+      configure(consumer: MiddlewareConsumer) {
+        consumer.apply(RequestContextMiddleware).forRoutes("*");
+      }
+    }
 
     const moduleRef = await Test.createTestingModule({
       imports: [TestAuthModule],
@@ -297,7 +317,12 @@ describe("Magic link authentication", () => {
     await request(app.getHttpServer()).post("/auth/logout-all").set("Cookie", cookies).expect(200);
     await request(app.getHttpServer()).get("/auth/me").set("Cookie", cookies).expect(401);
 
-    expect(auditLogs.map((l) => l.action)).toEqual(["auth.login", "auth.logout_all"]);
+    expect(auditLogs.map((l) => l.action)).toEqual([
+      "auth.magic_link_requested",
+      "auth.login",
+      "auth.magic_link_verify_failed",
+      "auth.logout_all",
+    ]);
     await app.close();
   });
 
@@ -630,6 +655,10 @@ describe("Magic link authentication", () => {
       .set("Cookie", stateCookies)
       .expect(302);
     expect(badStateRes.headers.location).toBe("http://localhost:3000/entrar?error=google");
+    expect(auditLogs.at(-1)).toMatchObject({
+      action: "auth.google_failed",
+      metadata: { reason: "state_mismatch" },
+    });
 
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
@@ -654,9 +683,114 @@ describe("Magic link authentication", () => {
         .expect(302);
       expect(unverifiedRes.headers.location).toBe("http://localhost:3000/entrar?error=google");
       expect(authAccounts.has("google:google-sub-999")).toBe(false);
+      expect(auditLogs.at(-1)).toMatchObject({
+        action: "auth.google_failed",
+        metadata: { reason: "email_not_verified" },
+      });
+
+      // A rejected code exchange is a token_invalid.
+      const retry = await request(app.getHttpServer()).get("/auth/google").expect(302);
+      const retryState = new URL(retry.headers.location as string).searchParams.get("state")!;
+      fetchSpy.mockResolvedValueOnce(new Response("{}", { status: 400 }));
+      await request(app.getHttpServer())
+        .get(`/auth/google/callback?code=bad-code&state=${encodeURIComponent(retryState)}`)
+        .set("Cookie", retry.headers["set-cookie"] as unknown as string[])
+        .expect(302);
+      expect(auditLogs.at(-1)).toMatchObject({
+        action: "auth.google_failed",
+        metadata: { reason: "token_invalid" },
+      });
     } finally {
       fetchSpy.mockRestore();
       await app.close();
     }
+  });
+
+  it("audits each magic link request with its outcome, an e-mail HMAC and the client context", async () => {
+    process.env.MAGIC_LINK_DAILY_CAP = "2";
+    freezeClock();
+    const app = await createApp();
+    const send = (email: string) =>
+      request(app.getHttpServer())
+        .post("/auth/magic-link")
+        .set("User-Agent", "AbuseTest/1.0")
+        .send({ email })
+        .expect(200);
+
+    await send("audit@margem.local"); // sent
+    await send("audit@margem.local"); // cooldown -> email_limited
+    await send("other@margem.local"); // sent (2/2 of the daily cap)
+    await send("third@margem.local"); // global_cap
+
+    const requested = auditLogs.filter((l) => l.action === "auth.magic_link_requested");
+    expect(requested.map((l) => l.metadata?.outcome)).toEqual([
+      "sent",
+      "email_limited",
+      "sent",
+      "global_cap",
+    ]);
+    for (const row of requested) {
+      expect(row.metadata?.emailHash).toMatch(/^[0-9a-f]{16}$/);
+      expect(row.ipHash).toMatch(/^[0-9a-f]{16}$/);
+      expect(row.userAgent).toBe("AbuseTest/1.0");
+      expect(JSON.stringify(row)).not.toMatch(/@margem\.local|127\.0\.0\.1|::1/);
+    }
+    expect(requested[0]!.metadata?.emailHash).toBe(requested[1]!.metadata?.emailHash);
+    expect(requested[0]!.metadata?.emailHash).not.toBe(requested[2]!.metadata?.emailHash);
+    // The runbook script (scripts/hash-email.ts) uses the same helper, so lookups always match.
+    expect(requested[0]!.metadata?.emailHash).toBe(hashEmailForLogs("Audit@Margem.local "));
+
+    await app.close();
+  });
+
+  it("audits failed verifications with reason invalid, expired or used", async () => {
+    freezeClock();
+    const app = await createApp();
+    const verify = (token: string) =>
+      request(app.getHttpServer()).post("/auth/verify").send({ token }).expect(401);
+
+    await verify("i".repeat(43));
+
+    const expired = "x".repeat(43);
+    tokens.set(hashToken(expired), {
+      id: "tok-expired",
+      email: "late@margem.local",
+      tokenHash: hashToken(expired),
+      expiresAt: new Date(Date.now() - 1000),
+      usedAt: null,
+    });
+    await verify(expired);
+
+    await requestLink(app, "twice@margem.local").expect(200);
+    const token = tokenFromEmail(0);
+    await request(app.getHttpServer()).post("/auth/verify").send({ token }).expect(200);
+    await verify(token);
+
+    expect(
+      auditLogs
+        .filter((l) => l.action === "auth.magic_link_verify_failed")
+        .map((l) => l.metadata?.reason),
+    ).toEqual(["invalid", "expired", "used"]);
+    // The successful login inside the transaction also carries the client context.
+    expect(auditLogs.find((l) => l.action === "auth.login")?.ipHash).toMatch(/^[0-9a-f]{16}$/);
+
+    await app.close();
+  });
+
+  it("keeps the login flow working when the audit write fails", async () => {
+    const error = vi.spyOn(Logger.prototype, "error").mockImplementation(() => undefined);
+    const app = await createApp();
+    failAuditWrites = true;
+
+    const res = await requestLink(app, "resilient@margem.local").expect(200);
+    await request(app.getHttpServer())
+      .post("/auth/verify")
+      .send({ token: "n".repeat(43) })
+      .expect(401);
+
+    expect(res.body).toEqual(GENERIC_BODY);
+    expect(sentEmails).toHaveLength(1);
+    expect(error.mock.calls.some((call) => call[1] === "audit.write_failed")).toBe(true);
+    await app.close();
   });
 });

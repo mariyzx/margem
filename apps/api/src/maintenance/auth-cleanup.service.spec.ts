@@ -2,6 +2,7 @@ import type Redis from "ioredis";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PrismaService } from "../prisma/prisma.service";
 import { FakeRedis } from "../testing/fake-redis";
+import { SecurityEventsService } from "../observability/security-events.service";
 import {
   AUTH_CLEANUP_BATCH_SIZE,
   AUTH_CLEANUP_LOCK_KEY,
@@ -16,6 +17,7 @@ const ahead = (ms: number) => new Date(NOW.getTime() + ms);
 
 type TokenRow = { id: string; expiresAt: Date; usedAt: Date | null };
 type SessionRow = { id: string; expiresAt: Date };
+type AuditRow = { id: string; createdAt: Date };
 type DateFilter = { lt: Date };
 
 function matchesLt(value: Date | null, filter: DateFilter | undefined): boolean {
@@ -23,7 +25,7 @@ function matchesLt(value: Date | null, filter: DateFilter | undefined): boolean 
 }
 
 /** Minimal Prisma fake that understands the exact queries the job sends. */
-function createPrisma(tokens: TokenRow[], sessions: SessionRow[]) {
+function createPrisma(tokens: TokenRow[], sessions: SessionRow[], audits: AuditRow[] = []) {
   const deleteBatches: Array<{ table: string; size: number }> = [];
 
   const prisma = {
@@ -67,6 +69,20 @@ function createPrisma(tokens: TokenRow[], sessions: SessionRow[]) {
         return { count: before - sessions.length };
       }),
     },
+    auditLog: {
+      findMany: vi.fn(async ({ where, take }: { where: { createdAt: DateFilter }; take: number }) =>
+        audits
+          .filter((a) => matchesLt(a.createdAt, where.createdAt))
+          .slice(0, take)
+          .map((a) => ({ id: a.id })),
+      ),
+      deleteMany: vi.fn(async ({ where }: { where: { id: { in: string[] } } }) => {
+        const before = audits.length;
+        audits.splice(0, audits.length, ...audits.filter((a) => !where.id.in.includes(a.id)));
+        deleteBatches.push({ table: "auditLog", size: where.id.in.length });
+        return { count: before - audits.length };
+      }),
+    },
   };
 
   return { prisma: prisma as unknown as PrismaService, deleteBatches };
@@ -77,7 +93,13 @@ describe("AuthCleanupService", () => {
 
   beforeEach(() => {
     redis = new FakeRedis();
+    delete process.env.AUDIT_RETENTION_DAYS;
   });
+
+  function makeService(prisma: PrismaService) {
+    const r = redis as unknown as Redis;
+    return new AuthCleanupService(prisma, r, new SecurityEventsService(r));
+  }
 
   it("deletes only tokens expired or used more than 24h ago and sessions expired more than 7 days ago", async () => {
     const tokens: TokenRow[] = [
@@ -93,11 +115,11 @@ describe("AuthCleanupService", () => {
       { id: "active", expiresAt: ahead(10 * DAY) },
     ];
     const { prisma } = createPrisma(tokens, sessions);
-    const service = new AuthCleanupService(prisma, redis as unknown as Redis);
+    const service = makeService(prisma);
 
     const result = await service.run(NOW);
 
-    expect(result).toEqual({ skipped: false, magicLinkTokens: 2, sessions: 1 });
+    expect(result).toEqual({ skipped: false, magicLinkTokens: 2, sessions: 1, auditLogs: 0 });
     expect(tokens.map((t) => t.id)).toEqual(["expired-1h", "used-2h", "active"]);
     expect(sessions.map((s) => s.id)).toEqual(["expired-6d", "active"]);
   });
@@ -112,7 +134,7 @@ describe("AuthCleanupService", () => {
       }),
     );
     const { prisma, deleteBatches } = createPrisma(tokens, []);
-    const service = new AuthCleanupService(prisma, redis as unknown as Redis);
+    const service = makeService(prisma);
 
     const result = await service.run(NOW);
 
@@ -126,8 +148,8 @@ describe("AuthCleanupService", () => {
   it("runs once when two instances fire at the same time (Redis lock)", async () => {
     const tokens: TokenRow[] = [{ id: "old", expiresAt: ago(3 * DAY), usedAt: null }];
     const { prisma } = createPrisma(tokens, []);
-    const first = new AuthCleanupService(prisma, redis as unknown as Redis);
-    const second = new AuthCleanupService(prisma, redis as unknown as Redis);
+    const first = makeService(prisma);
+    const second = makeService(prisma);
 
     const [a, b] = await Promise.all([first.run(NOW), second.run(NOW)]);
 
@@ -144,10 +166,82 @@ describe("AuthCleanupService", () => {
       [{ id: "old", expiresAt: ago(9 * DAY) }],
     );
 
-    await new AuthCleanupService(prisma, redis as unknown as Redis).run(NOW);
+    await makeService(prisma).run(NOW);
 
     const done = log.mock.calls.find((call) => call[1] === "maintenance.auth_cleanup_done");
     expect(done?.[0]).toMatchObject({ magicLinkTokens: 1, sessions: 1 });
+    log.mockRestore();
+  });
+
+  it("deletes AuditLog older than AUDIT_RETENTION_DAYS (default 90) in batches", async () => {
+    const audits: AuditRow[] = [
+      ...Array.from({ length: AUTH_CLEANUP_BATCH_SIZE + 1 }, (_, i) => ({
+        id: `old-${i}`,
+        createdAt: ago(91 * DAY),
+      })),
+      { id: "day-89", createdAt: ago(89 * DAY) },
+      { id: "today", createdAt: ago(HOUR) },
+    ];
+    const { prisma, deleteBatches } = createPrisma([], [], audits);
+
+    const result = await makeService(prisma).run(NOW);
+
+    expect(result.auditLogs).toBe(AUTH_CLEANUP_BATCH_SIZE + 1);
+    expect(audits.map((a) => a.id)).toEqual(["day-89", "today"]);
+    expect(deleteBatches.filter((b) => b.table === "auditLog").map((b) => b.size)).toEqual([
+      1000, 1,
+    ]);
+  });
+
+  it("honours a custom AUDIT_RETENTION_DAYS", async () => {
+    process.env.AUDIT_RETENTION_DAYS = "30";
+    const audits: AuditRow[] = [
+      { id: "day-31", createdAt: ago(31 * DAY) },
+      { id: "day-29", createdAt: ago(29 * DAY) },
+    ];
+    const { prisma } = createPrisma([], [], audits);
+
+    await makeService(prisma).run(NOW);
+
+    expect(audits.map((a) => a.id)).toEqual(["day-29"]);
+  });
+
+  it("logs yesterday's counters as security.daily_summary and then clears them", async () => {
+    const { Logger } = await import("@nestjs/common");
+    const log = vi.spyOn(Logger.prototype, "log").mockImplementation(() => undefined);
+    const events = new SecurityEventsService(redis as unknown as Redis);
+    const yesterday = new Date("2026-11-25T15:00:00.000Z");
+    for (const field of [
+      "magic_link.sent",
+      "magic_link.sent",
+      "magic_link.email_limited",
+      "rate_limited.default",
+      "rate_limited.global-ip",
+      "rate_limited.global-ip",
+      "csrf_blocked",
+      "quota_exceeded.notes",
+      "magic_link_verify_failed.expired",
+      "google_failed.state_mismatch",
+    ]) {
+      await events.count(field, yesterday);
+    }
+    await events.count("magic_link.sent", NOW); // today: must not be in the summary
+    const { prisma } = createPrisma([], []);
+
+    await makeService(prisma).run(NOW);
+
+    const summary = log.mock.calls.find((call) => call[1] === "security.daily_summary");
+    expect(summary?.[0]).toEqual({
+      day: "2026-11-25",
+      magic_link: { sent: 2, email_limited: 1, global_cap: 0 },
+      rate_limited: { default: 1, "global-ip": 2 },
+      csrf_blocked: 1,
+      quota_exceeded: { notes: 1 },
+      magic_link_verify_failed: { expired: 1 },
+      google_failed: { state_mismatch: 1 },
+    });
+    expect(await events.readDay("2026-11-25")).toEqual({});
+    expect(await events.readDay("2026-11-26")).toEqual({ "magic_link.sent": 1 });
     log.mockRestore();
   });
 });

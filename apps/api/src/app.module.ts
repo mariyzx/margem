@@ -8,7 +8,9 @@ import { PoliciesModule } from "./policies/policies.module";
 import { AuthModule } from "./auth/auth.module";
 import { NotebooksModule } from "./notebooks/notebooks.module";
 import { NotesModule } from "./notes/notes.module";
-import { Module } from "@nestjs/common";
+import { type MiddlewareConsumer, Module, type NestModule } from "@nestjs/common";
+import { AbuseObservabilityModule } from "./observability/abuse-observability.module";
+import { RequestContextMiddleware } from "./security/request-context";
 import { ScheduleModule } from "@nestjs/schedule";
 import { MaintenanceModule } from "./maintenance/maintenance.module";
 import { SentryModule } from "@sentry/nestjs/setup";
@@ -21,6 +23,7 @@ import { SourcesModule } from "./sources/sources.module";
     LoggerModule.forRoot(createLoggerParams(loadEnv())),
     HealthModule,
     PrismaModule,
+    AbuseObservabilityModule,
     SecurityModule,
     PoliciesModule,
     AuthModule,
@@ -34,4 +37,9 @@ import { SourcesModule } from "./sources/sources.module";
     MaintenanceModule,
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    // Only stores the request in AsyncLocalStorage (no I/O): safe before the throttlers.
+    consumer.apply(RequestContextMiddleware).forRoutes("*");
+  }
+}

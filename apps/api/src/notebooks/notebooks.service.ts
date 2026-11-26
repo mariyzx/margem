@@ -11,6 +11,7 @@ import { cursorArgs, toPage } from "../common/pagination";
 import { PolicyService } from "../policies/policy.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { assertWithinQuota } from "../quotas/quota";
+import { withAuditContext } from "../security/request-context";
 
 const NOTE_SUMMARY_SELECT = {
   id: true,
@@ -97,11 +98,11 @@ export class NotebooksService {
         },
       });
       await tx.auditLog.create({
-        data: {
+        data: withAuditContext({
           userId,
           action: "notebook.created",
           metadata: { notebookId: created.id, color: created.color },
-        },
+        }),
       });
       return created;
     });
@@ -131,11 +132,11 @@ export class NotebooksService {
         },
       });
       await tx.auditLog.create({
-        data: {
+        data: withAuditContext({
           userId,
           action: "notebook.updated",
           metadata: { notebookId: saved.id },
-        },
+        }),
       });
       return saved;
     });
@@ -207,11 +208,11 @@ export class NotebooksService {
         data: { deletedAt: now },
       });
       await tx.auditLog.create({
-        data: {
+        data: withAuditContext({
           userId,
           action: "notebook.deleted",
           metadata: { notebookId },
-        },
+        }),
       });
     });
 

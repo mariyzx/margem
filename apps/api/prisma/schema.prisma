@@ -105,12 +105,17 @@ model AuditLog {
   userId    String?
   action    String
   metadata  Json?
+  /// HMAC of the client IP (IPv6 /64), see security/client-fingerprint.ts. Never the raw IP.
+  ipHash    String?
+  userAgent String?
   createdAt DateTime @default(now())
 
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId, createdAt])
   @@index([action, createdAt])
+  @@index([ipHash, createdAt])
+  @@index([createdAt])
 }
 
 enum AnchorStatus {

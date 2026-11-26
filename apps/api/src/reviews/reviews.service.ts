@@ -9,6 +9,7 @@ import {
 import type { EnqueueStudyErrorsInput, ReviewCardDto } from "@margem/shared";
 import { PolicyService } from "../policies/policy.service";
 import { PrismaService } from "../prisma/prisma.service";
+import { withAuditContext } from "../security/request-context";
 
 @Injectable()
 export class ReviewsService {
@@ -134,11 +135,11 @@ export class ReviewsService {
       });
 
       await tx.auditLog.create({
-        data: {
+        data: withAuditContext({
           userId,
           action: "review.submitted",
           metadata: { reviewItemId, rating },
-        },
+        }),
       });
     });
 
@@ -229,11 +230,11 @@ export class ReviewsService {
       }
 
       await tx.auditLog.create({
-        data: {
+        data: withAuditContext({
           userId,
           action: "review.study_errors_enqueued",
           metadata: { noteId: input.noteId, count: enqueued },
-        },
+        }),
       });
     });
 

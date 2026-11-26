@@ -4,24 +4,30 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
-  Logger,
 } from "@nestjs/common";
 import type { Request } from "express";
+import { SecurityEventsService } from "../observability/security-events.service";
+import { clientFingerprint } from "./client-fingerprint";
+import { routeLabel } from "./route-label";
 
 export const ALLOWED_ORIGIN = Symbol("ALLOWED_ORIGIN");
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
+type CsrfReason = "foreign_origin" | "foreign_referer" | "invalid_referer" | "missing_origin";
+
 @Injectable()
 export class CsrfOriginGuard implements CanActivate {
-  private readonly logger = new Logger(CsrfOriginGuard.name);
   private readonly allowedOrigin: string;
 
-  constructor(@Inject(ALLOWED_ORIGIN) appUrl: string) {
+  constructor(
+    @Inject(ALLOWED_ORIGIN) appUrl: string,
+    private readonly securityEvents: SecurityEventsService,
+  ) {
     this.allowedOrigin = new URL(appUrl).origin;
   }
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<Request>();
     if (SAFE_METHODS.has(req.method.toUpperCase())) {
       return true;
@@ -32,42 +38,47 @@ export class CsrfOriginGuard implements CanActivate {
       if (origin === this.allowedOrigin) {
         return true;
       }
-      this.logger.warn(
-        { expectedOrigin: this.allowedOrigin, receivedOrigin: origin, path: req.url },
-        "security.csrf_blocked",
-      );
-      throw new ForbiddenException("Invalid request origin");
+      return this.block(context, req, "foreign_origin", "Invalid request origin");
     }
 
     const referer = req.headers.referer;
     if (typeof referer === "string" && referer.length > 0) {
+      let refererOrigin: string;
       try {
-        if (new URL(referer).origin === this.allowedOrigin) {
-          return true;
-        }
+        refererOrigin = new URL(referer).origin;
       } catch {
-        this.logger.warn(
-          { expectedOrigin: this.allowedOrigin, path: req.url },
-          "security.csrf_blocked",
-        );
-        throw new ForbiddenException("Invalid request referer");
+        return this.block(context, req, "invalid_referer", "Invalid request referer");
       }
-      this.logger.warn(
-        { expectedOrigin: this.allowedOrigin, path: req.url },
-        "security.csrf_blocked",
-      );
-      throw new ForbiddenException("Invalid request referer");
+      if (refererOrigin === this.allowedOrigin) {
+        return true;
+      }
+      return this.block(context, req, "foreign_referer", "Invalid request referer");
     }
 
     // Se houver cookie na requisição mutável sem Origin/Referer, bloqueia
     if (typeof req.headers.cookie === "string" && req.headers.cookie.length > 0) {
-      this.logger.warn(
-        { expectedOrigin: this.allowedOrigin, path: req.url },
-        "security.csrf_blocked",
+      return this.block(
+        context,
+        req,
+        "missing_origin",
+        "Missing origin for cookie-authenticated request",
       );
-      throw new ForbiddenException("Missing origin for cookie-authenticated request");
     }
 
     return true;
+  }
+
+  private async block(
+    context: ExecutionContext,
+    req: Request,
+    reason: CsrfReason,
+    message: string,
+  ): Promise<never> {
+    await this.securityEvents.report("csrf_blocked", {
+      route: routeLabel(context),
+      ipHash: clientFingerprint(req).ipHash,
+      reason,
+    });
+    throw new ForbiddenException(message);
   }
 }

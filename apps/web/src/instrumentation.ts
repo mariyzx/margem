@@ -1,5 +1,9 @@
 import * as Sentry from "@sentry/nextjs";
-import { scrubWebSentryEvent } from "./observability/scrub";
+import {
+  scrubBreadcrumb,
+  scrubWebSentryEvent,
+  scrubWebSentryTransaction,
+} from "./observability/scrub";
 
 export async function register() {
   const dsn = process.env.SENTRY_DSN;
@@ -12,6 +16,12 @@ export async function register() {
     environment: process.env.NODE_ENV,
     beforeSend(event) {
       return scrubWebSentryEvent(event);
+    },
+    beforeSendTransaction(event) {
+      return scrubWebSentryTransaction(event);
+    },
+    beforeBreadcrumb(breadcrumb) {
+      return scrubBreadcrumb(breadcrumb);
     },
   });
 }

@@ -11,6 +11,7 @@ import { PolicyService } from "../policies/policy.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { assertWithinQuota } from "../quotas/quota";
 import { createInitialSrsState } from "@margem/srs";
+import { withAuditContext } from "../security/request-context";
 
 @Injectable()
 export class QuestionsService {
@@ -117,11 +118,11 @@ export class QuestionsService {
       });
 
       await tx.auditLog.create({
-        data: {
+        data: withAuditContext({
           userId,
           action: "question.created",
           metadata: { questionId: question.id, noteId },
-        },
+        }),
       });
 
       return question;
@@ -159,11 +160,11 @@ export class QuestionsService {
         include: { anchor: true },
       });
       await tx.auditLog.create({
-        data: {
+        data: withAuditContext({
           userId,
           action: "question.updated",
           metadata: { questionId: saved.id, noteId: saved.noteId },
-        },
+        }),
       });
       return saved;
     });
@@ -204,11 +205,11 @@ export class QuestionsService {
         });
       }
       await tx.auditLog.create({
-        data: {
+        data: withAuditContext({
           userId,
           action: "question.deleted",
           metadata: { questionId, noteId: existing?.noteId },
-        },
+        }),
       });
     });
 

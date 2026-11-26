@@ -4,6 +4,7 @@ import { PolicyService } from "../policies/policy.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { assertWithinQuota } from "../quotas/quota";
 import { chunkText } from "./chunk-text";
+import { withAuditContext } from "../security/request-context";
 
 @Injectable()
 export class SourcesService {
@@ -49,11 +50,11 @@ export class SourcesService {
       }
 
       await tx.auditLog.create({
-        data: {
+        data: withAuditContext({
           userId,
           action: "source.created",
           metadata: { sourceId: source.id, notebookId: source.notebookId, type: source.type },
-        },
+        }),
       });
       return source;
     });
