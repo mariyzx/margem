@@ -3,11 +3,12 @@ import { PoliciesModule } from "../policies/policies.module";
 import { SourceIngestQueue } from "./source-ingest.queue";
 import { SourcesController } from "./sources.controller";
 import { SourcesService } from "./sources.service";
+import { StorageService } from "./storage.service";
 
 @Module({
   imports: [PoliciesModule],
   controllers: [SourcesController],
-  providers: [SourcesService, SourceIngestQueue],
+  providers: [SourcesService, SourceIngestQueue, StorageService],
   exports: [SourceIngestQueue],
 })
 export class SourcesModule {}

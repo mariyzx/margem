@@ -2,8 +2,9 @@
 
 import { createTextSourceSchema, type SourceDto } from "@margem/shared";
 import { Button, Field } from "@margem/ui";
-import { BookOpenCheck, FilePlus2 } from "lucide-react";
+import { BookOpenCheck, ExternalLink, FilePlus2, FileUp } from "lucide-react";
 import * as React from "react";
+import { fetchSourceFileUrl } from "../../lib/api";
 import { createErrorMessage } from "../../lib/errors";
 import { messages } from "../../messages/pt-br";
 
@@ -18,6 +19,7 @@ interface SourcePanelProps {
     title: string;
     content: string;
   }) => Promise<void>;
+  onAttachPdfSource: (input: { notebookId: string; file: File }) => Promise<void>;
 }
 
 export function SourcePanel({
@@ -27,6 +29,7 @@ export function SourcePanel({
   materialOpened,
   onOpenMaterial,
   onCreateNoteWithMaterial,
+  onAttachPdfSource,
 }: SourcePanelProps) {
   const [showForm, setShowForm] = React.useState(false);
   const [title, setTitle] = React.useState("");
@@ -34,6 +37,9 @@ export function SourcePanel({
   const [error, setError] = React.useState<string | undefined>();
   const [submitting, setSubmitting] = React.useState(false);
   const [opening, setOpening] = React.useState(false);
+  const [uploadingPdf, setUploadingPdf] = React.useState(false);
+  const [openingPdf, setOpeningPdf] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -67,6 +73,42 @@ export function SourcePanel({
     }
   }
 
+  async function handlePdfChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setError(undefined);
+
+    const maxBytes = 25 * 1024 * 1024;
+    if (file.size === 0 || file.size > maxBytes) {
+      setError(messages.source.invalidPdfError);
+      return;
+    }
+
+    setUploadingPdf(true);
+    try {
+      await onAttachPdfSource({ notebookId, file });
+    } catch (err) {
+      setError(createErrorMessage(err, messages.source.loadError));
+    } finally {
+      setUploadingPdf(false);
+    }
+  }
+
+  async function handleOpenPdfClick() {
+    if (!source) return;
+    setOpeningPdf(true);
+    setError(undefined);
+    try {
+      const url = await fetchSourceFileUrl(source.id);
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      setError(createErrorMessage(err, messages.source.loadError));
+    } finally {
+      setOpeningPdf(false);
+    }
+  }
+
   if (!sourceId) {
     return (
       <section
@@ -78,12 +120,33 @@ export function SourcePanel({
             {messages.source.panelTitle}
           </h2>
           {!showForm ? (
-            <Button type="button" variant="ghost" size="sm" onClick={() => setShowForm(true)}>
-              <FilePlus2 className="h-3.5 w-3.5" strokeWidth={1.5} />
-              <span>{messages.source.attachButton}</span>
-            </Button>
+            <div className="flex items-center gap-1">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/pdf,.pdf"
+                className="hidden"
+                onChange={(e) => void handlePdfChange(e)}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                loading={uploadingPdf}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <FileUp className="h-3.5 w-3.5" strokeWidth={1.5} />
+                <span>{messages.source.uploadPdfButton}</span>
+              </Button>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setShowForm(true)}>
+                <FilePlus2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+                <span>{messages.source.attachButton}</span>
+              </Button>
+            </div>
           ) : null}
         </div>
+
+        {!showForm && error ? <p className="text-xs text-danger">{error}</p> : null}
 
         {showForm ? (
           <form onSubmit={handleSubmit} className="flex flex-col gap-3" noValidate>
@@ -162,10 +225,37 @@ export function SourcePanel({
         </div>
       ) : source ? (
         <div className="flex flex-col gap-2 rounded-md border border-bic/30 bg-paper p-3">
-          <p className="text-xs font-semibold text-ink">{source.title}</p>
-          <p className="max-h-64 overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed text-ink-muted">
-            {source.content}
-          </p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold text-ink">{source.title}</p>
+            {source.type === "file" ? (
+              <span className="rounded bg-margin px-1.5 py-0.5 text-[11px] text-ink-muted">
+                {source.status === "queued"
+                  ? messages.source.statusQueued
+                  : source.status === "processing"
+                    ? messages.source.statusProcessing
+                    : source.status === "failed"
+                      ? messages.source.statusFailed
+                      : messages.source.statusReady}
+              </span>
+            ) : null}
+          </div>
+          {source.type === "file" ? (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              loading={openingPdf}
+              onClick={() => void handleOpenPdfClick()}
+            >
+              <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.5} />
+              <span>{messages.source.openPdf}</span>
+            </Button>
+          ) : (
+            <p className="max-h-64 overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed text-ink-muted">
+              {source.content}
+            </p>
+          )}
+          {error ? <p className="text-xs text-danger">{error}</p> : null}
         </div>
       ) : null}
     </section>

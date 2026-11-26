@@ -11,6 +11,7 @@ import {
   enqueueStudyErrors,
   fetchQuestions,
   fetchSource,
+  uploadFileSource,
 } from "../lib/api";
 import { messages } from "../messages/pt-br";
 import { NoteEditor } from "./editor/note-editor";
@@ -213,6 +214,17 @@ export function NoteWorkspace({
     });
   }
 
+  async function handleAttachPdfSource(input: { notebookId: string; file: File }) {
+    if (!selectedNote) return;
+    await flushPending();
+    const createdSource = await uploadFileSource(input);
+    await onSaveNote(selectedNote.id, {
+      title: titleRef.current,
+      doc: docRef.current,
+      sourceId: createdSource.id,
+    });
+  }
+
   if (creatingNotebook || notebooks.length === 0) {
     return (
       <div className="mx-auto flex w-full max-w-md flex-col justify-center py-12">
@@ -357,6 +369,7 @@ export function NoteWorkspace({
           materialOpened={materialOpened}
           onOpenMaterial={handleOpenMaterial}
           onCreateNoteWithMaterial={handleCreateNoteWithMaterial}
+          onAttachPdfSource={handleAttachPdfSource}
         />
         <NoteMargin
           mode={mode}

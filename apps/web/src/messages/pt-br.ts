@@ -161,6 +161,13 @@ export const messages = {
     memoryLegend: "De memória",
     materialLegend: "Com material aberto",
     loadError: "Não foi possível carregar o material.",
+    uploadPdfButton: "Enviar PDF",
+    openPdf: "Abrir PDF",
+    statusQueued: "Na fila",
+    statusProcessing: "Processando",
+    statusReady: "Pronto",
+    statusFailed: "Falhou",
+    invalidPdfError: "Selecione um arquivo PDF de até 25 MB.",
   },
   // `{limit}` is replaced with the cap returned by the API.
   quota: {

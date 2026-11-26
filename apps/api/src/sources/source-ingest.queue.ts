@@ -3,7 +3,10 @@ import { type Job, Queue, Worker } from "bullmq";
 import { loadEnv } from "../config/env";
 import { PrismaService } from "../prisma/prisma.service";
 import { chunkText } from "./chunk-text";
+import { PDFParse } from "pdf-parse";
+import { StorageService } from "./storage.service";
 
+const PDF_PARSE_TIMEOUT_MS = 30_000;
 export const SOURCE_INGEST_QUEUE = "source-ingest";
 export const SOURCE_INGEST_DLQ = "source-ingest-dlq";
 
@@ -18,7 +21,10 @@ export class SourceIngestQueue implements OnModuleInit, OnModuleDestroy {
   private dlq: Queue<SourceIngestJobData & { reason: string; failedAt: string }> | null = null;
   private worker: Worker<SourceIngestJobData> | null = null;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
+  ) {}
 
   onModuleInit() {
     const env = loadEnv();
@@ -77,31 +83,77 @@ export class SourceIngestQueue implements OnModuleInit, OnModuleDestroy {
       data: { status: "processing", failureReason: null },
     });
 
-    const text = source.type === "text" ? (source.content ?? "") : "";
-    if (!text.trim()) {
-      throw new Error(`Unsupported or empty source content for type "${source.type}"`);
+    const chunkEntries: Array<{ text: string; page: number | null }> = [];
+
+    if (source.type === "text") {
+      const text = source.content ?? "";
+      if (!text.trim()) {
+        throw new Error('Empty source content for type "text"');
+      }
+      for (const piece of chunkText(text)) {
+        chunkEntries.push({ text: piece, page: null });
+      }
+    } else if (source.type === "file") {
+      if (!source.storageKey) {
+        throw new Error("Missing storageKey for file source");
+      }
+      const pdfChunks = await this.extractPdfChunks(source.storageKey);
+      chunkEntries.push(...pdfChunks);
+    } else {
+      throw new Error(`Unsupported source type "${source.type}"`);
     }
 
-    const chunks = chunkText(text);
+    if (chunkEntries.length === 0) {
+      throw new Error("Source has no extractable text");
+    }
 
     await this.prisma.$transaction(async (tx) => {
       await tx.sourceChunk.deleteMany({ where: { sourceId } });
-      if (chunks.length > 0) {
-        await tx.sourceChunk.createMany({
-          data: chunks.map((chunk, ord) => ({
-            sourceId,
-            ord,
-            text: chunk,
-          })),
-        });
-      }
+      await tx.sourceChunk.createMany({
+        data: chunkEntries.map((entry, ord) => ({
+          sourceId,
+          ord,
+          text: entry.text,
+          page: entry.page,
+        })),
+      });
       await tx.source.update({
         where: { id: sourceId },
         data: { status: "ready", failureReason: null },
       });
     });
 
-    this.logger.log({ sourceId, chunkCount: chunks.length }, "Source ingested");
+    this.logger.log({ sourceId, chunkCount: chunkEntries.length }, "Source ingested");
+  }
+
+  private async extractPdfChunks(
+    storageKey: string,
+  ): Promise<Array<{ text: string; page: number | null }>> {
+    const buffer = await this.storage.getObjectBuffer(storageKey);
+    const parser = new PDFParse({ data: buffer });
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const result = await Promise.race([
+        parser.getText(),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => {
+            reject(new Error("PDF parsing timed out"));
+          }, PDF_PARSE_TIMEOUT_MS);
+        }),
+      ]);
+
+      const entries: Array<{ text: string; page: number | null }> = [];
+      for (const page of result.pages) {
+        for (const piece of chunkText(page.text)) {
+          entries.push({ text: piece, page: page.num });
+        }
+      }
+      return entries;
+    } finally {
+      if (timer) clearTimeout(timer);
+      await parser.destroy().catch(() => undefined);
+    }
   }
 
   private async handleJobFailure(

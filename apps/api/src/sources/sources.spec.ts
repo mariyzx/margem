@@ -1,10 +1,12 @@
-import { NotFoundException } from "@nestjs/common";
+import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
 import { PolicyService } from "../policies/policy.service";
 import type { PrismaService } from "../prisma/prisma.service";
 import { chunkText } from "./chunk-text";
+import { isPdfBuffer } from "./pdf-validation";
 import { SourceIngestQueue } from "./source-ingest.queue";
 import { SourcesService } from "./sources.service";
+import type { StorageService } from "./storage.service";
 
 describe("chunkText", () => {
   it("returns empty array for blank text and single chunk for short text", () => {
@@ -24,6 +26,14 @@ describe("chunkText", () => {
     const chunks = chunkText(longPara, 100, 20);
     expect(chunks.length).toBeGreaterThan(2);
     expect(chunks.every((c) => c.length <= 100)).toBe(true);
+  });
+});
+
+describe("isPdfBuffer", () => {
+  it("accepts %PDF- header and rejects arbitrary bytes", () => {
+    expect(isPdfBuffer(Buffer.from("%PDF-1.7\n..."))).toBe(true);
+    expect(isPdfBuffer(Buffer.from("<html>not a pdf</html>"))).toBe(false);
+    expect(isPdfBuffer(Buffer.from("PDF"))).toBe(false);
   });
 });
 
@@ -57,7 +67,8 @@ describe("SourceIngestQueue", () => {
       $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma)),
     } as unknown as PrismaService;
 
-    const queue = new SourceIngestQueue(prisma);
+    const storage = {} as StorageService;
+    const queue = new SourceIngestQueue(prisma, storage);
     await queue.processJob("src-1");
 
     expect(updates.map((u) => u.status)).toEqual(["processing", "ready"]);
@@ -82,11 +93,82 @@ describe("SourcesService", () => {
       },
     } as unknown as PrismaService;
 
-    const service = new SourcesService(prisma, new PolicyService());
+    const queue = { enqueue: vi.fn() } as unknown as SourceIngestQueue;
+    const storage = {} as StorageService;
+    const service = new SourcesService(prisma, new PolicyService(), queue, storage);
 
     await expect(
       service.createText("user-2", { notebookId: "nb-1", title: "Aula", content: "Texto" }),
     ).rejects.toThrow(NotFoundException);
     await expect(service.getById("user-2", "src-1")).rejects.toThrow(NotFoundException);
+    await expect(service.getSignedFileUrl("user-2", "src-1")).rejects.toThrow(NotFoundException);
+  });
+
+  it("uploads a valid PDF with generated storageKey, enqueues ingestion and rejects non-PDF", async () => {
+    const putObject = vi.fn(async () => undefined);
+    const enqueue = vi.fn(async () => undefined);
+    const now = new Date();
+
+    const prisma = {
+      notebook: {
+        findUnique: vi.fn(async () => ({ id: "nb-1", ownerId: "user-1", deletedAt: null })),
+      },
+      source: {
+        count: vi.fn(async () => 0),
+        create: vi.fn(
+          async ({
+            data,
+          }: {
+            data: {
+              notebookId: string;
+              type: string;
+              title: string;
+              storageKey: string;
+              status: string;
+            };
+          }) => ({
+            id: "src-pdf-1",
+            ...data,
+            content: null,
+            url: null,
+            failureReason: null,
+            deletedAt: null,
+            createdAt: now,
+            updatedAt: now,
+          }),
+        ),
+      },
+      auditLog: {
+        create: vi.fn(async () => ({})),
+      },
+      $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma)),
+    } as unknown as PrismaService;
+
+    const service = new SourcesService(
+      prisma,
+      new PolicyService(),
+      { enqueue } as unknown as SourceIngestQueue,
+      { putObject } as unknown as StorageService,
+    );
+
+    await expect(
+      service.createFile("user-1", {
+        notebookId: "nb-1",
+        title: "falso.pdf",
+        buffer: Buffer.from("not a pdf"),
+      }),
+    ).rejects.toThrow(BadRequestException);
+
+    const created = await service.createFile("user-1", {
+      notebookId: "nb-1",
+      title: "../../malicioso.pdf",
+      buffer: Buffer.from("%PDF-1.7\ncontent"),
+    });
+
+    expect(created.status).toBe("queued");
+    expect(putObject).toHaveBeenCalledTimes(1);
+    const [key] = putObject.mock.calls[0] as unknown as [string];
+    expect(key).toMatch(/^sources\/nb-1\/[0-9a-f-]+\.pdf$/);
+    expect(enqueue).toHaveBeenCalledWith("src-pdf-1");
   });
 });
