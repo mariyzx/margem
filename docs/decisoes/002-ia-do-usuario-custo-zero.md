@@ -1,6 +1,6 @@
 # ADR-002: IA da conta de cada usuário, custo zero
 
-- **Status:** Aceita
+- **Status:** Substituída por [ADR-012](012-ia-local-openrouter-groq.md)
 - **Data:** 2026-11-23
 
 ## Contexto

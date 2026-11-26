@@ -28,5 +28,6 @@ Use estes termos na interface (pt-BR) e os nomes em inglês no código.
 | Perguntas cruzadas | `cross questions` | Perguntas de outras pessoas da turma que entram na sua revisão. |
 | Quiz ao vivo | `LiveQuiz` | Sessão em tempo real da turma com as perguntas do grupo. |
 | Mapa de memória | `MemoryMap` | Canvas de notas ligadas, com blocos e ligações escondidos pra completar. |
-| Assistente de IA | `AiSettings` | Configuração de IA da pessoa: sem IA, botão de prompt pronto ou IA dentro do app. |
-| Botão de prompt pronto | `prompt handoff` | Abre Claude, ChatGPT ou Gemini com o pedido montado; o resultado não volta pro app. |
+| Assistente de IA | `AiSettings` | Configuração de IA da pessoa: liga ou desliga a IA e, se quiser, conecta OpenRouter ou Groq. |
+| IA do Margem | `local` | Modelo de texto pequeno rodando no Ollama da VPS; a IA padrão, sem custo e sem configurar nada. |
+| Botão de prompt pronto | `prompt handoff` | Reserva quando a IA está desligada ou falha: abre Claude, ChatGPT ou Gemini com o pedido montado; o resultado não volta pro app. |
