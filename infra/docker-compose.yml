@@ -77,10 +77,43 @@ services:
     networks:
       - margem_local
 
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.4
+    container_name: margem-elasticsearch
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "127.0.0.1:9200:9200"
+    volumes:
+      - margem_es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - margem_local
+
+  ollama:
+    image: ollama/ollama:0.6.5
+    container_name: margem-ollama
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - margem_ollama_data:/root/.ollama
+    networks:
+      - margem_local
+
 volumes:
   margem_postgres_data:
   margem_redis_data:
   margem_s3_data:
+  margem_es_data:
+  margem_ollama_data:
 
 networks:
   margem_local:
