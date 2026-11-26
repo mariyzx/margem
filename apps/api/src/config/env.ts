@@ -34,6 +34,9 @@ export const envSchema = z.object({
   S3_BUCKET: z.string().trim().optional().or(z.literal("")),
   BACKUP_S3_ENDPOINT: z.string().url().optional().or(z.literal("")),
   BACKUP_S3_BUCKET: z.string().trim().optional().or(z.literal("")),
+  ELASTICSEARCH_URL: z.string().url().optional().or(z.literal("")),
+  OLLAMA_URL: z.string().url().optional().or(z.literal("")),
+  OLLAMA_EMBED_MODEL: z.string().trim().min(1).default("nomic-embed-text"),
 });
 
 export type Env = z.infer<typeof envSchema>;
