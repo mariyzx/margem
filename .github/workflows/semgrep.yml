@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: ["main", "epic/**"]
 
+permissions:
+  contents: read
+
 jobs:
   semgrep:
     name: SAST (Semgrep)
