@@ -7,7 +7,7 @@ import { PolicyService } from "../policies/policy.service";
 import type { PrismaService } from "../prisma/prisma.service";
 import { QuestionsService } from "../questions/questions.service";
 import { SourcesService } from "../sources/sources.service";
-import { assertWithinQuota, quotaLimit } from "./quota";
+import { assertWithinQuota, assertWithinStorageQuota, BYTES_PER_MB, quotaLimit } from "./quota";
 
 const STOP = new Error("reached the write");
 
@@ -169,5 +169,27 @@ describe("per-user quotas", () => {
 
     expect(error).not.toBeInstanceOf(UnprocessableEntityException);
     expect(count).not.toHaveBeenCalled();
+  });
+});
+
+describe("assertWithinStorageQuota", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("accepts a file that fills the cap exactly and refuses one byte more", async () => {
+    vi.stubEnv("MAX_SOURCE_STORAGE_MB_PER_USER", "2");
+    const cap = 2 * BYTES_PER_MB;
+
+    expect(() => assertWithinStorageQuota(cap - 100, 100)).not.toThrow();
+
+    const error = await quotaError(
+      Promise.resolve().then(() => assertWithinStorageQuota(cap - 100, 101)),
+    );
+    expect(error).toBeInstanceOf(UnprocessableEntityException);
+    const body = quotaExceededErrorSchema.parse(
+      (error as UnprocessableEntityException).getResponse(),
+    );
+    expect(body).toMatchObject({ code: QUOTA_EXCEEDED_CODE, resource: "storage", limit: 2 });
   });
 });

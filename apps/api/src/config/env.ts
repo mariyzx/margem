@@ -22,6 +22,8 @@ export const envSchema = z.object({
   MAX_NOTES_PER_USER: z.coerce.number().int().positive().default(5000),
   MAX_SOURCES_PER_USER: z.coerce.number().int().positive().default(500),
   MAX_QUESTIONS_PER_USER: z.coerce.number().int().positive().default(10000),
+  /** Sum of uploaded PDF sizes per user, in MB. The free Object Storage is 20 GB in all. */
+  MAX_SOURCE_STORAGE_MB_PER_USER: z.coerce.number().int().positive().default(500),
   SENTRY_DSN: z.string().url().optional().or(z.literal("")),
   APP_VERSION: z.string().default("0.0.0"),
   GOOGLE_CLIENT_ID: z.string().trim().optional().or(z.literal("")),
@@ -30,10 +32,9 @@ export const envSchema = z.object({
   AWS_ACCESS_KEY_ID: z.string().trim().optional().or(z.literal("")),
   AWS_SECRET_ACCESS_KEY: z.string().trim().optional().or(z.literal("")),
   AWS_DEFAULT_REGION: z.string().trim().default("sa-saopaulo-1"),
+  /** Upload bucket. Never falls back to BACKUP_S3_* (the Postgres dumps bucket). */
   S3_ENDPOINT: z.string().url().optional().or(z.literal("")),
   S3_BUCKET: z.string().trim().optional().or(z.literal("")),
-  BACKUP_S3_ENDPOINT: z.string().url().optional().or(z.literal("")),
-  BACKUP_S3_BUCKET: z.string().trim().optional().or(z.literal("")),
 });
 
 export type Env = z.infer<typeof envSchema>;
