@@ -353,6 +353,9 @@ export default function HomePage() {
                 onCreateNotebook={handleCreateNotebook}
                 onCreateNote={handleCreateNote}
                 onSaveNote={handleSaveNote}
+                onSelectNote={(noteId) => {
+                  if (selectedNotebook) void handleSelectNote(selectedNotebook.id, noteId);
+                }}
               />
             </m.div>
           </AnimatePresence>

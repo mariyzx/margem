@@ -174,7 +174,6 @@ export const messages = {
     createNoteWithLink: "Anexar link à nota",
     openLink: "Abrir link",
   },
-  // `{limit}` is replaced with the cap returned by the API.
   quota: {
     notebooks: "Você chegou ao limite de {limit} cadernos. Apague algum para criar outro.",
     notes: "Você chegou ao limite de {limit} notas. Apague alguma para criar outra.",
@@ -184,5 +183,14 @@ export const messages = {
   theme: {
     switchToDark: "Mudar para tema escuro",
     switchToLight: "Mudar para tema claro",
+  },
+  search: {
+    placeholder: "Buscar nas notas e materiais do caderno...",
+    searching: "Buscando...",
+    empty: "Nenhum resultado encontrado.",
+    error: "Não foi possível realizar a busca.",
+    noteBadge: "Nota",
+    sourceBadge: "Material",
+    pagePrefix: "p.",
   },
 } as const;
