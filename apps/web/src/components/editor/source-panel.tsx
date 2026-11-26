@@ -376,11 +376,16 @@ export function SourcePanel({
           </Button>
         </div>
       ) : source ? (
-        <div className="flex flex-col gap-2 rounded-md border border-bic/30 bg-paper p-3">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-semibold text-ink">{source.title}</p>
+        <div className="flex min-w-0 flex-col gap-2 rounded-md border border-bic/30 bg-paper p-3">
+          <div className="flex min-w-0 items-center justify-between gap-2">
+            <p
+              className="min-w-0 flex-1 truncate text-xs font-semibold text-ink"
+              title={source.title}
+            >
+              {source.title}
+            </p>
             {source.type === "file" || source.type === "link" ? (
-              <span className="rounded bg-margin px-1.5 py-0.5 text-[11px] text-ink-muted">
+              <span className="shrink-0 rounded bg-margin px-1.5 py-0.5 text-[11px] text-ink-muted">
                 {source.status === "queued"
                   ? messages.source.statusQueued
                   : source.status === "processing"
