@@ -24,6 +24,8 @@ import {
   type SourceDto,
   type UpdateNotebookInput,
   type UpdateNoteInput,
+  SearchHitDto,
+  searchHitSchema,
 } from "@margem/shared";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
@@ -358,4 +360,27 @@ export async function createLinkSource(input: CreateLinkSourceInput): Promise<So
   if (!res.ok) await failed(res, "Create link source");
   const data = (await res.json()) as { source: unknown };
   return sourceSchema.parse(data.source);
+}
+
+export async function deleteSource(sourceId: string): Promise<void> {
+  const res = await apiFetch(`/sources/${encodeURIComponent(sourceId)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) await failed(res, "Delete source");
+}
+
+export async function searchNotebook(
+  notebookId: string,
+  q: string,
+  limit = 10,
+): Promise<SearchHitDto[]> {
+  const params = new URLSearchParams({
+    notebookId,
+    q,
+    limit: String(limit),
+  });
+  const res = await apiFetch(`/search?${params.toString()}`, { method: "GET" });
+  if (!res.ok) await failed(res, "Search notebook");
+  const data = (await res.json()) as { hits: unknown[] };
+  return data.hits.map((hit) => searchHitSchema.parse(hit));
 }

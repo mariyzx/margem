@@ -154,4 +154,79 @@ export class SearchIndexService {
       return false;
     }
   }
+
+  async searchChunks(params: {
+    notebookId: string;
+    query: string;
+    embedding: number[] | null;
+    limit: number;
+  }): Promise<Array<{
+    id: string;
+    sourceId: string;
+    page: number | null;
+    text: string;
+    score: number;
+  }> | null> {
+    const baseUrl = this.getBaseUrl();
+    if (!baseUrl) return null;
+
+    const ready = await this.ensureIndices();
+    if (!ready) return null;
+
+    const body: Record<string, unknown> = {
+      size: params.limit,
+      query: {
+        bool: {
+          filter: [{ term: { notebookId: params.notebookId } }],
+          must: [{ match: { text: params.query } }],
+        },
+      },
+      ...(params.embedding
+        ? {
+            knn: {
+              field: "embedding",
+              query_vector: params.embedding,
+              k: params.limit,
+              num_candidates: Math.max(params.limit * 4, 20),
+              filter: { term: { notebookId: params.notebookId } },
+            },
+          }
+        : {}),
+    };
+
+    try {
+      const res = await fetch(`${baseUrl}/${CHUNKS_INDEX}/_search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(ES_TIMEOUT_MS),
+      });
+      if (!res.ok) {
+        this.logger.warn({ status: res.status }, "Elasticsearch search failed, falling back");
+        return null;
+      }
+      const data = (await res.json()) as {
+        hits?: {
+          hits?: Array<{
+            _id: string;
+            _score?: number | null;
+            _source?: { sourceId?: string; page?: number | null; text?: string };
+          }>;
+        };
+      };
+      return (data.hits?.hits ?? []).map((hit) => ({
+        id: hit._id,
+        sourceId: hit._source?.sourceId ?? "",
+        page: hit._source?.page ?? null,
+        text: hit._source?.text ?? "",
+        score: hit._score ?? 0,
+      }));
+    } catch (error) {
+      this.logger.warn(
+        { error: error instanceof Error ? error.message : String(error) },
+        "Elasticsearch unavailable during search, falling back",
+      );
+      return null;
+    }
+  }
 }

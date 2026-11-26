@@ -1,5 +1,6 @@
 import {
   CreateBucketCommand,
+  DeleteObjectCommand,
   GetObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -84,5 +85,10 @@ export class StorageService {
       ResponseContentDisposition: `inline; filename="${safeFilename}"`,
     });
     return getSignedUrl(client, command, { expiresIn: expiresInSeconds });
+  }
+
+  async deleteObject(key: string): Promise<void> {
+    const { client, bucket } = this.getConfig();
+    await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
   }
 }

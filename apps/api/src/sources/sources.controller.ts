@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -92,5 +93,11 @@ export class SourcesController {
   async getFileUrl(@Req() req: AuthenticatedRequest, @Param("id") id: string) {
     const url = await this.sourcesService.getSignedFileUrl(req.user!.id, id);
     return { url };
+  }
+
+  @Delete(":id")
+  @RequirePolicy("delete", "notebook")
+  remove(@Req() req: AuthenticatedRequest, @Param("id") id: string) {
+    return this.sourcesService.remove(req.user!.id, id);
   }
 }
