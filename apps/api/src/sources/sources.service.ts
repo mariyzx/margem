@@ -6,7 +6,7 @@ import {
   Optional,
   ServiceUnavailableException,
 } from "@nestjs/common";
-import type { CreateTextSourceInput, SourceDto } from "@margem/shared";
+import type { CreateLinkSourceInput, CreateTextSourceInput, SourceDto } from "@margem/shared";
 import { PolicyService } from "../policies/policy.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { assertWithinQuota } from "../quotas/quota";
@@ -15,6 +15,7 @@ import { randomUUID } from "node:crypto";
 import { withAuditContext } from "../security/request-context";
 import { isPdfBuffer, MAX_PDF_BYTES } from "./pdf-validation";
 import { SourceIngestQueue } from "./source-ingest.queue";
+import { resolveAndValidateUrl, SsrfBlockedError } from "./ssrf-guard";
 import { StorageService } from "./storage.service";
 
 @Injectable()
@@ -100,6 +101,7 @@ export class SourcesService {
     type: SourceDto["type"];
     title: string;
     content: string | null;
+    url?: string | null;
     status: SourceDto["status"];
     createdAt: Date;
     updatedAt: Date;
@@ -110,10 +112,70 @@ export class SourcesService {
       type: source.type,
       title: source.title,
       content: source.content,
+      url: source.url ?? null,
       status: source.status,
       createdAt: source.createdAt.toISOString(),
       updatedAt: source.updatedAt.toISOString(),
     };
+  }
+
+  async createLink(userId: string, input: CreateLinkSourceInput): Promise<SourceDto> {
+    const notebook = await this.prisma.notebook.findUnique({
+      where: { id: input.notebookId },
+      select: { id: true, ownerId: true, deletedAt: true },
+    });
+    this.policyService.assertOwner(userId, notebook?.deletedAt ? null : notebook?.ownerId);
+
+    const owned = await this.prisma.source.count({
+      where: { deletedAt: null, notebook: { ownerId: userId, deletedAt: null } },
+    });
+    assertWithinQuota("sources", owned);
+
+    let validatedUrl: URL;
+    try {
+      const resolved = await resolveAndValidateUrl(input.url);
+      validatedUrl = resolved.url;
+    } catch (error) {
+      if (error instanceof SsrfBlockedError) {
+        throw new BadRequestException(error.message);
+      }
+      throw new BadRequestException("Could not resolve link host");
+    }
+
+    if (!this.ingestQueue) {
+      throw new ServiceUnavailableException("Link ingestion is not available");
+    }
+
+    const safeTitle = input.title?.trim().slice(0, 120) || validatedUrl.hostname;
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      const source = await tx.source.create({
+        data: {
+          notebookId: input.notebookId,
+          type: "link",
+          title: safeTitle,
+          url: validatedUrl.toString(),
+          status: "queued",
+        },
+      });
+      await tx.auditLog.create({
+        data: withAuditContext({
+          userId,
+          action: "source.created",
+          metadata: { sourceId: source.id, notebookId: source.notebookId, type: source.type },
+        }),
+      });
+      return source;
+    });
+
+    await this.ingestQueue.enqueue(created.id);
+
+    this.logger.log(
+      { sourceId: created.id, notebookId: created.notebookId, userId },
+      "Link source queued",
+    );
+
+    return this.toDto(created);
   }
 
   async createFile(

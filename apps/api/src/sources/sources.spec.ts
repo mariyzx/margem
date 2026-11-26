@@ -171,4 +171,65 @@ describe("SourcesService", () => {
     expect(key).toMatch(/^sources\/nb-1\/[0-9a-f-]+\.pdf$/);
     expect(enqueue).toHaveBeenCalledWith("src-pdf-1");
   });
+
+  it("blocks private/metadata URLs and queues valid public links", async () => {
+    const enqueue = vi.fn(async () => undefined);
+    const now = new Date();
+
+    const prisma = {
+      notebook: {
+        findUnique: vi.fn(async () => ({ id: "nb-1", ownerId: "user-1", deletedAt: null })),
+      },
+      source: {
+        count: vi.fn(async () => 0),
+        create: vi.fn(
+          async ({
+            data,
+          }: {
+            data: { notebookId: string; type: string; title: string; url: string; status: string };
+          }) => ({
+            id: "src-link-1",
+            ...data,
+            content: null,
+            storageKey: null,
+            failureReason: null,
+            deletedAt: null,
+            createdAt: now,
+            updatedAt: now,
+          }),
+        ),
+      },
+      auditLog: {
+        create: vi.fn(async () => ({})),
+      },
+      $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma)),
+    } as unknown as PrismaService;
+
+    const service = new SourcesService(prisma, new PolicyService(), {
+      enqueue,
+    } as unknown as SourceIngestQueue);
+
+    await expect(
+      service.createLink("user-1", {
+        notebookId: "nb-1",
+        url: "http://169.254.169.254/latest/meta-data",
+      }),
+    ).rejects.toThrow(BadRequestException);
+
+    await expect(
+      service.createLink("user-1", {
+        notebookId: "nb-1",
+        url: "http://127.0.0.1:3001/health",
+      }),
+    ).rejects.toThrow(BadRequestException);
+
+    const created = await service.createLink("user-1", {
+      notebookId: "nb-1",
+      url: "https://93.184.216.34/artigo",
+    });
+
+    expect(created.status).toBe("queued");
+    expect(created.url).toBe("https://93.184.216.34/artigo");
+    expect(enqueue).toHaveBeenCalledWith("src-link-1");
+  });
 });

@@ -1,8 +1,8 @@
 "use client";
 
-import { createTextSourceSchema, type SourceDto } from "@margem/shared";
+import { createLinkSourceSchema, createTextSourceSchema, type SourceDto } from "@margem/shared";
 import { Button, Field } from "@margem/ui";
-import { BookOpenCheck, ExternalLink, FilePlus2, FileUp } from "lucide-react";
+import { BookOpenCheck, ExternalLink, FilePlus2, FileUp, Link2 } from "lucide-react";
 import * as React from "react";
 import { fetchSourceFileUrl } from "../../lib/api";
 import { createErrorMessage } from "../../lib/errors";
@@ -20,6 +20,7 @@ interface SourcePanelProps {
     content: string;
   }) => Promise<void>;
   onAttachPdfSource: (input: { notebookId: string; file: File }) => Promise<void>;
+  onAttachLinkSource: (input: { notebookId: string; url: string; title?: string }) => Promise<void>;
 }
 
 export function SourcePanel({
@@ -30,10 +31,12 @@ export function SourcePanel({
   onOpenMaterial,
   onCreateNoteWithMaterial,
   onAttachPdfSource,
+  onAttachLinkSource,
 }: SourcePanelProps) {
-  const [showForm, setShowForm] = React.useState(false);
+  const [formMode, setFormMode] = React.useState<"closed" | "text" | "link">("closed");
   const [title, setTitle] = React.useState("");
   const [content, setContent] = React.useState("");
+  const [linkUrl, setLinkUrl] = React.useState("");
   const [error, setError] = React.useState<string | undefined>();
   const [submitting, setSubmitting] = React.useState(false);
   const [opening, setOpening] = React.useState(false);
@@ -56,9 +59,36 @@ export function SourcePanel({
       await onCreateNoteWithMaterial(parsed.data);
       setTitle("");
       setContent("");
-      setShowForm(false);
+      setFormMode("closed");
     } catch (error) {
       setError(createErrorMessage(error, messages.source.loadError));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleLinkSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(undefined);
+
+    const parsed = createLinkSourceSchema.safeParse({
+      notebookId,
+      url: linkUrl,
+      ...(title.trim() ? { title: title.trim() } : {}),
+    });
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message);
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await onAttachLinkSource(parsed.data);
+      setTitle("");
+      setLinkUrl("");
+      setFormMode("closed");
+    } catch (err) {
+      setError(createErrorMessage(err, messages.source.loadError));
     } finally {
       setSubmitting(false);
     }
@@ -119,8 +149,8 @@ export function SourcePanel({
           <h2 className="text-xs font-medium tracking-wide text-ink-muted uppercase">
             {messages.source.panelTitle}
           </h2>
-          {!showForm ? (
-            <div className="flex items-center gap-1">
+          {formMode === "closed" ? (
+            <div className="flex flex-wrap items-center gap-1">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -138,7 +168,27 @@ export function SourcePanel({
                 <FileUp className="h-3.5 w-3.5" strokeWidth={1.5} />
                 <span>{messages.source.uploadPdfButton}</span>
               </Button>
-              <Button type="button" variant="ghost" size="sm" onClick={() => setShowForm(true)}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setError(undefined);
+                  setFormMode("link");
+                }}
+              >
+                <Link2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+                <span>{messages.source.attachLinkButton}</span>
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setError(undefined);
+                  setFormMode("text");
+                }}
+              >
                 <FilePlus2 className="h-3.5 w-3.5" strokeWidth={1.5} />
                 <span>{messages.source.attachButton}</span>
               </Button>
@@ -146,9 +196,44 @@ export function SourcePanel({
           ) : null}
         </div>
 
-        {!showForm && error ? <p className="text-xs text-danger">{error}</p> : null}
+        {formMode === "closed" && error ? <p className="text-xs text-danger">{error}</p> : null}
 
-        {showForm ? (
+        {formMode === "link" ? (
+          <form onSubmit={handleLinkSubmit} className="flex flex-col gap-3" noValidate>
+            <Field
+              label={messages.source.linkLabel}
+              placeholder={messages.source.linkPlaceholder}
+              value={linkUrl}
+              onChange={(e) => {
+                setLinkUrl(e.target.value);
+                if (error) setError(undefined);
+              }}
+              autoFocus
+            />
+            <Field
+              label={messages.source.titleLabel}
+              placeholder={messages.source.titlePlaceholder}
+              value={title}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                if (error) setError(undefined);
+              }}
+            />
+
+            {error ? <p className="text-xs text-danger">{error}</p> : null}
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="submit" size="sm" loading={submitting}>
+                {messages.source.createNoteWithLink}
+              </Button>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setFormMode("closed")}>
+                {messages.source.cancel}
+              </Button>
+            </div>
+          </form>
+        ) : null}
+
+        {formMode === "text" ? (
           <form onSubmit={handleSubmit} className="flex flex-col gap-3" noValidate>
             <Field
               label={messages.source.titleLabel}
@@ -184,7 +269,7 @@ export function SourcePanel({
               <Button type="submit" size="sm" loading={submitting}>
                 {messages.source.createNoteWithMaterial}
               </Button>
-              <Button type="button" variant="ghost" size="sm" onClick={() => setShowForm(false)}>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setFormMode("closed")}>
                 {messages.source.cancel}
               </Button>
             </div>
@@ -227,7 +312,7 @@ export function SourcePanel({
         <div className="flex flex-col gap-2 rounded-md border border-bic/30 bg-paper p-3">
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs font-semibold text-ink">{source.title}</p>
-            {source.type === "file" ? (
+            {source.type === "file" || source.type === "link" ? (
               <span className="rounded bg-margin px-1.5 py-0.5 text-[11px] text-ink-muted">
                 {source.status === "queued"
                   ? messages.source.statusQueued
@@ -249,6 +334,13 @@ export function SourcePanel({
             >
               <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.5} />
               <span>{messages.source.openPdf}</span>
+            </Button>
+          ) : source.type === "link" && source.url ? (
+            <Button asChild variant="secondary" size="sm">
+              <a href={source.url} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.5} />
+                <span>{messages.source.openLink}</span>
+              </a>
             </Button>
           ) : (
             <p className="max-h-64 overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed text-ink-muted">
