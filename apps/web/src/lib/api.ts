@@ -319,3 +319,32 @@ export async function fetchSource(sourceId: string): Promise<SourceDto> {
   const data = (await res.json()) as { source: unknown };
   return sourceSchema.parse(data.source);
 }
+
+export async function uploadFileSource(input: {
+  notebookId: string;
+  file: File;
+  title?: string;
+}): Promise<SourceDto> {
+  const form = new FormData();
+  form.append("notebookId", input.notebookId);
+  if (input.title?.trim()) {
+    form.append("title", input.title.trim());
+  }
+  form.append("file", input.file);
+
+  const res = await fetch(`${API_URL}/sources/file`, {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  });
+  if (!res.ok) await failed(res, "Upload PDF source");
+  const data = (await res.json()) as { source: unknown };
+  return sourceSchema.parse(data.source);
+}
+
+export async function fetchSourceFileUrl(sourceId: string): Promise<string> {
+  const res = await apiFetch(`/sources/${encodeURIComponent(sourceId)}/file`, { method: "GET" });
+  if (!res.ok) await failed(res, "Fetch source file URL");
+  const data = (await res.json()) as { url: string };
+  return data.url;
+}

@@ -62,9 +62,25 @@ services:
     networks:
       - margem_local
 
+  s3:
+    image: rustfs/rustfs:latest
+    container_name: margem-s3
+    restart: unless-stopped
+    environment:
+      RUSTFS_ACCESS_KEY: ${AWS_ACCESS_KEY_ID:-margem_s3_dev}
+      RUSTFS_SECRET_KEY: ${AWS_SECRET_ACCESS_KEY:-margem_s3_dev_secret}
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - margem_s3_data:/data
+    networks:
+      - margem_local
+
 volumes:
   margem_postgres_data:
   margem_redis_data:
+  margem_s3_data:
 
 networks:
   margem_local:

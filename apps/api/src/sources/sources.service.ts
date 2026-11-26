@@ -1,9 +1,20 @@
-import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+  ServiceUnavailableException,
+} from "@nestjs/common";
 import type { CreateTextSourceInput, SourceDto } from "@margem/shared";
 import { PolicyService } from "../policies/policy.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { assertWithinQuota } from "../quotas/quota";
 import { chunkText } from "./chunk-text";
+import { randomUUID } from "node:crypto";
+import { isPdfBuffer, MAX_PDF_BYTES } from "./pdf-validation";
+import { SourceIngestQueue } from "./source-ingest.queue";
+import { StorageService } from "./storage.service";
 
 @Injectable()
 export class SourcesService {
@@ -12,6 +23,8 @@ export class SourcesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly policyService: PolicyService,
+    @Optional() private readonly ingestQueue?: SourceIngestQueue,
+    @Optional() private readonly storage?: StorageService,
   ) {}
 
   async createText(userId: string, input: CreateTextSourceInput): Promise<SourceDto> {
@@ -100,5 +113,84 @@ export class SourcesService {
       createdAt: source.createdAt.toISOString(),
       updatedAt: source.updatedAt.toISOString(),
     };
+  }
+
+  async createFile(
+    userId: string,
+    input: { notebookId: string; title: string; buffer: Buffer },
+  ): Promise<SourceDto> {
+    const notebook = await this.prisma.notebook.findUnique({
+      where: { id: input.notebookId },
+      select: { id: true, ownerId: true, deletedAt: true },
+    });
+    this.policyService.assertOwner(userId, notebook?.deletedAt ? null : notebook?.ownerId);
+
+    const owned = await this.prisma.source.count({
+      where: { deletedAt: null, notebook: { ownerId: userId, deletedAt: null } },
+    });
+    assertWithinQuota("sources", owned);
+
+    if (
+      input.buffer.length === 0 ||
+      input.buffer.length > MAX_PDF_BYTES ||
+      !isPdfBuffer(input.buffer)
+    ) {
+      throw new BadRequestException("Invalid PDF file");
+    }
+
+    if (!this.storage || !this.ingestQueue) {
+      throw new ServiceUnavailableException("PDF upload is not available");
+    }
+
+    const storageKey = `sources/${input.notebookId}/${randomUUID()}.pdf`;
+    await this.storage.putObject(storageKey, input.buffer, "application/pdf");
+
+    const safeTitle = input.title.trim().slice(0, 200) || "Documento.pdf";
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      const source = await tx.source.create({
+        data: {
+          notebookId: input.notebookId,
+          type: "file",
+          title: safeTitle,
+          storageKey,
+          status: "queued",
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          userId,
+          action: "source.created",
+          metadata: { sourceId: source.id, notebookId: source.notebookId, type: source.type },
+        },
+      });
+      return source;
+    });
+
+    await this.ingestQueue.enqueue(created.id);
+
+    this.logger.log(
+      { sourceId: created.id, notebookId: created.notebookId, userId },
+      "PDF source uploaded",
+    );
+
+    return this.toDto(created);
+  }
+
+  async getSignedFileUrl(userId: string, sourceId: string): Promise<string> {
+    const source = await this.prisma.source.findUnique({
+      where: { id: sourceId },
+      include: { notebook: { select: { ownerId: true, deletedAt: true } } },
+    });
+    const isActive = source && !source.deletedAt && !source.notebook.deletedAt;
+    this.policyService.assertOwner(userId, isActive ? source.notebook.ownerId : null);
+    if (!source || !isActive || source.type !== "file" || !source.storageKey) {
+      throw new NotFoundException("Resource not found");
+    }
+    if (!this.storage) {
+      throw new ServiceUnavailableException("Object storage is not available");
+    }
+
+    return this.storage.getSignedDownloadUrl(source.storageKey, source.title);
   }
 }

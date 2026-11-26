@@ -18,7 +18,9 @@
     "@swc/core": "^1.16.22",
     "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.6",
+    "@types/multer": "^2.3.0",
     "@types/nodemailer": "^8.0.2",
+    "@types/pdf-parse": "^1.1.5",
     "@types/supertest": "^7.2.1",
     "pino-pretty": "^13.2.0",
     "prisma": "^6.19.3",
@@ -27,6 +29,8 @@
     "unplugin-swc": "^2.0.0"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1172.0",
+    "@aws-sdk/s3-request-presigner": "^3.1172.0",
     "@margem/shared": "workspace:*",
     "@margem/srs": "workspace:*",
     "@nestjs/common": "^12.5.1",
@@ -43,6 +47,7 @@
     "ioredis": "^6.0.0",
     "nestjs-pino": "^5.3.2",
     "nodemailer": "^10.6.0",
+    "pdf-parse": "^2.4.5",
     "pino": "^10.4.0",
     "pino-http": "^11.0.0",
     "reflect-metadata": "^0.2.2",

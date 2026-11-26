@@ -24,6 +24,13 @@ export const envSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().trim().optional().or(z.literal("")),
   GOOGLE_CLIENT_SECRET: z.string().trim().optional().or(z.literal("")),
   GOOGLE_REDIRECT_URI: z.string().trim().optional().or(z.literal("")),
+  AWS_ACCESS_KEY_ID: z.string().trim().optional().or(z.literal("")),
+  AWS_SECRET_ACCESS_KEY: z.string().trim().optional().or(z.literal("")),
+  AWS_DEFAULT_REGION: z.string().trim().default("sa-saopaulo-1"),
+  S3_ENDPOINT: z.string().url().optional().or(z.literal("")),
+  S3_BUCKET: z.string().trim().optional().or(z.literal("")),
+  BACKUP_S3_ENDPOINT: z.string().url().optional().or(z.literal("")),
+  BACKUP_S3_BUCKET: z.string().trim().optional().or(z.literal("")),
 });
 
 export type Env = z.infer<typeof envSchema>;
