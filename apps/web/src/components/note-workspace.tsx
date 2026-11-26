@@ -429,6 +429,10 @@ export function NoteWorkspace({
             onAttachPdfSource={handleAttachPdfSource}
             onAttachLinkSource={handleAttachLinkSource}
             onRemoveSource={handleRemoveSource}
+            noteId={selectedNote.id}
+            onCreateQuestionFromGap={(excerpt) =>
+              setQuestionDraft({ blockId: "", quote: excerpt, prefix: "", suffix: "" })
+            }
           />
           <NoteMargin
             mode={mode}

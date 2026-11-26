@@ -1,10 +1,23 @@
 "use client";
 
-import { createLinkSourceSchema, createTextSourceSchema, type SourceDto } from "@margem/shared";
+import {
+  createLinkSourceSchema,
+  createTextSourceSchema,
+  MemoryGapDto,
+  type SourceDto,
+} from "@margem/shared";
 import { Button, Field } from "@margem/ui";
-import { BookOpenCheck, ExternalLink, FilePlus2, FileUp, Link2, Trash2 } from "lucide-react";
+import {
+  BookOpenCheck,
+  ExternalLink,
+  FilePlus2,
+  FileUp,
+  Link2,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
 import * as React from "react";
-import { fetchSourceFileUrl } from "../../lib/api";
+import { fetchMemoryGaps, fetchSourceFileUrl } from "../../lib/api";
 import { createErrorMessage } from "../../lib/errors";
 import { messages } from "../../messages/pt-br";
 
@@ -19,9 +32,11 @@ interface SourcePanelProps {
     title: string;
     content: string;
   }) => Promise<void>;
+  noteId: string;
   onAttachPdfSource: (input: { notebookId: string; file: File }) => Promise<void>;
   onAttachLinkSource: (input: { notebookId: string; url: string; title?: string }) => Promise<void>;
   onRemoveSource?: (sourceId: string) => Promise<void>;
+  onCreateQuestionFromGap?: (excerpt: string) => void;
 }
 
 export function SourcePanel({
@@ -29,11 +44,13 @@ export function SourcePanel({
   sourceId,
   source,
   materialOpened,
+  noteId,
   onOpenMaterial,
   onCreateNoteWithMaterial,
   onAttachPdfSource,
   onAttachLinkSource,
   onRemoveSource,
+  onCreateQuestionFromGap,
 }: SourcePanelProps) {
   const [formMode, setFormMode] = React.useState<"closed" | "text" | "link">("closed");
   const [title, setTitle] = React.useState("");
@@ -46,6 +63,28 @@ export function SourcePanel({
   const [openingPdf, setOpeningPdf] = React.useState(false);
   const [removing, setRemoving] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [gaps, setGaps] = React.useState<MemoryGapDto[] | null>(null);
+  const [hasMemoryText, setHasMemoryText] = React.useState(true);
+  const [checkingGaps, setCheckingGaps] = React.useState(false);
+
+  React.useEffect(() => {
+    setGaps(null);
+    setHasMemoryText(true);
+  }, [noteId, sourceId]);
+
+  async function handleCheckGaps() {
+    setCheckingGaps(true);
+    setError(undefined);
+    try {
+      const result = await fetchMemoryGaps(noteId);
+      setGaps(result.gaps);
+      setHasMemoryText(result.hasMemoryText);
+    } catch (err) {
+      setError(createErrorMessage(err, messages.source.loadError));
+    } finally {
+      setCheckingGaps(false);
+    }
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -375,6 +414,58 @@ export function SourcePanel({
               {source.content}
             </p>
           )}
+          {source.status === "ready" ? (
+            <div className="mt-2 flex flex-col gap-2 border-t border-margin-rule pt-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-medium text-ink-muted">
+                  {messages.source.gapsTitle}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  loading={checkingGaps}
+                  onClick={() => void handleCheckGaps()}
+                >
+                  <Sparkles className="h-3.5 w-3.5" strokeWidth={1.5} />
+                  <span>
+                    {checkingGaps ? messages.source.gapsChecking : messages.source.gapsCheckButton}
+                  </span>
+                </Button>
+              </div>
+
+              {gaps !== null ? (
+                !hasMemoryText ? (
+                  <p className="text-xs text-ink-muted">{messages.source.gapsNoMemory}</p>
+                ) : gaps.length === 0 ? (
+                  <p className="text-xs text-correct">{messages.source.gapsNoneFound}</p>
+                ) : (
+                  <ul className="flex flex-col gap-2">
+                    {gaps.map((gap) => (
+                      <li
+                        key={gap.chunkId}
+                        className="flex flex-col gap-1.5 rounded border border-margin-rule bg-margin p-2"
+                      >
+                        <div className="flex items-center justify-between gap-2 text-[11px] text-ink-muted">
+                          <span>{gap.page ? `p. ${gap.page}` : `#${gap.ord + 1}`}</span>
+                          {onCreateQuestionFromGap ? (
+                            <button
+                              type="button"
+                              onClick={() => onCreateQuestionFromGap(gap.excerpt)}
+                              className="font-medium text-bic hover:underline"
+                            >
+                              {messages.source.gapsTurnIntoQuestion}
+                            </button>
+                          ) : null}
+                        </div>
+                        <p className="text-xs leading-relaxed text-ink">{gap.excerpt}</p>
+                      </li>
+                    ))}
+                  </ul>
+                )
+              ) : null}
+            </div>
+          ) : null}
           {error ? <p className="text-xs text-danger">{error}</p> : null}
         </div>
       ) : null}
