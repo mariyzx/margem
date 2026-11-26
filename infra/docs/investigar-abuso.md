@@ -15,8 +15,9 @@ alias dc='docker compose --env-file .env -f infra/docker-compose.prod.yml'
 | Access log do Caddy (`dc logs caddy`) | Uma linha JSON por requisição: IP mascarado (/24 ou /64), URI sem `token`/`code`/`state`, sem cookies | Igual |
 | Tabela `AuditLog` | Logins, logouts, pedidos de link, falhas de verificação e do Google, com `ipHash` e `userAgent` | `AUDIT_RETENTION_DAYS` (padrão 90), apagada pelo job das 03:30 |
 | Redis `security:daily:<AAAA-MM-DD>` | Contadores do dia (UTC) | Lidos, logados e apagados às 03:30 |
+| `infra/caddy/blocklist/*.caddy` (só na VPS) | IPs bloqueados de forma permanente | Até você apagar |
 
-**Ninguém guarda IP puro.** O `ipHash` é um HMAC-SHA256 do IP (IPv6 reduzido ao /64) com a chave `LOG_HASH_SECRET`, truncado em 16 hex. Ele serve para correlacionar eventos, não para descobrir o IP. Para ir do hash ao IP, veja [Banir um cliente](#banir-um-cliente).
+**Ninguém guarda IP puro.** O `ipHash` é um HMAC-SHA256 do IP (IPv6 reduzido ao /64) com a chave `LOG_HASH_SECRET`, truncado em 16 hex. Ele serve para correlacionar eventos, não para descobrir o IP. Para ir do hash ao IP, veja [Do ipHash ao IP](#1-do-iphash-ao-ip).
 
 ## Eventos nos logs
 
@@ -133,16 +134,6 @@ WHERE "ipHash" = '<ipHash>'
 ORDER BY "createdAt" DESC;
 ```
 
-Para achar o `emailHash` de um endereço conhecido (por exemplo, de quem reclamou de spam):
-
-```bash
-dc exec api node -e '
-const { createHmac } = require("node:crypto");
-const email = process.argv[1].trim().toLowerCase();
-console.log(createHmac("sha256", process.env.LOG_HASH_SECRET).update(email).digest("hex").slice(0, 16));
-' "pessoa@exemplo.com"
-```
-
 ## O que fazer em cada cenário
 
 ### Muitos e-mails de link saindo (spam ou bombardeio)
@@ -180,50 +171,119 @@ Uma conta criando itens em loop. Ache o `userId` pelo AuditLog (`action` = `note
 
 ## Banir um cliente
 
-**Atenção: `ufw deny` não funciona aqui.** O Docker publica as portas 80/443 do Caddy com regras próprias de iptables, que passam antes das do ufw. Bloqueie na chain `DOCKER-USER`, que o Docker consulta primeiro:
+São três passos: **achar o IP** a partir do `ipHash`, **bloquear rápido** com iptables e, se for preciso que o bloqueio dure, **bloquear de forma permanente** no Caddy.
+
+| | iptables `DOCKER-USER` | Blocklist do Caddy |
+| --- | --- | --- |
+| Para quê | Conter o ataque agora | Manter o bloqueio |
+| Sobrevive a reboot? | **Não** | Sim |
+| Sobrevive a deploy? | Sim | Sim (o arquivo fica só na VPS, fora do git) |
+| Onde corta | Antes de chegar ao Caddy (pacote descartado) | No Caddy (conexão encerrada sem resposta) |
+
+**A Security List da Oracle não serve para isso:** as regras de Security List e de NSG da OCI só *permitem* tráfego. Não existe regra de "negar este IP".
+
+### 1. Do ipHash ao IP
+
+O hash não é reversível de propósito. O caminho é gerar candidatos e calcular o hash de cada um **com o mesmo código da API**: o script `find-ip-by-hash` chama o `clientFingerprint()` da própria aplicação, então a normalização (IPv4 mapeado em IPv6, IPv6 reduzido ao /64) nunca diverge do que foi logado. Ele roda dentro do container da API, onde está a `LOG_HASH_SECRET`. Sem a chave, o `/24` do log e o `ipHash` não se cruzam.
+
+**Caminho principal: as faixas do access log do Caddy.** Funciona mesmo depois que o ataque parou, enquanto o log existir (5 × 10 MB). O Caddy registra o IP mascarado em `/24`, e um `/24` tem só 256 endereços. O script testa todos.
 
 ```bash
-sudo iptables -I DOCKER-USER -s 203.0.113.7 -j DROP          # um IP
-sudo iptables -I DOCKER-USER -s 203.0.113.0/24 -j DROP       # a faixa /24 que aparece no log do Caddy
-sudo ip6tables -I DOCKER-USER -s 2001:db8:abcd:12::/64 -j DROP
-sudo netfilter-persistent save                               # sobreviver ao reboot (pacote iptables-persistent)
+# Faixas que bateram no endpoint atacado, na janela do ataque (ajuste --since e o caminho)
+dc logs caddy --since 2h --no-log-prefix | grep http.log.access \
+  | jq -r 'select(.request.uri | startswith("/api/auth/magic-link")) | .request.remote_ip' \
+  | sort -u > /tmp/faixas.txt
 
-# Desfazer
-sudo iptables -D DOCKER-USER -s 203.0.113.7 -j DROP
+dc exec -T api node apps/api/dist/scripts/find-ip-by-hash.js '<ipHash>' < /tmp/faixas.txt
+rm /tmp/faixas.txt
 ```
 
-Para bloquear antes de chegar na VPS, use também a Security List da Oracle.
+A saída é o IP exato (IPv4) ou o `/64` (IPv6). No stderr aparecem quantos candidatos foram testados e as linhas que não eram IP. Sem correspondência, o script sai com código 1 e diz por quê. Não é uma falha silenciosa.
 
-### Do ipHash ao IP
-
-O hash não é reversível de propósito. Com o ataque em andamento, compare o hash com quem está conectado agora:
+**Alternativa com o ataque em andamento: as conexões abertas agora.** O `ss` precisa rodar na rede do container do Caddy. Com o Docker publicando a 443, a conexão do cliente é redirecionada (DNAT) para dentro do container, e o `ss` do host não a mostra.
 
 ```bash
-# IPs com conexão aberta no 443 agora
-sudo ss -Htn state established '( sport = :443 )' | awk '{print $4}' | sed -E 's/:[0-9]+$//; s/^\[|\]$//g' | sort -u > /tmp/ips.txt
-
-# Hash de cada um, com a mesma regra da API (IPv6 reduzido ao /64)
-dc exec -T api node -e '
-const { createHmac } = require("node:crypto");
-const { isIPv6 } = require("node:net");
-const norm = (ip) => {
-  ip = ip.replace(/^::ffff:/, "");
-  if (!isIPv6(ip)) return ip;
-  const [h, t] = ip.split("::"); const l = h ? h.split(":") : []; const r = t ? t.split(":") : [];
-  const g = [...l, ...Array(t === undefined ? 0 : 8 - l.length - r.length).fill("0"), ...r].map((x) => x.padStart(4, "0"));
-  return g.slice(0, 4).join(":") + "::/64";
-};
-for (const ip of require("node:fs").readFileSync(0, "utf8").split("\n").filter(Boolean)) {
-  console.log(createHmac("sha256", process.env.LOG_HASH_SECRET).update(norm(ip)).digest("hex").slice(0, 16), ip);
-}' < /tmp/ips.txt | grep '<ipHash>'
-
-rm /tmp/ips.txt
+CADDY_PID=$(docker inspect -f '{{.State.Pid}}' "$(dc ps -q caddy)")
+sudo nsenter -t "$CADDY_PID" -n ss -Htn state established '( sport = :443 )' \
+  | awk '{print $4}' | sed -E 's/:[0-9]+$//; s/^\[|\]$//g' | sort -u \
+  | dc exec -T api node apps/api/dist/scripts/find-ip-by-hash.js '<ipHash>'
 ```
 
-Se o ataque já parou, use a faixa `/24` (ou `/64`) do access log do Caddy no mesmo horário.
+**Se nada bater, confira o IPv6.** Se a VPS tem IPv6 e o Docker não está com IPv6 habilitado, as conexões IPv6 passam pelo `docker-proxy`, e o Caddy e a API veem o IP interno do Docker (`172.x`) no lugar do cliente. Todos os clientes IPv6 viram um só: mesmo `ipHash` e mesmo rate limit. Sinal disso: `remote_ip` começando com `172.` no access log. Nesse caso, nem o hash nem o log levam ao IP real, e o bloqueio também muda:
+
+- **Achar o IP:** o `docker-proxy` aceita a conexão no host, então o `ss` do **host** (sem `nsenter`) mostra o IPv6 real. Não dá para ligar esse IP ao `ipHash`; escolha pelo volume de conexões.
+- **Bloquear:** a conexão chega ao host, não ao container, então a regra vai na chain `INPUT` (`sudo ip6tables -I INPUT -s <ipv6>/64 -j DROP`), não na `DOCKER-USER`. A blocklist do Caddy não ajuda, porque o Caddy só vê `172.x`.
+- **Resolver de vez:** habilite IPv6 no Docker (`daemon.json` com `"ipv6": true` e uma rede IPv6 no compose), para o Caddy voltar a ver o IP real.
+
+Para achar o `emailHash` de um endereço conhecido (por exemplo, de quem reclamou de spam), use o script equivalente, que também usa o helper da API:
+
+```bash
+dc exec -T api node apps/api/dist/scripts/hash-email.js "pessoa@exemplo.com"
+```
+
+### 2. Bloqueio rápido (temporário): iptables `DOCKER-USER`
+
+**Atenção: `ufw deny` não funciona aqui.** O Docker publica as portas 80/443 do Caddy com regras próprias de iptables, que passam antes das do ufw. A chain `DOCKER-USER` é consultada antes delas.
+
+```bash
+sudo iptables -I DOCKER-USER -s 203.0.113.77 -j DROP            # um IP
+sudo iptables -I DOCKER-USER -s 203.0.113.0/24 -j DROP          # a faixa inteira, se o ataque roda nela
+sudo ip6tables -I DOCKER-USER -s 2001:db8:abcd:12::/64 -j DROP  # IPv6: sempre o /64
+
+sudo iptables -L DOCKER-USER -n -v --line-numbers               # conferir (a coluna pkts deve subir)
+```
+
+**Essas regras somem no reboot.** O `iptables-persistent` não está instalado (foi removido na configuração da VPS), e a VPS reinicia sozinha às 04:30 quando há atualização de kernel. Trate o iptables como contenção de horas. Se o bloqueio precisa durar, faça também o passo 3.
+
+#### Desfazer um bloqueio no iptables
+
+Bloqueou o IP errado? Remova a regra com **exatamente** os mesmos parâmetros usados para criá-la:
+
+```bash
+sudo iptables -D DOCKER-USER -s 203.0.113.77 -j DROP
+sudo ip6tables -D DOCKER-USER -s 2001:db8:abcd:12::/64 -j DROP
+```
+
+Ou pelo número da linha:
+
+```bash
+sudo iptables -L DOCKER-USER -n --line-numbers
+sudo iptables -D DOCKER-USER 1     # o número da regra DROP que você criou
+```
+
+Não apague a regra `RETURN` que o Docker mantém no fim da chain. Se a regra não existir mais (a VPS reiniciou), o `-D` responde `Bad rule` e não há nada a desfazer.
+
+### 3. Bloqueio permanente: blocklist do Caddy
+
+Os arquivos `infra/caddy/blocklist/*.caddy` ficam **só na VPS** (o `.gitignore` os exclui, porque IP de quem atacou é dado pessoal e o repositório é público). O Caddyfile importa todos eles. Crie um arquivo por incidente:
+
+```bash
+cat > infra/caddy/blocklist/20261126-links.caddy <<'EOF'
+# 2026-11-26: pedidos de link em massa (ipHash 3f2a9c1d8e7b6a50)
+@blocked_20261126_links remote_ip 203.0.113.77 2001:db8:abcd:12::/64
+handle @blocked_20261126_links {
+	abort
+}
+EOF
+
+dc exec caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+```
+
+- O nome do matcher (`@blocked_...`) precisa ser único entre os arquivos.
+- Use `handle` + `abort`. Um `abort` solto não funciona: o Caddy o ordena depois dos `handle` do site, e a requisição já teria sido respondida.
+- Se o arquivo tiver erro, o `reload` falha e o Caddy **mantém a configuração anterior**. Leia a mensagem e corrija.
+- Para conferir, procure a faixa no access log: depois do reload, ela não deve aparecer mais com `status` 200.
+
+#### Desfazer um bloqueio no Caddy
+
+```bash
+rm infra/caddy/blocklist/20261126-links.caddy     # ou edite e tire só o IP errado
+dc exec caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+```
 
 ## Depois do incidente
 
 - Volte `MAGIC_LINK_DAILY_CAP` ao valor normal (no `.env` e no `ENV_PRODUCTION`).
-- Revise as regras de `DOCKER-USER` e remova bloqueios temporários.
+- Remova as regras temporárias de `DOCKER-USER` (`sudo iptables -L DOCKER-USER -n --line-numbers`), se a VPS ainda não reiniciou.
+- Revise `infra/caddy/blocklist/` de tempos em tempos. Bloqueio permanente de IP envelhece mal, porque IP muda de dono. Anote no comentário de cada arquivo a data e o motivo.
 - Se trocar a `LOG_HASH_SECRET`, os `ipHash`/`emailHash` antigos deixam de bater com os novos. Só troque se ela vazar.

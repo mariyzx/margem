@@ -14,6 +14,7 @@ import { SessionGuard } from "./session.guard";
 import { PolicyGuard } from "../policies/policy.guard";
 import { FakeRedis } from "../testing/fake-redis";
 import { RequestContextMiddleware } from "../security/request-context";
+import { hashEmailForLogs } from "../security/client-fingerprint";
 import { AuditService } from "../observability/audit.service";
 import { SecurityEventsService } from "../observability/security-events.service";
 import { ThrottlerModule } from "@nestjs/throttler";
@@ -736,6 +737,8 @@ describe("Magic link authentication", () => {
     }
     expect(requested[0]!.metadata?.emailHash).toBe(requested[1]!.metadata?.emailHash);
     expect(requested[0]!.metadata?.emailHash).not.toBe(requested[2]!.metadata?.emailHash);
+    // The runbook script (scripts/hash-email.ts) uses the same helper, so lookups always match.
+    expect(requested[0]!.metadata?.emailHash).toBe(hashEmailForLogs("Audit@Margem.local "));
 
     await app.close();
   });

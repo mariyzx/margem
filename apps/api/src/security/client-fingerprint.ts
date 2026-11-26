@@ -34,6 +34,11 @@ export function hashForLogs(value: string): string {
     .slice(0, HASH_HEX_LENGTH);
 }
 
+/** `emailHash` stored in AuditLog metadata. Single source for the API and the runbook script. */
+export function hashEmailForLogs(email: string): string {
+  return hashForLogs(email.trim().toLowerCase());
+}
+
 function expandIpv6(ip: string): string[] {
   const [head = "", tail] = ip.split("::");
   const left = head ? head.split(":") : [];

@@ -44,6 +44,11 @@
 		max_size 1MB
 	}
 
+	# Permanent IP blocks, kept only on the VPS (*.caddy is gitignored; see
+	# infra/caddy/blocklist/README.md). Each file defines a `handle` with `abort`, which
+	# joins the handle blocks below and runs before the catch-all one.
+	import blocklist/*.caddy
+
 	handle_path /api/* {
 		reverse_proxy api:3001 {
 			# Below the API's keepAliveTimeout (65s): Caddy closes idle upstream

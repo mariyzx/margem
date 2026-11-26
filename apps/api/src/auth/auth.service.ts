@@ -12,7 +12,7 @@ import { normalizeEmailForRateLimit } from "./email-rate-limit-key";
 import { MailerService } from "./mailer.service";
 import { AuditService } from "../observability/audit.service";
 import { SecurityEventsService } from "../observability/security-events.service";
-import { hashForLogs } from "../security/client-fingerprint";
+import { hashEmailForLogs } from "../security/client-fingerprint";
 import { withAuditContext } from "../security/request-context";
 
 const MAGIC_LINK_TTL_MS = 15 * 60 * 1000;
@@ -102,7 +102,7 @@ export class AuthService {
   private async recordMagicLinkRequest(email: string, outcome: MagicLinkOutcome): Promise<void> {
     await this.securityEvents.count(`magic_link.${outcome}`);
     await this.audit.record("auth.magic_link_requested", {
-      metadata: { emailHash: hashForLogs(email.trim().toLowerCase()), outcome },
+      metadata: { emailHash: hashEmailForLogs(email), outcome },
     });
   }
 
