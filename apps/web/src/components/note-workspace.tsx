@@ -142,6 +142,26 @@ export function NoteWorkspace({
     };
   }, [selectedSourceId, materialOpened]);
 
+  const sourceStatus = source?.status;
+  React.useEffect(() => {
+    if (!selectedSourceId || !materialOpened) return;
+    if (sourceStatus !== "queued" && sourceStatus !== "processing") return;
+
+    let active = true;
+    const timer = setInterval(() => {
+      fetchSource(selectedSourceId)
+        .then((loaded) => {
+          if (active) setSource(loaded);
+        })
+        .catch(() => undefined);
+    }, 2000);
+
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [selectedSourceId, materialOpened, sourceStatus]);
+
   function scheduleSave(nextTitle: string, nextDoc: Record<string, unknown>) {
     if (!selectedNote) return;
     pendingRef.current = { noteId: selectedNote.id, title: nextTitle, doc: nextDoc };
