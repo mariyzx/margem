@@ -1,4 +1,8 @@
-import { BadRequestException, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
 import { PolicyService } from "../policies/policy.service";
 import type { PrismaService } from "../prisma/prisma.service";
@@ -115,6 +119,7 @@ describe("SourcesService", () => {
       },
       source: {
         count: vi.fn(async () => 0),
+        aggregate: vi.fn(async () => ({ _sum: { sizeBytes: null } })),
         create: vi.fn(
           async ({
             data,
@@ -124,6 +129,7 @@ describe("SourcesService", () => {
               type: string;
               title: string;
               storageKey: string;
+              sizeBytes: number;
               status: string;
             };
           }) => ({
@@ -170,6 +176,80 @@ describe("SourcesService", () => {
     const [key] = putObject.mock.calls[0] as unknown as [string];
     expect(key).toMatch(/^sources\/nb-1\/[0-9a-f-]+\.pdf$/);
     expect(enqueue).toHaveBeenCalledWith("src-pdf-1");
+    expect(prisma.source.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ sizeBytes: 16 }) }),
+    );
+  });
+
+  function pdfUploadFixture(options: { usedBytes: number; createFails?: boolean }) {
+    const putObject = vi.fn(async () => undefined);
+    const deleteObject = vi.fn(async () => undefined);
+    const enqueue = vi.fn(async () => undefined);
+    const prisma = {
+      notebook: {
+        findUnique: vi.fn(async () => ({ id: "nb-1", ownerId: "user-1", deletedAt: null })),
+      },
+      source: {
+        count: vi.fn(async () => 0),
+        aggregate: vi.fn(async () => ({ _sum: { sizeBytes: options.usedBytes } })),
+      },
+      $transaction: vi.fn(async () => {
+        if (options.createFails) throw new Error("db down");
+        return { id: "src-1" };
+      }),
+    } as unknown as PrismaService;
+    const service = new SourcesService(
+      prisma,
+      new PolicyService(),
+      { enqueue } as unknown as SourceIngestQueue,
+      { putObject, deleteObject } as unknown as StorageService,
+    );
+    return { service, prisma, putObject, deleteObject };
+  }
+
+  it("refuses with 422 storage quota when the upload would pass the per-user MB cap", async () => {
+    vi.stubEnv("MAX_SOURCE_STORAGE_MB_PER_USER", "1");
+    try {
+      const pdf = Buffer.concat([Buffer.from("%PDF-1.7\n"), Buffer.alloc(200 * 1024)]);
+      const { service, prisma, putObject } = pdfUploadFixture({ usedBytes: 900 * 1024 });
+
+      const failure = await service
+        .createFile("user-1", { notebookId: "nb-1", title: "a.pdf", buffer: pdf })
+        .catch((error: unknown) => error);
+
+      expect(failure).toBeInstanceOf(UnprocessableEntityException);
+      expect((failure as UnprocessableEntityException).getResponse()).toMatchObject({
+        code: "quota_exceeded",
+        resource: "storage",
+        limit: 1,
+      });
+      expect(putObject).not.toHaveBeenCalled();
+      // The sum is scoped to the uploader's notebooks, soft-deleted files included.
+      expect(prisma.source.aggregate).toHaveBeenCalledWith({
+        where: { type: "file", notebook: { ownerId: "user-1" } },
+        _sum: { sizeBytes: true },
+      });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("removes the uploaded object when the database insert fails", async () => {
+    const { service, putObject, deleteObject } = pdfUploadFixture({
+      usedBytes: 0,
+      createFails: true,
+    });
+
+    await expect(
+      service.createFile("user-1", {
+        notebookId: "nb-1",
+        title: "a.pdf",
+        buffer: Buffer.from("%PDF-1.7\ncontent"),
+      }),
+    ).rejects.toThrow("db down");
+
+    const [key] = putObject.mock.calls[0] as unknown as [string];
+    expect(deleteObject).toHaveBeenCalledWith(key);
   });
 
   it("blocks private/metadata URLs and queues valid public links", async () => {

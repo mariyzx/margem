@@ -71,6 +71,7 @@ services:
       MAX_NOTEBOOKS_PER_USER: ${MAX_NOTEBOOKS_PER_USER:-100}
       MAX_NOTES_PER_USER: ${MAX_NOTES_PER_USER:-5000}
       MAX_SOURCES_PER_USER: ${MAX_SOURCES_PER_USER:-500}
+      MAX_SOURCE_STORAGE_MB_PER_USER: ${MAX_SOURCE_STORAGE_MB_PER_USER:-500}
       MAX_QUESTIONS_PER_USER: ${MAX_QUESTIONS_PER_USER:-10000}
       # Required: the API refuses to start in production without it (see apps/api/src/config/env.ts).
       LOG_HASH_SECRET: ${LOG_HASH_SECRET:?LOG_HASH_SECRET must be set (openssl rand -hex 32)}
@@ -81,13 +82,12 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      # The API only needs the upload bucket; BACKUP_S3_* stay with the backup script.
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-sa-saopaulo-1}
       S3_ENDPOINT: ${S3_ENDPOINT:-}
       S3_BUCKET: ${S3_BUCKET:-}
-      BACKUP_S3_ENDPOINT: ${BACKUP_S3_ENDPOINT:-}
-      BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-}
     depends_on:
       postgres:
         condition: service_healthy

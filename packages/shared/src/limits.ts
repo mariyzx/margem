@@ -14,7 +14,13 @@ export const nextCursorSchema = z.string().nullable();
 
 export const QUOTA_EXCEEDED_CODE = "quota_exceeded";
 
-export const quotaResourceSchema = z.enum(["notebooks", "notes", "sources", "questions"]);
+export const quotaResourceSchema = z.enum([
+  "notebooks",
+  "notes",
+  "sources",
+  "questions",
+  "storage",
+]);
 export type QuotaResource = z.infer<typeof quotaResourceSchema>;
 
 /** Body of the 422 the API returns when a per-user cap is reached. */

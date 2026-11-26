@@ -3,11 +3,10 @@ import { type Job, Queue, Worker } from "bullmq";
 import { loadEnv } from "../config/env";
 import { PrismaService } from "../prisma/prisma.service";
 import { chunkText } from "./chunk-text";
-import { PDFParse } from "pdf-parse";
+import { extractPdfPages, type PdfPageText } from "./pdf-text-extractor";
 import { extractTextFromHtml, fetchSafeUrl } from "./ssrf-guard";
 import { StorageService } from "./storage.service";
 
-const PDF_PARSE_TIMEOUT_MS = 30_000;
 export const SOURCE_INGEST_QUEUE = "source-ingest";
 export const SOURCE_INGEST_DLQ = "source-ingest-dlq";
 
@@ -21,6 +20,9 @@ export class SourceIngestQueue implements OnModuleInit, OnModuleDestroy {
   private queue: Queue<SourceIngestJobData> | null = null;
   private dlq: Queue<SourceIngestJobData & { reason: string; failedAt: string }> | null = null;
   private worker: Worker<SourceIngestJobData> | null = null;
+
+  /** Swappable in tests; production parses in a worker_thread (pdf-text-extractor.ts). */
+  extractPages: (buffer: Buffer) => Promise<PdfPageText[]> = extractPdfPages;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -153,30 +155,15 @@ export class SourceIngestQueue implements OnModuleInit, OnModuleDestroy {
     storageKey: string,
   ): Promise<Array<{ text: string; page: number | null }>> {
     const buffer = await this.storage.getObjectBuffer(storageKey);
-    const parser = new PDFParse({ data: buffer });
+    const pages = await this.extractPages(buffer);
 
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    try {
-      const result = await Promise.race([
-        parser.getText(),
-        new Promise<never>((_, reject) => {
-          timer = setTimeout(() => {
-            reject(new Error("PDF parsing timed out"));
-          }, PDF_PARSE_TIMEOUT_MS);
-        }),
-      ]);
-
-      const entries: Array<{ text: string; page: number | null }> = [];
-      for (const page of result.pages) {
-        for (const piece of chunkText(page.text)) {
-          entries.push({ text: piece, page: page.num });
-        }
+    const entries: Array<{ text: string; page: number | null }> = [];
+    for (const page of pages) {
+      for (const piece of chunkText(page.text)) {
+        entries.push({ text: piece, page: page.num });
       }
-      return entries;
-    } finally {
-      if (timer) clearTimeout(timer);
-      await parser.destroy().catch(() => undefined);
     }
+    return entries;
   }
 
   private async handleJobFailure(
