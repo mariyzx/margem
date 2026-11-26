@@ -11,7 +11,7 @@ import {
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { Throttle } from "@nestjs/throttler";
-import { createTextSourceSchema } from "@margem/shared";
+import { createLinkSourceSchema, createTextSourceSchema } from "@margem/shared";
 import { RequirePolicy } from "../policies/require-policy.decorator";
 import { MAX_PDF_BYTES } from "./pdf-validation";
 import { SourcesService } from "./sources.service";
@@ -34,6 +34,18 @@ export class SourcesController {
       throw new BadRequestException(parsed.error.flatten());
     }
     const source = await this.sourcesService.createText(req.user!.id, parsed.data);
+    return { source };
+  }
+
+  @Post("link")
+  @RequirePolicy("create", "notebook")
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  async createLink(@Req() req: AuthenticatedRequest, @Body() body: unknown) {
+    const parsed = createLinkSourceSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException(parsed.error.flatten());
+    }
+    const source = await this.sourcesService.createLink(req.user!.id, parsed.data);
     return { source };
   }
 

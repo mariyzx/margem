@@ -6,6 +6,7 @@ import { Button, Skeleton } from "@margem/ui";
 import * as React from "react";
 import {
   createQuestion,
+  createLinkSource,
   createTextSource,
   deleteQuestion,
   enqueueStudyErrors,
@@ -225,6 +226,21 @@ export function NoteWorkspace({
     });
   }
 
+  async function handleAttachLinkSource(input: {
+    notebookId: string;
+    url: string;
+    title?: string;
+  }) {
+    if (!selectedNote) return;
+    await flushPending();
+    const createdSource = await createLinkSource(input);
+    await onSaveNote(selectedNote.id, {
+      title: titleRef.current,
+      doc: docRef.current,
+      sourceId: createdSource.id,
+    });
+  }
+
   if (creatingNotebook || notebooks.length === 0) {
     return (
       <div className="mx-auto flex w-full max-w-md flex-col justify-center py-12">
@@ -370,6 +386,7 @@ export function NoteWorkspace({
           onOpenMaterial={handleOpenMaterial}
           onCreateNoteWithMaterial={handleCreateNoteWithMaterial}
           onAttachPdfSource={handleAttachPdfSource}
+          onAttachLinkSource={handleAttachLinkSource}
         />
         <NoteMargin
           mode={mode}

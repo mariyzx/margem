@@ -4,6 +4,7 @@ import { loadEnv } from "../config/env";
 import { PrismaService } from "../prisma/prisma.service";
 import { chunkText } from "./chunk-text";
 import { PDFParse } from "pdf-parse";
+import { extractTextFromHtml, fetchSafeUrl } from "./ssrf-guard";
 import { StorageService } from "./storage.service";
 
 const PDF_PARSE_TIMEOUT_MS = 30_000;
@@ -84,6 +85,7 @@ export class SourceIngestQueue implements OnModuleInit, OnModuleDestroy {
     });
 
     const chunkEntries: Array<{ text: string; page: number | null }> = [];
+    let resolvedTitle: string | undefined;
 
     if (source.type === "text") {
       const text = source.content ?? "";
@@ -99,6 +101,23 @@ export class SourceIngestQueue implements OnModuleInit, OnModuleDestroy {
       }
       const pdfChunks = await this.extractPdfChunks(source.storageKey);
       chunkEntries.push(...pdfChunks);
+    } else if (source.type === "link") {
+      if (!source.url) {
+        throw new Error("Missing url for link source");
+      }
+      const fetched = await fetchSafeUrl(source.url);
+      const isHtml =
+        fetched.contentType === "text/html" || fetched.contentType === "application/xhtml+xml";
+      const extracted = isHtml
+        ? extractTextFromHtml(fetched.body)
+        : { title: null, text: fetched.body.trim() };
+
+      if (extracted.title && source.title === new URL(source.url).hostname) {
+        resolvedTitle = extracted.title.slice(0, 120);
+      }
+      for (const piece of chunkText(extracted.text)) {
+        chunkEntries.push({ text: piece, page: null });
+      }
     } else {
       throw new Error(`Unsupported source type "${source.type}"`);
     }
@@ -119,7 +138,11 @@ export class SourceIngestQueue implements OnModuleInit, OnModuleDestroy {
       });
       await tx.source.update({
         where: { id: sourceId },
-        data: { status: "ready", failureReason: null },
+        data: {
+          status: "ready",
+          failureReason: null,
+          ...(resolvedTitle ? { title: resolvedTitle } : {}),
+        },
       });
     });
 

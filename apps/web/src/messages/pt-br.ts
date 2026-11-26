@@ -168,6 +168,11 @@ export const messages = {
     statusReady: "Pronto",
     statusFailed: "Falhou",
     invalidPdfError: "Selecione um arquivo PDF de até 25 MB.",
+    attachLinkButton: "Colar link",
+    linkLabel: "Endereço (URL)",
+    linkPlaceholder: "https://exemplo.com/artigo",
+    createNoteWithLink: "Anexar link à nota",
+    openLink: "Abrir link",
   },
   // `{limit}` is replaced with the cap returned by the API.
   quota: {

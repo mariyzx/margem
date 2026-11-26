@@ -13,6 +13,7 @@ import {
   reviewCardSchema,
   sourceSchema,
   type AuthUser,
+  type CreateLinkSourceInput,
   type CreateNotebookInput,
   type CreateNoteInput,
   type CreateTextSourceInput,
@@ -347,4 +348,14 @@ export async function fetchSourceFileUrl(sourceId: string): Promise<string> {
   if (!res.ok) await failed(res, "Fetch source file URL");
   const data = (await res.json()) as { url: string };
   return data.url;
+}
+
+export async function createLinkSource(input: CreateLinkSourceInput): Promise<SourceDto> {
+  const res = await apiFetch("/sources/link", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) await failed(res, "Create link source");
+  const data = (await res.json()) as { source: unknown };
+  return sourceSchema.parse(data.source);
 }
