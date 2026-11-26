@@ -262,14 +262,19 @@ export class SourcesService {
       where: { id: sourceId },
       include: { notebook: { select: { ownerId: true, deletedAt: true } } },
     });
-    const isActive = source && !source.deletedAt && !source.notebook.deletedAt;
-    this.policyService.assertOwner(userId, isActive ? source.notebook.ownerId : null);
+    const isOwnedNotebook = source && !source.notebook.deletedAt;
+    this.policyService.assertOwner(userId, isOwnedNotebook ? source.notebook.ownerId : null);
+    if (!source || source.notebook.deletedAt) {
+      throw new NotFoundException("Resource not found");
+    }
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.source.update({
-        where: { id: sourceId },
-        data: { deletedAt: new Date() },
-      });
+      if (!source.deletedAt) {
+        await tx.source.update({
+          where: { id: sourceId },
+          data: { deletedAt: new Date() },
+        });
+      }
       await tx.note.updateMany({
         where: { sourceId, deletedAt: null },
         data: { sourceId: null },
@@ -282,6 +287,15 @@ export class SourcesService {
         }),
       });
     });
+
+    if (source.type === "file" && source.storageKey && this.storage) {
+      await this.storage.deleteObject(source.storageKey).catch((err) => {
+        this.logger.warn(
+          { sourceId, error: err instanceof Error ? err.message : String(err) },
+          "Failed to delete source object from storage",
+        );
+      });
+    }
 
     this.logger.log({ sourceId, userId }, "Source soft-deleted");
     return { ok: true };
