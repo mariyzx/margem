@@ -4,6 +4,7 @@ import type { CreateNoteInput, NoteDto, UpdateNoteInput } from "@margem/shared";
 import { PolicyService } from "../policies/policy.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { assertWithinQuota } from "../quotas/quota";
+import { withAuditContext } from "../security/request-context";
 
 const EMPTY_TIPTAP_DOC: Prisma.InputJsonValue = {
   type: "doc",
@@ -64,11 +65,11 @@ export class NotesService {
         },
       });
       await tx.auditLog.create({
-        data: {
+        data: withAuditContext({
           userId,
           action: "note.created",
           metadata: { noteId: created.id, notebookId: created.notebookId },
-        },
+        }),
       });
       return created;
     });
@@ -114,11 +115,11 @@ export class NotesService {
         },
       });
       await tx.auditLog.create({
-        data: {
+        data: withAuditContext({
           userId,
           action: "note.updated",
           metadata: { noteId: saved.id },
-        },
+        }),
       });
       return saved;
     });
@@ -141,11 +142,11 @@ export class NotesService {
         data: { deletedAt: new Date() },
       });
       await tx.auditLog.create({
-        data: {
+        data: withAuditContext({
           userId,
           action: "note.deleted",
           metadata: { noteId },
-        },
+        }),
       });
     });
 

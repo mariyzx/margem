@@ -12,6 +12,34 @@
 {$APP_DOMAIN:localhost} {
 	encode gzip zstd
 
+	# Access log in JSON on stdout (Docker keeps it, capped by the compose `logging`).
+	# Pseudonymized like the API logs: masked IPs, no credentials, no tokens in the URI.
+	log {
+		output stdout
+		format filter {
+			wrap json
+			fields {
+				request>remote_ip ip_mask {
+					ipv4 24
+					ipv6 64
+				}
+				request>client_ip ip_mask {
+					ipv4 24
+					ipv6 64
+				}
+				request>headers>Cookie delete
+				request>headers>Authorization delete
+				resp_headers>Set-Cookie delete
+				# Magic link token and the Google callback code/state.
+				request>uri query {
+					delete token
+					delete code
+					delete state
+				}
+			}
+		}
+	}
+
 	request_body {
 		max_size 1MB
 	}
