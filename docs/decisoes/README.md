@@ -5,7 +5,7 @@ Cada arquivo registra uma decisão: contexto, o que foi decidido, alternativas e
 | ADR | Decisão | Status |
 | --- | --- | --- |
 | [001](001-ia-confere-nao-escreve.md) | A IA confere e pergunta, não escreve a nota | Aceita |
-| [002](002-ia-do-usuario-custo-zero.md) | IA da conta de cada usuário, custo zero | Aceita |
+| [002](002-ia-do-usuario-custo-zero.md) | IA da conta de cada usuário, custo zero | Substituída por 012 |
 | [003](003-nota-de-memoria-continua.md) | Nota começa de memória e continua com o material no mesmo editor | Aceita |
 | [004](004-fsrs.md) | Revisão espaçada com FSRS (`ts-fsrs`) | Aceita |
 | [005](005-elasticsearch-embeddings-locais.md) | Elasticsearch com embeddings locais pra busca e RAG | Aceita |
@@ -15,3 +15,4 @@ Cada arquivo registra uma decisão: contexto, o que foi decidido, alternativas e
 | [009](009-fila-bullmq.md) | Fila de jobs com BullMQ, atrás de uma interface | Aceita |
 | [010](010-observabilidade-otel-grafana.md) | Observabilidade com OpenTelemetry e stack Grafana auto-hospedada | Aceita |
 | [011](011-estilo-e-motion.md) | Tailwind + Radix/shadcn + Motion como base de interface | Aceita |
+| [012](012-ia-local-openrouter-groq.md) | IA local por padrão, OpenRouter e Groq opcionais | Aceita |

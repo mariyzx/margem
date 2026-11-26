@@ -40,10 +40,10 @@ GroupTopicNote  topicId, userId, noteId, publishedAt?
 LiveQuiz        groupId, scheduledAt, status
 MemoryMap       notebookId, nodes (JSON: noteId/anchorId + posição), edges (JSON: de, para, rótulo)
 
-AiSettings      userId, mode ('none' | 'prompt' | 'app'), promptTarget ('claude' | 'chatgpt' | 'gemini'),
-                provider ('openrouter' | 'google' | 'groq')?, model?, features (JSON de booleans), fallbackToPrompt
-AiCredential    userId, provider, encryptedKey, keyLast4, createdAt   // AES-256-GCM, chave mestra em env
-AiUsage         userId, feature, provider, tokensIn, tokensOut, ok, createdAt
+AiSettings      userId, enabled (bool), promptTarget ('claude' | 'chatgpt' | 'gemini'),
+                features (JSON de booleans)   // provedor: o primeiro AiCredential que funcionar, senão 'local'
+AiCredential    userId, provider ('openrouter' | 'groq'), encryptedKey, keyLast4, createdAt   // AES-256-GCM, chave mestra em env
+AiUsage         userId, feature, provider (inclui 'local'), tokensIn, tokensOut, ok, createdAt
 ```
 
 ## Regras de integridade
