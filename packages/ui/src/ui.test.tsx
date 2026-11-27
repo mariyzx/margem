@@ -1,9 +1,10 @@
 import "@testing-library/jest-dom/vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { Button } from "./button";
 import { Field } from "./field";
 import { Skeleton } from "./skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./tabs";
 import { Toast, ToastDescription, ToastProvider, ToastTitle, ToastViewport } from "./toast";
 
 describe("@margem/ui", () => {
@@ -49,5 +50,25 @@ describe("@margem/ui", () => {
       </ToastProvider>,
     );
     expect(screen.getByText("Link enviado")).toBeInTheDocument();
+  });
+
+  it("renders Tabs with tab roles and moves between them with the keyboard", async () => {
+    render(
+      <Tabs defaultValue="a" activationMode="automatic">
+        <TabsList aria-label="Modos">
+          <TabsTrigger value="a">Um</TabsTrigger>
+          <TabsTrigger value="b">Dois</TabsTrigger>
+        </TabsList>
+        <TabsContent value="a">Painel um</TabsContent>
+        <TabsContent value="b">Painel dois</TabsContent>
+      </Tabs>,
+    );
+    const first = screen.getByRole("tab", { name: "Um" });
+    expect(first).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tabpanel")).toHaveTextContent("Painel um");
+    first.focus();
+    fireEvent.keyDown(first, { key: "ArrowRight" });
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Dois" })).toHaveFocus());
+    expect(screen.getByRole("tabpanel")).toHaveTextContent("Painel dois");
   });
 });

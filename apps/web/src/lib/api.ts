@@ -45,6 +45,8 @@ import {
   gradedAnswerSchema,
   type GradeAnswersInput,
   type GradedAnswerDto,
+  studioOverviewSchema,
+  type StudioOverviewDto,
 } from "@margem/shared";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
@@ -574,4 +576,10 @@ export async function finishOpenRouterConnection(
   }
   const data = (await res.json()) as { credential: unknown };
   return aiCredentialSummarySchema.parse(data.credential);
+}
+
+export async function fetchStudioOverview(notebookId: string): Promise<StudioOverviewDto> {
+  const res = await apiFetch(`/notebooks/${encodeURIComponent(notebookId)}/studio`);
+  if (!res.ok) await failed(res, "Studio overview");
+  return studioOverviewSchema.parse(await res.json());
 }

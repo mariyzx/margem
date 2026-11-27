@@ -13,6 +13,7 @@ import {
   Sparkles,
   Trash2,
   X,
+  LibraryBig,
 } from "lucide-react";
 import { MOTION_DURATIONS, MOTION_EASINGS } from "@margem/config/motion";
 import { AnimatePresence, m, useReducedMotion } from "motion/react";
@@ -144,6 +145,16 @@ export function NotebookSidebar({
           <Clock className="h-4 w-4 shrink-0" strokeWidth={1.5} />
           <span>{messages.review.navLink}</span>
         </Link>
+        {selectedNotebookId ? (
+          <Link
+            href={`/estudio/${encodeURIComponent(selectedNotebookId)}`}
+            onClick={onCloseMobile}
+            className="mt-1 flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-ink-muted transition-colors duration-fast ease-margem-out hover:bg-paper hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bic"
+          >
+            <LibraryBig className="h-4 w-4 shrink-0" strokeWidth={1.5} />
+            <span>{messages.studio.navLink}</span>
+          </Link>
+        ) : null}
         <Link
           href="/configuracoes/ia"
           onClick={onCloseMobile}
