@@ -3,7 +3,17 @@
 import { cn } from "@margem/config/cn";
 import type { AuthUser, NotebookColor, NotebookDto } from "@margem/shared";
 import { Button, Popover, PopoverContent, PopoverTrigger, SidebarItem } from "@margem/ui";
-import { BookOpen, ChevronRight, Clock, FileText, LogOut, Plus, Trash2, X } from "lucide-react";
+import {
+  BookOpen,
+  ChevronRight,
+  Clock,
+  FileText,
+  LogOut,
+  Plus,
+  Sparkles,
+  Trash2,
+  X,
+} from "lucide-react";
 import { MOTION_DURATIONS, MOTION_EASINGS } from "@margem/config/motion";
 import { AnimatePresence, m, useReducedMotion } from "motion/react";
 import Link from "next/link";
@@ -133,6 +143,14 @@ export function NotebookSidebar({
         >
           <Clock className="h-4 w-4 shrink-0" strokeWidth={1.5} />
           <span>{messages.review.navLink}</span>
+        </Link>
+        <Link
+          href="/configuracoes/ia"
+          onClick={onCloseMobile}
+          className="mt-1 flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-ink-muted transition-colors duration-fast ease-margem-out hover:bg-paper hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bic"
+        >
+          <Sparkles className="h-4 w-4 shrink-0" strokeWidth={1.5} />
+          <span>{messages.ai.navLink}</span>
         </Link>
       </div>
 
