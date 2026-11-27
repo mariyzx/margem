@@ -164,6 +164,25 @@ export const messages = {
     showAnswer: "Mostrar resposta",
     gotIt: "Acertei",
     missed: "Errei",
+    yourAnswerLabel: "Sua resposta (opcional)",
+    yourAnswerPlaceholder: "Tente lembrar antes de ver a resposta",
+    gradeAll: (count: number) =>
+      count === 0
+        ? "Corrigir minhas respostas"
+        : count === 1
+          ? "Corrigir minha resposta"
+          : `Corrigir minhas ${count} respostas`,
+    grading: "Corrigindo",
+    gradeHint: "Escreva respostas e corrija todas de uma vez com a IA.",
+    verdicts: { right: "Certo", partial: "Em parte", wrong: "Errado" },
+    missingTitle: "Faltou",
+    yourAnswer: "Você escreveu",
+    expectedAnswer: "Resposta esperada",
+    explain: "Explicar de outro jeito",
+    explaining: "Pensando numa explicação",
+    explanationTitle: "Outra forma de ver",
+    gradeError: "Não foi possível corrigir agora. Mostre a resposta e se avalie.",
+    explainError: "Não foi possível explicar agora. Tente de novo.",
   },
   ai: {
     navLink: "Assistente de IA",

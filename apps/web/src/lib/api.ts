@@ -38,6 +38,9 @@ import {
   questionSuggestionsSchema,
   type AiUnavailableReason,
   type QuestionSuggestionsDto,
+  gradedAnswerSchema,
+  type GradeAnswersInput,
+  type GradedAnswerDto,
 } from "@margem/shared";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
@@ -494,4 +497,25 @@ export async function discardQuestion(questionId: string): Promise<void> {
     method: "POST",
   });
   if (!res.ok && res.status !== 404) await failed(res, "Discard question");
+}
+
+export async function gradeAnswers(items: GradeAnswersInput["items"]): Promise<GradedAnswerDto[]> {
+  const res = await apiFetch("/questions/grade", {
+    method: "POST",
+    body: JSON.stringify({ items }),
+  });
+  if (!res.ok) await failed(res, "Grade answers");
+  const data = (await res.json()) as { results: unknown[] };
+  return data.results.map((item) => gradedAnswerSchema.parse(item));
+}
+
+export async function explainAnswer(questionId: string, answer: string): Promise<string> {
+  const res = await apiFetch(`/questions/${encodeURIComponent(questionId)}/explain`, {
+    method: "POST",
+    body: JSON.stringify({ answer }),
+  });
+  if (!res.ok) await failed(res, "Explain answer");
+  const data = (await res.json()) as { explanation: unknown };
+  if (typeof data.explanation !== "string") throw new ApiError("Explain answer: bad body", 500);
+  return data.explanation;
 }
