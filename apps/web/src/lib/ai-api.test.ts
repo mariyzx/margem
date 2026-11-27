@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AiCredentialError,
+  ApiError,
+  explainAnswer,
+  gradeAnswers,
   fetchAiSettings,
   removeAiCredential,
   saveGroqKey,
@@ -85,5 +88,49 @@ describe("AI settings client", () => {
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(String(url)).toMatch(/\/ai\/credentials\/groq$/);
     expect(init).toMatchObject({ method: "DELETE" });
+  });
+});
+
+describe("grading and explanation client", () => {
+  const fetchMock = vi.fn<typeof fetch>();
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    fetchMock.mockReset();
+  });
+
+  it("grades every written answer in a single request", async () => {
+    vi.stubGlobal("fetch", fetchMock);
+    fetchMock.mockResolvedValueOnce(
+      respond(200, {
+        results: [
+          { questionId: "q1", verdict: "partial", missing: ["ordem"] },
+          { questionId: "q2", verdict: "right", missing: [] },
+        ],
+      }),
+    );
+
+    const results = await gradeAnswers([
+      { questionId: "q1", answer: "entrega" },
+      { questionId: "q2", answer: "ordem" },
+    ]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(results.map((result) => result.verdict)).toEqual(["partial", "right"]);
+  });
+
+  it("sends the attempt and returns the explanation text", async () => {
+    vi.stubGlobal("fetch", fetchMock);
+    fetchMock.mockResolvedValueOnce(respond(200, { explanation: "Pense no relógio." }));
+
+    await expect(explainAnswer("q1", "tentei")).resolves.toBe("Pense no relógio.");
+    expect(JSON.parse(fetchMock.mock.calls[0]![1]!.body as string)).toEqual({ answer: "tentei" });
+  });
+
+  it("carries the ai_unavailable reason", async () => {
+    vi.stubGlobal("fetch", fetchMock);
+    fetchMock.mockResolvedValueOnce(respond(503, { code: "ai_unavailable", reason: "timeout" }));
+
+    const error = await explainAnswer("q1", "x").catch((e: unknown) => e);
+    expect((error as ApiError).aiUnavailable).toBe("timeout");
   });
 });
