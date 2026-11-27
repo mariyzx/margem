@@ -4,6 +4,9 @@ import {
   AiProviderError,
   classifyStatus,
   estimateTokens,
+  isReasoningModel,
+  providerErrorCode,
+  REASONING_HEADROOM_TOKENS,
   localTarget,
   remoteTarget,
   type ProviderTarget,
@@ -26,6 +29,7 @@ describe("AiProviderClient", () => {
 
   beforeEach(() => {
     vi.stubGlobal("fetch", fetchMock);
+    vi.stubEnv("GROQ_CHAT_MODEL", "plain-chat-model");
     groq = remoteTarget("groq", KEY);
   });
   afterEach(() => {
@@ -54,6 +58,31 @@ describe("AiProviderClient", () => {
       response_format: { type: "json_object" },
       max_tokens: 500,
     });
+  });
+
+  it("lets reasoning models think less and gives them room to answer", async () => {
+    vi.stubEnv("GROQ_CHAT_MODEL", "openai/gpt-oss-120b");
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, { choices: [{ message: { content: '{"ok":true}' } }] }),
+    );
+
+    await client.complete(remoteTarget("groq", KEY), MESSAGES, { json: true, maxTokens: 500 });
+
+    expect(JSON.parse(fetchMock.mock.calls[0]![1]?.body as string)).toMatchObject({
+      model: "openai/gpt-oss-120b",
+      reasoning_effort: "low",
+      max_tokens: 500 + REASONING_HEADROOM_TOKENS,
+    });
+  });
+
+  it("does not send reasoning options to ordinary models", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, { choices: [{ message: { content: "{}" } }] }),
+    );
+    await client.complete(groq, MESSAGES, { json: true, maxTokens: 500 });
+    expect(JSON.parse(fetchMock.mock.calls[0]![1]?.body as string)).not.toHaveProperty(
+      "reasoning_effort",
+    );
   });
 
   it("sends no Authorization header to the local model", async () => {
@@ -195,5 +224,38 @@ describe("localTarget", () => {
     expect(localTarget()?.contextTokens).toBe(8192);
     vi.stubEnv("OLLAMA_CONTEXT_TOKENS", "4096");
     expect(localTarget()?.contextTokens).toBe(4096);
+  });
+});
+
+describe("providerErrorCode", () => {
+  it("keeps only a short identifier from the provider's error body", () => {
+    expect(
+      providerErrorCode({
+        error: {
+          code: "json_validate_failed",
+          message: "Failed to generate JSON",
+          failed_generation: "texto da nota da pessoa",
+        },
+      }),
+    ).toBe("json_validate_failed");
+    expect(providerErrorCode({ error: { type: "invalid_request_error" } })).toBe(
+      "invalid_request_error",
+    );
+  });
+
+  it("drops anything that looks like free text or is missing", () => {
+    expect(providerErrorCode({ error: { code: "texto livre com espaços" } })).toBeUndefined();
+    expect(providerErrorCode({ error: { code: "x".repeat(65) } })).toBeUndefined();
+    expect(providerErrorCode(null)).toBeUndefined();
+    expect(providerErrorCode({ message: "sem error" })).toBeUndefined();
+  });
+});
+
+describe("reasoning models", () => {
+  it("recognizes the gpt-oss family", () => {
+    expect(isReasoningModel("openai/gpt-oss-120b")).toBe(true);
+    expect(isReasoningModel("openai/gpt-oss-20b:free")).toBe(true);
+    expect(isReasoningModel("qwen2.5:3b")).toBe(false);
+    expect(isReasoningModel("llama-3.3-70b-versatile")).toBe(false);
   });
 });

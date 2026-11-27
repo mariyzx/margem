@@ -122,7 +122,13 @@ export class AiService {
           if (!(error instanceof AiProviderError)) throw error;
           await this.recordUsage(userId, feature, target.id, null, false);
           this.logger.warn(
-            { provider: target.id, feature, kind: error.kind, status: error.status },
+            {
+              provider: target.id,
+              feature,
+              kind: error.kind,
+              status: error.status,
+              code: error.code,
+            },
             "ai.provider_failed",
           );
           lastReason = error.kind;
