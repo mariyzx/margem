@@ -14,6 +14,10 @@
 - **Unitário (Vitest):** `packages/srs`, regras de domínio (publicar antes de ver, origem de bloco, âncoras), prompts (snapshot).
 - **Integração:** endpoints da api com banco de teste (Testcontainers ou Postgres do Compose).
 - **E2E (Playwright):** jornada principal (entrar → caderno → nota → estudar → revisar) e a regra da turma.
+  - A jornada de IA (`apps/web/e2e/ai-journey.spec.ts`) usa um provedor simulado: o teste sobe um servidor falso compatível com a API da OpenAI e uma segunda API (porta 3011) com `OLLAMA_URL` apontando pra ele, e o navegador do teste redireciona as chamadas da 3001 pra 3011. Banco, Redis e Mailpit são os reais.
+  - Rode contra o **build de produção** (`pnpm --filter @margem/api build`, `node --env-file=../../.env dist/main.js` na `apps/api`, `pnpm --filter @margem/web build` e `npx next start -p 3000` na `apps/web`), com Postgres, Redis e Mailpit de pé; depois `pnpm --filter @margem/web test:e2e`. Contra o `next dev`, a compilação sob demanda estoura as esperas.
+  - Não rode `next build` com o `next dev` aberto: os dois usam `apps/web/.next`, e o build quebra o servidor de dev.
+  - O pedido de link de entrada tem limite de 5 por hora por IP; cada rodada da suíte usa 3.
 - Bug corrigido vem com o teste que falhava antes.
 - Todo endpoint com dado de usuário tem teste de acesso indevido (outro usuário recebe 404).
 
