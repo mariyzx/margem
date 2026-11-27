@@ -28,6 +28,12 @@ import {
   searchHitSchema,
   MemoryGapDto,
   memoryGapSchema,
+  aiCredentialSummarySchema,
+  aiCredentialTestFailureSchema,
+  aiSettingsSchema,
+  type AiCredentialSummary,
+  type AiSettings,
+  type UpdateAiSettingsInput,
 } from "@margem/shared";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
@@ -399,4 +405,60 @@ export async function fetchMemoryGaps(
     gaps: data.gaps.map((item) => memoryGapSchema.parse(item)),
     hasMemoryText: Boolean(data.hasMemoryText),
   };
+}
+
+export type AiCredentialFailure =
+  "invalid_key" | "provider_unreachable" | "keys_unavailable" | "unknown";
+
+export class AiCredentialError extends Error {
+  constructor(readonly reason: AiCredentialFailure) {
+    super(`Save AI credential failed: ${reason}`);
+    this.name = "AiCredentialError";
+  }
+}
+
+export async function fetchAiSettings(): Promise<AiSettings> {
+  const res = await apiFetch("/ai/settings", { method: "GET" });
+  if (!res.ok) await failed(res, "Fetch AI settings");
+  const data = (await res.json()) as { settings: unknown };
+  return aiSettingsSchema.parse(data.settings);
+}
+
+export async function updateAiSettings(input: UpdateAiSettingsInput): Promise<AiSettings> {
+  const res = await apiFetch("/ai/settings", { method: "PUT", body: JSON.stringify(input) });
+  if (!res.ok) await failed(res, "Update AI settings");
+  const data = (await res.json()) as { settings: unknown };
+  return aiSettingsSchema.parse(data.settings);
+}
+
+export async function saveGroqKey(apiKey: string): Promise<AiCredentialSummary> {
+  const res = await apiFetch("/ai/credentials", {
+    method: "POST",
+    body: JSON.stringify({ provider: "groq", apiKey }),
+  });
+  if (!res.ok) throw new AiCredentialError(await credentialFailure(res));
+  const data = (await res.json()) as { credential: unknown };
+  return aiCredentialSummarySchema.parse(data.credential);
+}
+
+export async function removeAiCredential(provider: AiCredentialSummary["provider"]): Promise<void> {
+  const res = await apiFetch(`/ai/credentials/${encodeURIComponent(provider)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok && res.status !== 404) await failed(res, "Remove AI credential");
+}
+
+async function credentialFailure(res: Response): Promise<AiCredentialFailure> {
+  const body: unknown = await res.json().catch(() => null);
+  const known = aiCredentialTestFailureSchema.safeParse(body);
+  if (known.success) return known.data.code;
+  if (
+    res.status === 503 &&
+    typeof body === "object" &&
+    body !== null &&
+    (body as { message?: unknown }).message === "ai_keys_unavailable"
+  ) {
+    return "keys_unavailable";
+  }
+  return "unknown";
 }
