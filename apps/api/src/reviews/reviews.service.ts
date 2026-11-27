@@ -167,6 +167,7 @@ export class ReviewsService {
         id: { in: input.questionIds },
         noteId: input.noteId,
         deletedAt: null,
+        status: "approved",
       },
       select: { id: true },
     });
