@@ -12,10 +12,16 @@ import {
   Query,
   Req,
 } from "@nestjs/common";
-import { createQuestionSchema, updateQuestionSchema } from "@margem/shared";
+import {
+  createQuestionSchema,
+  explainAnswerSchema,
+  gradeAnswersSchema,
+  updateQuestionSchema,
+} from "@margem/shared";
 import type { AuthenticatedRequest } from "../auth/session";
 import { parsePagination } from "../common/pagination";
 import { RequirePolicy } from "../policies/require-policy.decorator";
+import { QuestionAiService } from "./question-ai.service";
 import { QuestionSuggestionsService } from "./question-suggestions.service";
 import { QuestionsService } from "./questions.service";
 
@@ -24,6 +30,7 @@ export class QuestionsController {
   constructor(
     private readonly questionsService: QuestionsService,
     private readonly suggestions: QuestionSuggestionsService,
+    private readonly questionAi: QuestionAiService,
   ) {}
 
   @Get("notes/:noteId/questions")
@@ -55,6 +62,28 @@ export class QuestionsController {
   @RequirePolicy("update", "note")
   suggest(@Req() req: AuthenticatedRequest, @Param("noteId") noteId: string) {
     return this.suggestions.suggest(req.user!.id, noteId);
+  }
+
+  @Post("questions/grade")
+  @HttpCode(200)
+  @RequirePolicy("read", "note")
+  grade(@Req() req: AuthenticatedRequest, @Body() body: unknown) {
+    const parsed = gradeAnswersSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException(parsed.error.flatten());
+    }
+    return this.questionAi.grade(req.user!.id, parsed.data);
+  }
+
+  @Post("questions/:id/explain")
+  @HttpCode(200)
+  @RequirePolicy("read", "note")
+  explain(@Req() req: AuthenticatedRequest, @Param("id") id: string, @Body() body: unknown) {
+    const parsed = explainAnswerSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException(parsed.error.flatten());
+    }
+    return this.questionAi.explain(req.user!.id, id, parsed.data);
   }
 
   @Post("questions/:id/approve")

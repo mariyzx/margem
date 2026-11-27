@@ -33,4 +33,26 @@ describe("ReviewsService", () => {
       service.enqueueStudyErrors("user-2", { noteId: "note-1", questionIds: ["q-1"] }),
     ).rejects.toThrow(NotFoundException);
   });
+
+  it("only sends approved questions to the review, never pending AI suggestions", async () => {
+    const findMany = vi.fn(async (_args: unknown) => []);
+    const prisma = {
+      note: {
+        findUnique: vi.fn(async () => ({ id: "note-1", authorId: "user-1", deletedAt: null })),
+      },
+      question: { findMany },
+      $transaction: vi.fn(async (cb: (tx: unknown) => Promise<unknown>) =>
+        cb({ auditLog: { create: vi.fn(async () => ({})) } }),
+      ),
+    } as unknown as PrismaService;
+
+    await new ReviewsService(prisma, new PolicyService()).enqueueStudyErrors("user-1", {
+      noteId: "note-1",
+      questionIds: ["q-ai-pending"],
+    });
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ status: "approved" }) }),
+    );
+  });
 });

@@ -66,6 +66,38 @@ export const questionSuggestionsSchema = z.object({
 });
 export type QuestionSuggestionsDto = z.infer<typeof questionSuggestionsSchema>;
 
+export const GRADE_ANSWERS_MAX_ITEMS = 20;
+
+const writtenAnswerSchema = z
+  .string()
+  .trim()
+  .min(1, "Escreva sua resposta antes")
+  .max(2000, "Resposta muito longa");
+
+export const gradeAnswersSchema = z.strictObject({
+  items: z
+    .array(z.strictObject({ questionId: z.string().min(1), answer: writtenAnswerSchema }))
+    .min(1)
+    .max(GRADE_ANSWERS_MAX_ITEMS)
+    .refine((items) => new Set(items.map((item) => item.questionId)).size === items.length, {
+      message: "Pergunta repetida",
+    }),
+});
+export type GradeAnswersInput = z.infer<typeof gradeAnswersSchema>;
+
+export const answerVerdictSchema = z.enum(["right", "partial", "wrong"]);
+export type AnswerVerdict = z.infer<typeof answerVerdictSchema>;
+
+export const gradedAnswerSchema = z.object({
+  questionId: z.string(),
+  verdict: answerVerdictSchema,
+  missing: z.array(z.string()),
+});
+export type GradedAnswerDto = z.infer<typeof gradedAnswerSchema>;
+
+export const explainAnswerSchema = z.strictObject({ answer: writtenAnswerSchema });
+export type ExplainAnswerInput = z.infer<typeof explainAnswerSchema>;
+
 export interface NoteBlockText {
   blockId: string;
   text: string;

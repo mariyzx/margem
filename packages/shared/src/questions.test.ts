@@ -1,4 +1,9 @@
-import { extractNoteBlocks, resolveAnchorInDoc } from "./questions";
+import {
+  explainAnswerSchema,
+  extractNoteBlocks,
+  gradeAnswersSchema,
+  resolveAnchorInDoc,
+} from "./questions";
 import { describe, expect, it } from "vitest";
 
 describe("resolveAnchorInDoc", () => {
@@ -56,5 +61,35 @@ describe("extractNoteBlocks", () => {
       { blockId: "b1", text: "TCP" },
       { blockId: "b3", text: "um dois" },
     ]);
+  });
+});
+
+describe("gradeAnswersSchema", () => {
+  it("accepts 1 to 20 written answers and trims them", () => {
+    expect(
+      gradeAnswersSchema.parse({ items: [{ questionId: "q1", answer: "  porque sim  " }] }),
+    ).toEqual({ items: [{ questionId: "q1", answer: "porque sim" }] });
+  });
+
+  it.each([
+    { items: [] },
+    { items: [{ questionId: "q1", answer: "   " }] },
+    {
+      items: [
+        { questionId: "q1", answer: "a" },
+        { questionId: "q1", answer: "b" },
+      ],
+    },
+    { items: Array.from({ length: 21 }, (_, i) => ({ questionId: `q${i}`, answer: "a" })) },
+  ])("rejects %j", (body) => {
+    expect(gradeAnswersSchema.safeParse(body).success).toBe(false);
+  });
+});
+
+describe("explainAnswerSchema", () => {
+  it("requires the person's attempt", () => {
+    expect(explainAnswerSchema.safeParse({}).success).toBe(false);
+    expect(explainAnswerSchema.safeParse({ answer: " " }).success).toBe(false);
+    expect(explainAnswerSchema.safeParse({ answer: "TCP confirma" }).success).toBe(true);
   });
 });
