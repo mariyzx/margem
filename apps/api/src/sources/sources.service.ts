@@ -6,11 +6,13 @@ import {
   Optional,
   ServiceUnavailableException,
 } from "@nestjs/common";
-import type {
-  CreateLinkSourceInput,
-  CreateTextSourceInput,
-  MemoryGapDto,
-  SourceDto,
+import {
+  type CreateLinkSourceInput,
+  type CreateTextSourceInput,
+  MAX_READ_CHUNKS,
+  type MemoryGapDto,
+  type SourceChunksDto,
+  type SourceDto,
 } from "@margem/shared";
 import type { Source } from "@prisma/client";
 import { PolicyService } from "../policies/policy.service";
@@ -102,6 +104,17 @@ export class SourcesService {
     }
 
     return this.toDto(source);
+  }
+
+  async listChunks(userId: string, sourceId: string): Promise<SourceChunksDto> {
+    await this.getById(userId, sourceId);
+    const rows = await this.prisma.sourceChunk.findMany({
+      where: { sourceId },
+      orderBy: { ord: "asc" },
+      take: MAX_READ_CHUNKS + 1,
+      select: { id: true, ord: true, page: true, text: true },
+    });
+    return { chunks: rows.slice(0, MAX_READ_CHUNKS), truncated: rows.length > MAX_READ_CHUNKS };
   }
 
   private toDto(source: {

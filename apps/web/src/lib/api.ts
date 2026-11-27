@@ -47,6 +47,14 @@ import {
   type GradedAnswerDto,
   studioOverviewSchema,
   type StudioOverviewDto,
+  sourceChunksSchema,
+  type SourceChunksDto,
+  practiceItemSchema,
+  type PracticeItemDto,
+  type PracticeKind,
+  askNotebookResultSchema,
+  type AskNotebookInput,
+  type AskNotebookResultDto,
 } from "@margem/shared";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
@@ -582,4 +590,60 @@ export async function fetchStudioOverview(notebookId: string): Promise<StudioOve
   const res = await apiFetch(`/notebooks/${encodeURIComponent(notebookId)}/studio`);
   if (!res.ok) await failed(res, "Studio overview");
   return studioOverviewSchema.parse(await res.json());
+}
+
+export async function fetchSourceChunks(sourceId: string): Promise<SourceChunksDto> {
+  const res = await apiFetch(`/sources/${encodeURIComponent(sourceId)}/chunks`);
+  if (!res.ok) await failed(res, "Source chunks");
+  return sourceChunksSchema.parse(await res.json());
+}
+
+const practiceListSchema = practiceItemSchema.array();
+
+export async function fetchSourcePractice(sourceId: string): Promise<PracticeItemDto[]> {
+  const res = await apiFetch(`/sources/${encodeURIComponent(sourceId)}/practice`);
+  if (!res.ok) await failed(res, "Source practice");
+  const data = (await res.json()) as { items: unknown };
+  return practiceListSchema.parse(data.items);
+}
+
+export async function generatePractice(
+  sourceId: string,
+  kinds: PracticeKind[],
+): Promise<PracticeItemDto[]> {
+  const res = await apiFetch(`/sources/${encodeURIComponent(sourceId)}/practice/generate`, {
+    method: "POST",
+    body: JSON.stringify({ kinds }),
+  });
+  if (!res.ok) await failed(res, "Generate practice");
+  const data = (await res.json()) as { items: unknown };
+  return practiceListSchema.parse(data.items);
+}
+
+export async function approvePractice(practiceId: string): Promise<PracticeItemDto> {
+  const res = await apiFetch(`/practice/${encodeURIComponent(practiceId)}/approve`, {
+    method: "POST",
+  });
+  if (!res.ok) await failed(res, "Approve practice");
+  const data = (await res.json()) as { item: unknown };
+  return practiceItemSchema.parse(data.item);
+}
+
+export async function discardPractice(practiceId: string): Promise<void> {
+  const res = await apiFetch(`/practice/${encodeURIComponent(practiceId)}/discard`, {
+    method: "POST",
+  });
+  if (!res.ok) await failed(res, "Discard practice");
+}
+
+export async function askNotebook(
+  notebookId: string,
+  input: AskNotebookInput,
+): Promise<AskNotebookResultDto> {
+  const res = await apiFetch(`/notebooks/${encodeURIComponent(notebookId)}/ask`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) await failed(res, "Ask notebook");
+  return askNotebookResultSchema.parse(await res.json());
 }

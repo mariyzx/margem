@@ -1,4 +1,4 @@
-import type { StudioSourceDto } from "@margem/shared";
+import type { PracticeKind, StudioSourceDto } from "@margem/shared";
 import { Button } from "@margem/ui";
 import { messages } from "../../messages/pt-br";
 import { SourceCard } from "./source-card";
@@ -10,7 +10,7 @@ const text = messages.studio;
 interface StudioOverviewProps {
   sources: StudioSourceDto[];
   onPractice: (sourceIds: string[], minutes?: SessionMinutes) => void;
-  onOpenMaterial: (sourceId: string) => void;
+  onOpenMaterial: (sourceId: string, kind?: PracticeKind) => void;
 }
 
 export function StudioOverview({ sources, onPractice, onOpenMaterial }: StudioOverviewProps) {
@@ -46,7 +46,7 @@ export function StudioOverview({ sources, onPractice, onOpenMaterial }: StudioOv
               key={source.id}
               source={source}
               onPractice={() => onPractice([source.id])}
-              onOpenMaterial={() => onOpenMaterial(source.id)}
+              onOpenMaterial={(kind) => onOpenMaterial(source.id, kind)}
             />
           ))}
         </div>

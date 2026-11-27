@@ -121,6 +121,12 @@ export class SourcesController {
     return { source };
   }
 
+  @Get(":id/chunks")
+  @RequirePolicy("read", "notebook")
+  listChunks(@Req() req: AuthenticatedRequest, @Param("id") id: string) {
+    return this.sourcesService.listChunks(req.user!.id, id);
+  }
+
   @Get(":id/file")
   @RequirePolicy("read", "notebook")
   async getFileUrl(@Req() req: AuthenticatedRequest, @Param("id") id: string) {

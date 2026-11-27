@@ -116,8 +116,22 @@ describe("PracticeService.generate", () => {
     const { service, prisma } = setup();
     await service.generate("user-a", "s1", {});
     expect(prisma.practiceItem.updateMany).toHaveBeenCalledWith({
-      where: { sourceId: "s1", createdBy: "ai", status: "pending", deletedAt: null },
+      where: {
+        sourceId: "s1",
+        createdBy: "ai",
+        status: "pending",
+        deletedAt: null,
+        kind: { in: ["quiz", "flashcard", "cloze", "why"] },
+      },
       data: { status: "discarded", deletedAt: expect.any(Date) },
+    });
+  });
+
+  it("keeps pending practice of the kinds that were not asked for", async () => {
+    const { service, prisma } = setup();
+    await service.generate("user-a", "s1", { kinds: ["flashcard"] });
+    expect(prisma.practiceItem.updateMany.mock.calls[0]![0]).toMatchObject({
+      where: { kind: { in: ["flashcard"] } },
     });
   });
 

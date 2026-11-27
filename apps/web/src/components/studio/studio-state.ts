@@ -1,3 +1,6 @@
+import type { PracticeKind } from "@margem/shared";
+import { initialReadState, type ReadEvent, readReducer, type ReadState } from "./read-state";
+
 export const STUDIO_MODES = ["overview", "read", "session"] as const;
 export type StudioMode = (typeof STUDIO_MODES)[number];
 
@@ -7,19 +10,20 @@ export type SessionMinutes = (typeof SESSION_MINUTES)[number];
 export interface StudioState {
   mode: StudioMode;
   direction: 1 | -1;
-  read: { sourceId: string | null };
+  read: ReadState;
   session: { sourceIds: string[]; minutes: SessionMinutes };
 }
 
 export type StudioAction =
   | { type: "switch"; mode: StudioMode }
-  | { type: "openMaterial"; sourceId: string }
+  | { type: "openMaterial"; sourceId: string; kind?: PracticeKind }
+  | { type: "read"; event: ReadEvent }
   | { type: "practice"; sourceIds: string[]; minutes?: SessionMinutes };
 
 export const initialStudioState: StudioState = {
   mode: "overview",
   direction: 1,
-  read: { sourceId: null },
+  read: initialReadState,
   session: { sourceIds: [], minutes: 20 },
 };
 
@@ -33,8 +37,15 @@ export function studioReducer(state: StudioState, action: StudioAction): StudioS
   switch (action.type) {
     case "switch":
       return moveTo(state, action.mode);
-    case "openMaterial":
-      return { ...moveTo(state, "read"), read: { sourceId: action.sourceId } };
+    case "openMaterial": {
+      const picked = readReducer(state.read, { type: "pickSource", sourceId: action.sourceId });
+      return {
+        ...moveTo(state, "read"),
+        read: action.kind ? readReducer(picked, { type: "pickKind", kind: action.kind }) : picked,
+      };
+    }
+    case "read":
+      return { ...state, read: readReducer(state.read, action.event) };
     case "practice":
       return {
         ...moveTo(state, "session"),
