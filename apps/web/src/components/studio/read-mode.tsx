@@ -11,13 +11,16 @@ import { Button, Skeleton, Tabs, TabsContent, TabsList, TabsTrigger } from "@mar
 import { m, useReducedMotion } from "motion/react";
 import * as React from "react";
 import {
+  isAiUnavailable,
   approvePractice,
   discardPractice,
   fetchSourceChunks,
   fetchSourcePractice,
   generatePractice,
 } from "../../lib/api";
+import { buildHandoffPrompt } from "../../lib/prompt-handoff";
 import { messages } from "../../messages/pt-br";
+import { PromptHandoff } from "../ai/prompt-handoff";
 import { unavailableText } from "./ai-unavailable";
 import { AskAnswer, AskNotebook } from "./ask-notebook";
 import { PracticeCard } from "./practice-card";
@@ -55,9 +58,11 @@ export function ReadMode({
   const [generating, setGenerating] = React.useState(false);
   const [busyId, setBusyId] = React.useState<string | null>(null);
   const [feedback, setFeedback] = React.useState<Feedback>(null);
+  const [handoff, setHandoff] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     setFeedback(null);
+    setHandoff(null);
   }, [sourceId, state.kind]);
 
   const loadSheet = React.useCallback(
@@ -93,6 +98,7 @@ export function ReadMode({
   async function handleGenerate(id: string) {
     setGenerating(true);
     setFeedback(null);
+    setHandoff(null);
     try {
       const created = await generatePractice(id, [state.kind]);
       updatePractice(id, (items) => [
@@ -102,6 +108,17 @@ export function ReadMode({
       if (created.length === 0) setFeedback({ tone: "info", text: text.nothingGenerated });
     } catch (error) {
       setFeedback({ tone: "error", text: unavailableText(error) });
+      const current = sheets[id];
+      if (isAiUnavailable(error) && current?.status === "ready") {
+        setHandoff(
+          buildHandoffPrompt({
+            kind: "practice",
+            practiceKind: state.kind,
+            sourceTitle: source?.title ?? "",
+            source: current.chunks.map((chunk) => chunk.text),
+          }),
+        );
+      }
     } finally {
       setGenerating(false);
     }
@@ -191,6 +208,7 @@ export function ReadMode({
               generating={generating}
               busyId={busyId}
               feedback={feedback}
+              handoff={handoff}
               onRetry={() => void loadSheet(source.id)}
               onGenerate={() => void handleGenerate(source.id)}
               onPending={(item, action) => void handlePending(item, action)}
@@ -204,6 +222,8 @@ export function ReadMode({
                 answerChunkId(state.asked, new Set(sheet.chunks.map((chunk) => chunk.id))) === null
               }
               dispatch={dispatch}
+              sourceTitle={source.title}
+              sourceTexts={sheet?.status === "ready" ? sheet.chunks.map((chunk) => chunk.text) : []}
             />
           </TabsContent>
         ) : null}
@@ -220,6 +240,7 @@ interface SheetBodyProps {
   generating: boolean;
   busyId: string | null;
   feedback: Feedback;
+  handoff: string | null;
   onRetry: () => void;
   onGenerate: () => void;
   onPending: (item: PracticeItemDto, action: "approve" | "discard") => void;
@@ -233,6 +254,7 @@ function SheetBody({
   generating,
   busyId,
   feedback,
+  handoff,
   onRetry,
   onGenerate,
   onPending,
@@ -311,6 +333,12 @@ function SheetBody({
           </p>
         ) : null}
       </div>
+
+      {handoff ? (
+        <div className="border-b border-margin-rule px-6 py-3">
+          <PromptHandoff prompt={handoff} />
+        </div>
+      ) : null}
 
       {kindCount === 0 && !generating ? (
         <p className="border-b border-margin-rule bg-margin px-6 py-3 text-sm text-ink-muted">

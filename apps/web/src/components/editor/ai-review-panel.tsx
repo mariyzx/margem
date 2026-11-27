@@ -5,7 +5,15 @@ import { Button } from "@margem/ui";
 import { Sparkles } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
-import { ApiError, approveQuestion, discardQuestion, suggestQuestions } from "../../lib/api";
+import {
+  ApiError,
+  approveQuestion,
+  discardQuestion,
+  isAiUnavailable,
+  suggestQuestions,
+} from "../../lib/api";
+import { buildHandoffPrompt } from "../../lib/prompt-handoff";
+import { PromptHandoff } from "../ai/prompt-handoff";
 import { createErrorMessage } from "../../lib/errors";
 import { messages } from "../../messages/pt-br";
 
@@ -24,6 +32,7 @@ interface AiReviewPanelProps {
   onQuestionDiscarded: (questionId: string) => void;
   onApplyCloze: (blockId: string, quote: string) => boolean;
   onHighlightBlock: (blockId: string) => void;
+  getNoteText: () => string[];
 }
 
 type Feedback = { tone: "info" | "error"; text: string; settingsLink?: boolean } | null;
@@ -36,22 +45,26 @@ export function AiReviewPanel({
   onQuestionDiscarded,
   onApplyCloze,
   onHighlightBlock,
+  getNoteText,
 }: AiReviewPanelProps) {
   const [clozes, setClozes] = React.useState<ClozeSuggestion[]>([]);
   const [suggesting, setSuggesting] = React.useState(false);
   const [busyId, setBusyId] = React.useState<string | null>(null);
   const [feedback, setFeedback] = React.useState<Feedback>(null);
   const [asked, setAsked] = React.useState(false);
+  const [handoff, setHandoff] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     setClozes([]);
     setFeedback(null);
     setAsked(false);
+    setHandoff(null);
   }, [noteId]);
 
   async function handleSuggest() {
     setSuggesting(true);
     setFeedback(null);
+    setHandoff(null);
     try {
       const result = await suggestQuestions(noteId);
       setClozes(result.clozes);
@@ -62,6 +75,9 @@ export function AiReviewPanel({
       }
     } catch (error) {
       setFeedback(unavailableFeedback(error));
+      if (isAiUnavailable(error)) {
+        setHandoff(buildHandoffPrompt({ kind: "suggest", note: getNoteText() }));
+      }
     } finally {
       setSuggesting(false);
     }
@@ -144,6 +160,7 @@ export function AiReviewPanel({
           </p>
         ) : null}
       </div>
+      {handoff ? <PromptHandoff prompt={handoff} /> : null}
 
       {hasSuggestions ? (
         <ul className="flex flex-col gap-2">

@@ -78,6 +78,10 @@ export class ApiError extends Error {
   }
 }
 
+export function isAiUnavailable(error: unknown): boolean {
+  return error instanceof ApiError && error.aiUnavailable !== undefined;
+}
+
 async function failed(res: Response, label: string): Promise<never> {
   let quota: QuotaExceededError | undefined;
   let aiUnavailable: AiUnavailableReason | undefined;

@@ -84,3 +84,29 @@ export const sourceChunksSchema = z.object({
   truncated: z.boolean(),
 });
 export type SourceChunksDto = z.infer<typeof sourceChunksSchema>;
+
+interface DocNode {
+  text?: string;
+  attrs?: Record<string, unknown>;
+  content?: DocNode[];
+}
+
+function collectNodeText(node: DocNode): string {
+  if (typeof node.text === "string") return node.text;
+  if (!Array.isArray(node.content)) return "";
+  return node.content.map(collectNodeText).join(" ");
+}
+
+export function extractMemoryParagraphs(doc: unknown): string[] {
+  if (!doc || typeof doc !== "object") return [];
+  const root = doc as DocNode;
+  if (!Array.isArray(root.content)) return [];
+
+  const paragraphs: string[] = [];
+  for (const block of root.content) {
+    if (block.attrs?.origin === "material") continue;
+    const text = collectNodeText(block).replace(/\s+/g, " ").trim();
+    if (text.length >= 3) paragraphs.push(text);
+  }
+  return paragraphs;
+}

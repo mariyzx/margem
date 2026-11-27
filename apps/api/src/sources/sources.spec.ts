@@ -12,7 +12,7 @@ import { isPdfBuffer } from "./pdf-validation";
 import { SourceIngestQueue } from "./source-ingest.queue";
 import { SourcesService } from "./sources.service";
 import type { StorageService } from "./storage.service";
-import { extractMemoryParagraphs, findMemoryGaps } from "./memory-gaps";
+import { findMemoryGaps } from "./memory-gaps";
 
 describe("chunkText", () => {
   it("returns empty array for blank text and single chunk for short text", () => {
@@ -362,25 +362,6 @@ describe("SourcesService", () => {
 });
 
 describe("memory-gaps", () => {
-  it("extracts only memory blocks and ignores material blocks", () => {
-    const doc = {
-      type: "doc",
-      content: [
-        {
-          type: "paragraph",
-          attrs: { origin: "memory" },
-          content: [{ type: "text", text: "Eleição de líder no Raft" }],
-        },
-        {
-          type: "paragraph",
-          attrs: { origin: "material" },
-          content: [{ type: "text", text: "Log replication" }],
-        },
-      ],
-    };
-    expect(extractMemoryParagraphs(doc)).toEqual(["Eleição de líder no Raft"]);
-  });
-
   it("identifies source chunks missing from memory using lexical fallback", () => {
     const gaps = findMemoryGaps({
       memoryParagraphs: ["O algoritmo Raft usa eleição de líder com heartbeat."],

@@ -1,7 +1,14 @@
 "use client";
 
 import { cn } from "@margem/config/cn";
-import type { NotebookColor, NotebookDto, NoteDto, QuestionDto, SourceDto } from "@margem/shared";
+import {
+  extractNoteBlocks,
+  type NotebookColor,
+  type NotebookDto,
+  type NoteDto,
+  type QuestionDto,
+  type SourceDto,
+} from "@margem/shared";
 import { Button, Skeleton } from "@margem/ui";
 import * as React from "react";
 import {
@@ -444,6 +451,7 @@ export function NoteWorkspace({
             onAttachLinkSource={handleAttachLinkSource}
             onRemoveSource={handleRemoveSource}
             noteId={selectedNote.id}
+            getNoteDoc={() => docRef.current}
             onCreateQuestionFromGap={(excerpt) =>
               setQuestionDraft({ blockId: "", quote: excerpt, prefix: "", suffix: "" })
             }
@@ -489,6 +497,7 @@ export function NoteWorkspace({
                   editorApiRef.current?.applyCloze(blockId, quote) ?? false
                 }
                 onHighlightBlock={handleHighlightBlock}
+                getNoteText={() => extractNoteBlocks(docRef.current).map((block) => block.text)}
               />
             }
           />

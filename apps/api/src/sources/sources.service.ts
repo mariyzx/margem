@@ -8,6 +8,7 @@ import {
 } from "@nestjs/common";
 import {
   type CreateLinkSourceInput,
+  extractMemoryParagraphs,
   type CreateTextSourceInput,
   MAX_READ_CHUNKS,
   type MemoryGapDto,
@@ -26,7 +27,7 @@ import { SourceIngestQueue } from "./source-ingest.queue";
 import { resolveAndValidateUrl, SsrfBlockedError } from "./ssrf-guard";
 import { StorageService } from "./storage.service";
 import { EmbeddingsService } from "../search/embeddings.service";
-import { extractMemoryParagraphs, findMemoryGaps } from "./memory-gaps";
+import { findMemoryGaps } from "./memory-gaps";
 
 @Injectable()
 export class SourcesService {
