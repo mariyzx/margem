@@ -74,6 +74,13 @@ export class AiService {
     });
   }
 
+  async assertEnabled(userId: string, feature: AiUsageFeature): Promise<void> {
+    const settings = await this.settings.preferences(userId);
+    if (!settings.enabled) throw new AiUnavailableException("disabled");
+    const toggle = FEATURE_TOGGLE[feature];
+    if (toggle && !settings.features[toggle]) throw new AiUnavailableException("feature_disabled");
+  }
+
   private async run<T>(
     userId: string,
     feature: AiUsageFeature,
@@ -81,11 +88,7 @@ export class AiService {
     json: boolean,
     parse: (text: string) => T | null,
   ): Promise<AiResult<T>> {
-    const settings = await this.settings.preferences(userId);
-    if (!settings.enabled) throw new AiUnavailableException("disabled");
-    const toggle = FEATURE_TOGGLE[feature];
-    if (toggle && !settings.features[toggle]) throw new AiUnavailableException("feature_disabled");
-
+    await this.assertEnabled(userId, feature);
     await this.rateLimit.consume(userId);
 
     const targets = await this.targetsFor(userId);

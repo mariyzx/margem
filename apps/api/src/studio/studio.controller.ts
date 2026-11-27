@@ -8,14 +8,33 @@ import {
   Post,
   Req,
 } from "@nestjs/common";
-import { generatePracticeSchema } from "@margem/shared";
+import { askNotebookSchema, generatePracticeSchema } from "@margem/shared";
 import type { AuthenticatedRequest } from "../auth/session";
 import { RequirePolicy } from "../policies/require-policy.decorator";
+import { AskNotebookService } from "./ask-notebook.service";
 import { PracticeService } from "./practice.service";
 
 @Controller()
 export class StudioController {
-  constructor(private readonly practice: PracticeService) {}
+  constructor(
+    private readonly practice: PracticeService,
+    private readonly askNotebook: AskNotebookService,
+  ) {}
+
+  @Post("notebooks/:notebookId/ask")
+  @HttpCode(200)
+  @RequirePolicy("read", "notebook")
+  ask(
+    @Req() req: AuthenticatedRequest,
+    @Param("notebookId") notebookId: string,
+    @Body() body: unknown,
+  ) {
+    const parsed = askNotebookSchema.safeParse(body ?? {});
+    if (!parsed.success) {
+      throw new BadRequestException(parsed.error.flatten());
+    }
+    return this.askNotebook.ask(req.user!.id, notebookId, parsed.data);
+  }
 
   @Post("sources/:sourceId/practice/generate")
   @RequirePolicy("update", "notebook")
