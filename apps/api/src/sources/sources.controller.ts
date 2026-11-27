@@ -20,7 +20,7 @@ import {
   createTextSourceSchema,
 } from "@margem/shared";
 import { RequirePolicy } from "../policies/require-policy.decorator";
-import { MAX_PDF_BYTES } from "./pdf-validation";
+import { PDF_UPLOAD_OPTIONS } from "./pdf-validation";
 import { MemoryGapsAiService } from "./memory-gaps-ai.service";
 import { SourcesService } from "./sources.service";
 import { AuthenticatedRequest } from "../auth/session";
@@ -63,11 +63,7 @@ export class SourcesController {
   @Post("file")
   @RequirePolicy("create", "notebook")
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  @UseInterceptors(
-    FileInterceptor("file", {
-      limits: { fileSize: MAX_PDF_BYTES },
-    }),
-  )
+  @UseInterceptors(FileInterceptor("file", PDF_UPLOAD_OPTIONS))
   async uploadFile(
     @Req() req: AuthenticatedRequest,
     @UploadedFile() file: UploadedPdfFile | undefined,
