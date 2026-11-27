@@ -19,6 +19,7 @@ import { ReviewsModule } from "./reviews/reviews.module";
 import { SourcesModule } from "./sources/sources.module";
 import { SearchModule } from "./search/search.module";
 import { AiModule } from "./ai/ai.module";
+import { StudioModule } from "./studio/studio.module";
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { AiModule } from "./ai/ai.module";
     MaintenanceModule,
     SearchModule,
     AiModule,
+    StudioModule,
   ],
 })
 export class AppModule implements NestModule {

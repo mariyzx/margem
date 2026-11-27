@@ -12,7 +12,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { assertWithinQuota } from "../quotas/quota";
 import { withAuditContext } from "../security/request-context";
 import { toQuestionDto } from "./question-dto";
-import { createQuestionReviewItem } from "./question-review-item";
+import { createReviewItem } from "../reviews/create-review-item";
 
 @Injectable()
 export class QuestionsService {
@@ -99,7 +99,7 @@ export class QuestionsService {
         include: { anchor: true },
       });
 
-      await createQuestionReviewItem(tx, userId, question.id);
+      await createReviewItem(tx, userId, "question", question.id);
 
       await tx.auditLog.create({
         data: withAuditContext({
@@ -177,7 +177,7 @@ export class QuestionsService {
         include: { anchor: true },
       });
       if (count === 0) return saved;
-      await createQuestionReviewItem(tx, userId, questionId);
+      await createReviewItem(tx, userId, "question", questionId);
       await tx.auditLog.create({
         data: withAuditContext({
           userId,

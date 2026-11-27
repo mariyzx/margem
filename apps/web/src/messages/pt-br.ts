@@ -313,6 +313,7 @@ export const messages = {
     notes: "Você chegou ao limite de {limit} notas. Apague alguma para criar outra.",
     sources: "Você chegou ao limite de {limit} materiais. Apague algum para anexar outro.",
     questions: "Você chegou ao limite de {limit} perguntas. Apague alguma para criar outra.",
+    practice: "Você chegou ao limite de {limit} práticas. Apague alguma para criar outra.",
     storage:
       "Você chegou ao limite de {limit} MB em PDFs. Apague algum material para enviar outro.",
   },

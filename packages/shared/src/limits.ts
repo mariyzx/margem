@@ -19,6 +19,7 @@ export const quotaResourceSchema = z.enum([
   "notes",
   "sources",
   "questions",
+  "practice",
   "storage",
 ]);
 export type QuotaResource = z.infer<typeof quotaResourceSchema>;

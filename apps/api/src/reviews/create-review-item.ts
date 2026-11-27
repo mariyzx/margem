@@ -1,19 +1,20 @@
-import type { Prisma } from "@prisma/client";
+import type { Prisma, ReviewKind } from "@prisma/client";
 import { createInitialSrsState } from "@margem/srs";
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
-export async function createQuestionReviewItem(
+export async function createReviewItem(
   tx: Prisma.TransactionClient,
   userId: string,
-  questionId: string,
+  kind: ReviewKind,
+  refId: string,
 ): Promise<void> {
   const initialSrs = createInitialSrsState(new Date(Date.now() + ONE_DAY_MS));
   await tx.reviewItem.create({
     data: {
       userId,
-      kind: "question",
-      refId: questionId,
+      kind,
+      refId,
       due: initialSrs.due,
       stability: initialSrs.stability,
       difficulty: initialSrs.difficulty,

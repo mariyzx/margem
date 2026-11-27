@@ -56,10 +56,44 @@ export class ReviewsService {
           })
         : [];
 
+    const practiceIds = items.filter((item) => item.kind === "practice").map((item) => item.refId);
+    const practices =
+      practiceIds.length > 0
+        ? await this.prisma.practiceItem.findMany({
+            where: {
+              id: { in: practiceIds },
+              deletedAt: null,
+              status: "approved",
+              notebook: { ownerId: userId, deletedAt: null },
+              source: { deletedAt: null },
+            },
+            include: { notebook: { select: { name: true } } },
+          })
+        : [];
+
     const questionMap = new Map(questions.map((q) => [q.id, q]));
+    const practiceMap = new Map(practices.map((p) => [p.id, p]));
     const cards: ReviewCardDto[] = [];
 
     for (const item of items) {
+      if (item.kind === "practice") {
+        const practice = practiceMap.get(item.refId);
+        if (!practice) continue;
+        cards.push({
+          id: item.id,
+          kind: item.kind,
+          refId: item.refId,
+          noteId: null,
+          notebookId: practice.notebookId,
+          notebookName: practice.notebook.name,
+          prompt: practice.prompt,
+          answer: practice.answer,
+          quote: null,
+          due: item.due.toISOString(),
+          intervals: previewSrsIntervals(this.toSrsState(item), now),
+        });
+        continue;
+      }
       if (item.kind !== "question") continue;
       const question = questionMap.get(item.refId);
       if (!question) continue;
