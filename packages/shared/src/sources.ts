@@ -56,3 +56,15 @@ export const memoryGapSchema = z.object({
   score: z.number(),
 });
 export type MemoryGapDto = z.infer<typeof memoryGapSchema>;
+
+export const checkMemoryGapsSchema = z.strictObject({ noteId: z.string().trim().min(1) });
+export type CheckMemoryGapsInput = z.infer<typeof checkMemoryGapsSchema>;
+
+export const aiMemoryGapSchema = z.object({
+  point: z.string(),
+  chunkId: z.string(),
+  ord: z.number().int(),
+  page: z.number().int().nullable(),
+  excerpt: z.string(),
+});
+export type AiMemoryGapDto = z.infer<typeof aiMemoryGapSchema>;

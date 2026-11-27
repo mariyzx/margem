@@ -4,6 +4,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   Post,
   Query,
@@ -13,9 +14,14 @@ import {
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { Throttle } from "@nestjs/throttler";
-import { createLinkSourceSchema, createTextSourceSchema } from "@margem/shared";
+import {
+  checkMemoryGapsSchema,
+  createLinkSourceSchema,
+  createTextSourceSchema,
+} from "@margem/shared";
 import { RequirePolicy } from "../policies/require-policy.decorator";
 import { MAX_PDF_BYTES } from "./pdf-validation";
+import { MemoryGapsAiService } from "./memory-gaps-ai.service";
 import { SourcesService } from "./sources.service";
 import { AuthenticatedRequest } from "../auth/session";
 
@@ -26,7 +32,10 @@ interface UploadedPdfFile {
 
 @Controller("sources")
 export class SourcesController {
-  constructor(private readonly sourcesService: SourcesService) {}
+  constructor(
+    private readonly sourcesService: SourcesService,
+    private readonly memoryGapsAi: MemoryGapsAiService,
+  ) {}
 
   @Post("text")
   @RequirePolicy("create", "notebook")
@@ -92,6 +101,17 @@ export class SourcesController {
       throw new BadRequestException("noteId is required");
     }
     return this.sourcesService.getMemoryGaps(req.user!.id, noteId.trim());
+  }
+
+  @Post("memory-gaps/check")
+  @HttpCode(200)
+  @RequirePolicy("read", "notebook")
+  async checkMemoryGaps(@Req() req: AuthenticatedRequest, @Body() body: unknown) {
+    const parsed = checkMemoryGapsSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException(parsed.error.flatten());
+    }
+    return this.memoryGapsAi.check(req.user!.id, parsed.data.noteId);
   }
 
   @Get(":id")
