@@ -1,7 +1,6 @@
 import { aiFeaturesSchema, createAiCredentialSchema, updateAiSettingsSchema } from "./ai";
 import { describe, expect, it } from "vitest";
 
-/** Fake pasted key, built at runtime so the secret scanner sees no key-like literal. */
 const FAKE_KEY = "x".repeat(12);
 
 describe("aiFeaturesSchema", () => {

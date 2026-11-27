@@ -35,6 +35,14 @@ export const envSchema = z.object({
   ELASTICSEARCH_URL: z.string().url().optional().or(z.literal("")),
   OLLAMA_URL: z.string().url().optional().or(z.literal("")),
   OLLAMA_EMBED_MODEL: z.string().trim().min(1).default("nomic-embed-text"),
+  OLLAMA_CHAT_MODEL: z.string().trim().min(1).default("qwen2.5:3b"),
+  GROQ_CHAT_MODEL: z.string().trim().min(1).default("llama-3.3-70b-versatile"),
+  OPENROUTER_CHAT_MODEL: z
+    .string()
+    .trim()
+    .regex(/:free$/, "OPENROUTER_CHAT_MODEL must be a :free model")
+    .default("meta-llama/llama-3.3-70b-instruct:free"),
+  AI_CALLS_PER_MINUTE_PER_USER: z.coerce.number().int().positive().default(20),
   AI_KEYS_MASTER_KEY: z
     .string()
     .trim()

@@ -2,7 +2,6 @@ import { randomBytes } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { loadEnv } from "./env";
 
-/** Minimum variables loadEnv needs to pass; each test adds only what it is checking. */
 const BASE_ENV = {
   DATABASE_URL: "postgresql://user:pass@localhost:5432/margem",
   REDIS_URL: "redis://localhost:6379",

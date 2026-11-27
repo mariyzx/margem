@@ -9,7 +9,6 @@ import {
 
 const KEY = randomBytes(32);
 const CONTEXT = "user_a:groq";
-/** Built at runtime and low-entropy on purpose: no key-like literal for the secret scanner. */
 const SECRET = `gsk_${"x".repeat(20)}cdef`;
 
 describe("credential cipher", () => {

@@ -11,6 +11,7 @@ import type { AuthenticatedUser } from "../policies/policy.types";
 import { PrismaService } from "../prisma/prisma.service";
 import { AiSettingsController } from "./ai-settings.controller";
 import { AiSettingsService } from "./ai-settings.service";
+import { AiProviderClient } from "./provider-client";
 
 type RequestWithUser = Request & { user?: AuthenticatedUser };
 type CredentialRow = {
@@ -23,10 +24,6 @@ type CredentialRow = {
 
 const GROQ_KEY_A = "gsk_user_a_secret_key_AAAA";
 
-/**
- * In-memory stand-in for the two tables, shared by every user of the test app. It filters
- * by the `where` it receives, so a service that forgot `userId` would leak here too.
- */
 function makeFakePrisma() {
   const settings = new Map<string, Record<string, unknown>>();
   const credentials: CredentialRow[] = [];
@@ -113,12 +110,12 @@ describe("AI settings routes", () => {
       providers: [
         AiSettingsService,
         PolicyService,
+        { provide: AiProviderClient, useValue: { testKey: async () => undefined } },
         { provide: PrismaService, useValue: store.prisma },
         { provide: APP_GUARD, useClass: PolicyGuard },
       ],
     }).compile();
     app = moduleRef.createNestApplication();
-    // Stands in for SessionGuard: the test picks who is signed in through a header.
     app.use((req: RequestWithUser, _res: Response, next: NextFunction) => {
       const userId = req.headers["x-test-user"];
       if (typeof userId === "string" && userId) {

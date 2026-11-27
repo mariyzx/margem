@@ -48,3 +48,39 @@ export const aiSettingsSchema = z.object({
   credentials: z.array(aiCredentialSummarySchema),
 });
 export type AiSettings = z.infer<typeof aiSettingsSchema>;
+
+export const aiUsageFeatureSchema = z.enum([
+  "suggest-clozes-questions",
+  "memory-gaps",
+  "grade-answer",
+  "explain-after-error",
+  "generate-practice",
+  "ask-notebook",
+]);
+export type AiUsageFeature = z.infer<typeof aiUsageFeatureSchema>;
+
+export const AI_UNAVAILABLE_CODE = "ai_unavailable";
+
+export const aiUnavailableReasonSchema = z.enum([
+  "disabled",
+  "feature_disabled",
+  "no_provider",
+  "invalid_key",
+  "quota",
+  "timeout",
+  "provider_error",
+  "invalid_output",
+  "rate_limited",
+]);
+export type AiUnavailableReason = z.infer<typeof aiUnavailableReasonSchema>;
+
+export const aiUnavailableErrorSchema = z.object({
+  code: z.literal(AI_UNAVAILABLE_CODE),
+  reason: aiUnavailableReasonSchema,
+});
+export type AiUnavailableError = z.infer<typeof aiUnavailableErrorSchema>;
+
+export const aiCredentialTestFailureSchema = z.object({
+  code: z.enum(["invalid_key", "provider_unreachable"]),
+});
+export type AiCredentialTestFailure = z.infer<typeof aiCredentialTestFailureSchema>;

@@ -1,16 +1,19 @@
 import { randomBytes } from "node:crypto";
-import { NotFoundException, ServiceUnavailableException } from "@nestjs/common";
+import {
+  BadRequestException,
+  NotFoundException,
+  ServiceUnavailableException,
+} from "@nestjs/common";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PrismaService } from "../prisma/prisma.service";
 import { AiSettingsService, credentialContext } from "./ai-settings.service";
 import { decryptCredential } from "./credential-cipher";
+import { type AiProviderClient, AiProviderError, type ProviderTarget } from "./provider-client";
 
 const MASTER_KEY = randomBytes(32);
-/** Built at runtime and low-entropy on purpose: no key-like literal for the secret scanner. */
 const GROQ_KEY = `gsk_${"y".repeat(24)}`;
 const CREATED = new Date("2026-11-26T12:00:00Z");
 
-/** Prisma fake: `tx` inside $transaction is the same object, so calls can be asserted. */
 function makePrisma() {
   const prisma = {
     aiSettings: {
@@ -38,8 +41,18 @@ function makePrisma() {
   });
 }
 
-function makeService(prisma: ReturnType<typeof makePrisma>) {
-  return new AiSettingsService(prisma as unknown as PrismaService);
+function makeProviders() {
+  return { testKey: vi.fn(async (_target: ProviderTarget) => undefined) };
+}
+
+function makeService(
+  prisma: ReturnType<typeof makePrisma>,
+  providers: ReturnType<typeof makeProviders> = makeProviders(),
+) {
+  return new AiSettingsService(
+    prisma as unknown as PrismaService,
+    providers as unknown as AiProviderClient,
+  );
 }
 
 describe("AiSettingsService", () => {
@@ -134,5 +147,73 @@ describe("AiSettingsService", () => {
       where: { userId: "user-b", provider: "groq" },
     });
     expect(prisma.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  describe("Testar e salvar", () => {
+    const save = (providers: ReturnType<typeof makeProviders>, prisma = makePrisma()) => ({
+      prisma,
+      result: makeService(prisma, providers).saveCredential("user-a", {
+        provider: "groq",
+        apiKey: GROQ_KEY,
+      }),
+    });
+
+    it("tests the pasted key against Groq before storing it", async () => {
+      const providers = makeProviders();
+      const { result } = save(providers);
+      await result;
+      expect(providers.testKey).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "groq", apiKey: GROQ_KEY }),
+      );
+    });
+
+    it("refuses a key the provider rejects, without storing it", async () => {
+      const providers = makeProviders();
+      providers.testKey.mockRejectedValueOnce(new AiProviderError("invalid_key", 401));
+      const { prisma, result } = save(providers);
+
+      await expect(result).rejects.toBeInstanceOf(BadRequestException);
+      await result.catch((error: BadRequestException) =>
+        expect(error.getResponse()).toEqual({ code: "invalid_key" }),
+      );
+      expect(prisma.aiCredential.upsert).not.toHaveBeenCalled();
+    });
+
+    it("stores a key that is only rate limited right now", async () => {
+      const providers = makeProviders();
+      providers.testKey.mockRejectedValueOnce(new AiProviderError("quota", 429));
+      const { prisma, result } = save(providers);
+
+      await result;
+      expect(prisma.aiCredential.upsert).toHaveBeenCalled();
+    });
+
+    it("answers 503 and stores nothing when the provider can't be reached", async () => {
+      const providers = makeProviders();
+      providers.testKey.mockRejectedValueOnce(new AiProviderError("timeout"));
+      const { prisma, result } = save(providers);
+
+      await expect(result).rejects.toBeInstanceOf(ServiceUnavailableException);
+      expect(prisma.aiCredential.upsert).not.toHaveBeenCalled();
+    });
+
+    it("does not call the provider when the key could not be stored anyway", async () => {
+      vi.stubEnv("AI_KEYS_MASTER_KEY", "");
+      const providers = makeProviders();
+      const { result } = save(providers);
+
+      await expect(result).rejects.toBeInstanceOf(ServiceUnavailableException);
+      expect(providers.testKey).not.toHaveBeenCalled();
+    });
+  });
+
+  it("reads preferences without creating a row, defaulting to everything on", async () => {
+    const prisma = makePrisma();
+
+    const prefs = await makeService(prisma).preferences("user-a");
+
+    expect(prisma.aiSettings.upsert).not.toHaveBeenCalled();
+    expect(prefs.enabled).toBe(true);
+    expect(Object.values(prefs.features).every(Boolean)).toBe(true);
   });
 });
