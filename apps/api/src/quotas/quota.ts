@@ -7,6 +7,7 @@ const quotaEnvSchema = envSchema.pick({
   MAX_NOTES_PER_USER: true,
   MAX_SOURCES_PER_USER: true,
   MAX_QUESTIONS_PER_USER: true,
+  MAX_PRACTICE_ITEMS_PER_USER: true,
   MAX_SOURCE_STORAGE_MB_PER_USER: true,
 });
 
@@ -15,6 +16,7 @@ const LIMIT_ENV: Record<QuotaResource, keyof typeof quotaEnvSchema.shape> = {
   notes: "MAX_NOTES_PER_USER",
   sources: "MAX_SOURCES_PER_USER",
   questions: "MAX_QUESTIONS_PER_USER",
+  practice: "MAX_PRACTICE_ITEMS_PER_USER",
   storage: "MAX_SOURCE_STORAGE_MB_PER_USER",
 };
 
@@ -29,6 +31,7 @@ const LABEL: Record<CountedResource, { noun: string } & (typeof MASCULINE | type
   notes: { noun: "notas", ...FEMININE },
   sources: { noun: "materiais", ...MASCULINE },
   questions: { noun: "perguntas", ...FEMININE },
+  practice: { noun: "práticas", ...FEMININE },
 };
 
 export function quotaLimit(resource: QuotaResource): number {

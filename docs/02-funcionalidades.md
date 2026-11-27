@@ -81,7 +81,7 @@ Três modos na mesma tela, com navegação fixa e transição entre eles:
 Consulta (secundário): resumo (bloqueado até a nota da fonte existir), slides, mapa mental (abre no canvas como mapa de memória), áudio.
 
 Aceite:
-- [ ] Toda prática gerada vira `ReviewItem` ligado ao `SourceChunk` de origem.
+- [ ] Toda prática gerada vira `ReviewItem` ligado ao `SourceChunk` de origem, depois que a pessoa aprova (as da IA nascem pendentes, como as sugestões de pergunta; decisão de 27/11/2026).
 - [ ] Respostas de "Pergunte ao caderno" sempre citam nota ou trecho de fonte; sem fonte encontrada, dizem que não encontraram.
 - [ ] Sem IA conectada, os geradores mostram o botão de prompt pronto.
 

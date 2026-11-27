@@ -43,3 +43,15 @@ export function buildMessages(spec: PromptSpec, boundary: string = newBoundary()
     { role: "user", content: spec.data.map((item) => dataBlock(item, boundary)).join("\n\n") },
   ];
 }
+
+export function takeWithinBudget(texts: string[], maxChars: number): string[] {
+  const taken: string[] = [];
+  let used = 0;
+  for (const text of texts) {
+    if (used >= maxChars) break;
+    const slice = text.slice(0, maxChars - used);
+    taken.push(slice);
+    used += slice.length;
+  }
+  return taken;
+}

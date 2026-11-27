@@ -21,6 +21,7 @@ export const envSchema = z.object({
   MAX_NOTES_PER_USER: z.coerce.number().int().positive().default(5000),
   MAX_SOURCES_PER_USER: z.coerce.number().int().positive().default(500),
   MAX_QUESTIONS_PER_USER: z.coerce.number().int().positive().default(10000),
+  MAX_PRACTICE_ITEMS_PER_USER: z.coerce.number().int().positive().default(10000),
   MAX_SOURCE_STORAGE_MB_PER_USER: z.coerce.number().int().positive().default(500),
   SENTRY_DSN: z.string().url().optional().or(z.literal("")),
   APP_VERSION: z.string().default("0.0.0"),

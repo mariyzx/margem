@@ -73,6 +73,7 @@ services:
       MAX_SOURCES_PER_USER: ${MAX_SOURCES_PER_USER:-500}
       MAX_SOURCE_STORAGE_MB_PER_USER: ${MAX_SOURCE_STORAGE_MB_PER_USER:-500}
       MAX_QUESTIONS_PER_USER: ${MAX_QUESTIONS_PER_USER:-10000}
+      MAX_PRACTICE_ITEMS_PER_USER: ${MAX_PRACTICE_ITEMS_PER_USER:-10000}
       # Required: the API refuses to start in production without it (see apps/api/src/config/env.ts).
       LOG_HASH_SECRET: ${LOG_HASH_SECRET:?LOG_HASH_SECRET must be set (openssl rand -hex 32)}
       # Required: master key of users' AI keys (AES-256-GCM). Losing it makes every stored key unreadable.

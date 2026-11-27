@@ -43,15 +43,3 @@ export function buildMemoryGapsPrompt(memory: string[], excerpts: SourceExcerpt[
   ];
   return { instructions: INSTRUCTIONS, data };
 }
-
-export function takeWithinBudget(texts: string[], maxChars: number): string[] {
-  const taken: string[] = [];
-  let used = 0;
-  for (const text of texts) {
-    if (used >= maxChars) break;
-    const slice = text.slice(0, maxChars - used);
-    taken.push(slice);
-    used += slice.length;
-  }
-  return taken;
-}

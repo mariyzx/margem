@@ -10,3 +10,4 @@ export * from "./reviews";
 export * from "./sources";
 export * from "./search";
 export * from "./ai";
+export * from "./studio";

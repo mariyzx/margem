@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildMessages } from "../prompt";
-import { buildMemoryGapsPrompt, memoryGapsOutputSchema, takeWithinBudget } from "./memory-gaps";
+import { buildMessages, takeWithinBudget } from "../prompt";
+import { buildMemoryGapsPrompt, memoryGapsOutputSchema } from "./memory-gaps";
 
 const BOUNDARY = "e3e3e3e3e3e3e3e3";
 

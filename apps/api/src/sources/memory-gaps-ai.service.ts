@@ -8,11 +8,11 @@ import {
   MAX_MEMORY_CHARS,
   MAX_SOURCE_CHARS,
   memoryGapsOutputSchema,
-  takeWithinBudget,
 } from "../ai/prompts/memory-gaps";
 import { PolicyService } from "../policies/policy.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { extractMemoryParagraphs } from "./memory-gaps";
+import { takeWithinBudget } from "../ai/prompt";
 
 const MAX_CHUNKS = 40;
 const EXCERPT_CHARS = 220;

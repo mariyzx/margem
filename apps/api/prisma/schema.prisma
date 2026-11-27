@@ -48,6 +48,7 @@ model Notebook {
   owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   notes   Note[]
   sources Source[]
+  practices PracticeItem[]
 
   @@index([ownerId, deletedAt, updatedAt])
 }
@@ -276,6 +277,7 @@ model Source {
   notebook Notebook @relation(fields: [notebookId], references: [id], onDelete: Cascade)
   notes    Note[]
   chunks   SourceChunk[]
+  practices PracticeItem[]
 
   @@index([notebookId, deletedAt, updatedAt])
 }
@@ -292,6 +294,7 @@ model SourceChunk {
   updatedAt DateTime @updatedAt
 
   source Source @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  practices PracticeItem[]
 
   @@unique([sourceId, ord])
   @@index([sourceId])
@@ -367,4 +370,45 @@ model AiUsage {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+enum PracticeKind {
+  quiz
+  flashcard
+  cloze
+  why
+}
+
+enum PracticeStatus {
+  pending
+  approved
+  discarded
+}
+
+enum PracticeAuthor {
+  self
+  ai
+}
+
+model PracticeItem {
+  id            String         @id @default(cuid())
+  notebookId    String
+  sourceId      String
+  sourceChunkId String?
+  kind          PracticeKind
+  prompt        String
+  answer        String
+  createdBy     PracticeAuthor @default(ai)
+  status        PracticeStatus @default(pending)
+  deletedAt     DateTime?      @map("deleted_date")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  notebook    Notebook     @relation(fields: [notebookId], references: [id], onDelete: Cascade)
+  source      Source       @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  sourceChunk SourceChunk? @relation(fields: [sourceChunkId], references: [id], onDelete: SetNull)
+
+  @@index([sourceId, status, deletedAt])
+  @@index([notebookId, deletedAt])
+  @@index([sourceChunkId])
 }
