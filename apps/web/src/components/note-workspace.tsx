@@ -30,6 +30,7 @@ import type { QuestionAnchorDraft } from "./editor/selection-toolbar";
 import { SourcePanel } from "./editor/source-panel";
 import { NotebookForm } from "./notebook-form";
 import { NotebookSearch } from "./notebook-search";
+import { windowTitle } from "../lib/window-title";
 
 interface NoteWorkspaceProps {
   notebooks: NotebookDto[];
@@ -69,6 +70,17 @@ export function NoteWorkspace({
   const [title, setTitle] = React.useState(selectedNote?.title ?? "");
   const titleRef = React.useRef(title);
   titleRef.current = title;
+
+  React.useEffect(() => {
+    document.title = windowTitle(selectedNoteId ? title : null);
+  }, [selectedNoteId, title]);
+
+  React.useEffect(
+    () => () => {
+      document.title = windowTitle(null);
+    },
+    [],
+  );
   const [saving, setSaving] = React.useState(false);
   const [mode, setMode] = React.useState<"write" | "study">("write");
   const [clozeStats, setClozeStats] = React.useState({ revealed: 0, total: 0 });
