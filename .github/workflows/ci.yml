@@ -42,6 +42,142 @@ jobs:
       - name: Dependency audit
         run: pnpm audit --audit-level=high
 
+  migrations:
+    name: Prisma migrations in sync
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: margem
+          POSTGRES_PASSWORD: margem_ci
+          POSTGRES_DB: margem_shadow
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U margem"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://margem:margem_ci@localhost:5432/margem_shadow
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Migrations match the schema
+        working-directory: apps/api
+        run: >-
+          pnpm exec prisma migrate diff
+          --from-migrations prisma/migrations
+          --to-schema-datamodel prisma/schema.prisma
+          --shadow-database-url "$DATABASE_URL"
+          --exit-code
+
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: margem
+          POSTGRES_PASSWORD: margem_ci
+          POSTGRES_DB: margem_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U margem"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      mailpit:
+        image: axllent/mailpit:v1.34.0
+        ports:
+          - 1025:1025
+          - 8025:8025
+    env:
+      DATABASE_URL: postgresql://margem:margem_ci@localhost:5432/margem_e2e
+      REDIS_URL: redis://localhost:6379
+      APP_URL: http://localhost:3000
+      SMTP_HOST: localhost
+      SMTP_PORT: "1025"
+      MAILPIT_URL: http://localhost:8025
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Write .env for the API processes
+        run: |
+          {
+            echo "DATABASE_URL=$DATABASE_URL"
+            echo "REDIS_URL=$REDIS_URL"
+            echo "APP_URL=$APP_URL"
+            echo "SMTP_HOST=$SMTP_HOST"
+            echo "SMTP_PORT=$SMTP_PORT"
+          } > .env
+
+      - name: Build for production
+        run: pnpm exec turbo run build --filter=@margem/api --filter=@margem/web
+
+      - name: Apply migrations
+        working-directory: apps/api
+        run: pnpm exec prisma migrate deploy
+
+      - name: Install Chromium
+        working-directory: apps/web
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Start API and web
+        run: |
+          (cd apps/api && nohup node --env-file=../../.env dist/main.js > "$RUNNER_TEMP/api.log" 2>&1 &)
+          (cd apps/web && nohup pnpm exec next start -p 3000 > "$RUNNER_TEMP/web.log" 2>&1 &)
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:3001/health/ready > /dev/null && curl -fsS http://localhost:3000/entrar > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::API or web did not start"
+          exit 1
+
+      - name: Run E2E
+        run: pnpm --filter @margem/web test:e2e
+
+      - name: Show server logs
+        if: failure()
+        run: |
+          tail -n 100 "$RUNNER_TEMP/api.log" || true
+          tail -n 100 "$RUNNER_TEMP/web.log" || true
+
   caddy:
     name: Validate Caddyfile
     runs-on: ubuntu-latest

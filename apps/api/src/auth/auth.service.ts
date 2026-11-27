@@ -274,11 +274,10 @@ export class AuthService {
     }
 
     const stateKey = `auth:oauth:google:${params.state}`;
-    const codeVerifier = await this.redis.get(stateKey);
+    const codeVerifier = await this.redis.getdel(stateKey);
     if (!codeVerifier) {
       throw new GoogleAuthError("state_mismatch", "Invalid or expired OAuth state");
     }
-    await this.redis.del(stateKey);
 
     const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",

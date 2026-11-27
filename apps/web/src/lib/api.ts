@@ -28,6 +28,36 @@ import {
   searchHitSchema,
   MemoryGapDto,
   memoryGapSchema,
+  aiMemoryGapSchema,
+  type AiMemoryGapDto,
+  aiCredentialSummarySchema,
+  aiCredentialTestFailureSchema,
+  aiSettingsSchema,
+  type AiCredentialSummary,
+  type AiSettings,
+  type UpdateAiSettingsInput,
+  aiUnavailableErrorSchema,
+  openRouterConnectFailureSchema,
+  type OpenRouterConnectFailure,
+  questionSuggestionsSchema,
+  type AiUnavailableReason,
+  type QuestionSuggestionsDto,
+  gradedAnswerSchema,
+  type GradeAnswersInput,
+  type GradedAnswerDto,
+  studioOverviewSchema,
+  type StudioOverviewDto,
+  sourceChunksSchema,
+  type SourceChunksDto,
+  practiceItemSchema,
+  type PracticeItemDto,
+  type PracticeKind,
+  askNotebookResultSchema,
+  type AskNotebookInput,
+  type AskNotebookResultDto,
+  studioSessionSchema,
+  type StudioSessionDto,
+  type StudioSessionRequest,
 } from "@margem/shared";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
@@ -41,19 +71,28 @@ export class ApiError extends Error {
     readonly status: number,
     /** Set when the API answered 422 because a per-user cap was reached. */
     readonly quota?: QuotaExceededError,
+    readonly aiUnavailable?: AiUnavailableReason,
   ) {
     super(message);
     this.name = "ApiError";
   }
 }
 
+export function isAiUnavailable(error: unknown): boolean {
+  return error instanceof ApiError && error.aiUnavailable !== undefined;
+}
+
 async function failed(res: Response, label: string): Promise<never> {
   let quota: QuotaExceededError | undefined;
-  if (res.status === 422) {
-    const parsed = quotaExceededErrorSchema.safeParse(await res.json().catch(() => null));
-    if (parsed.success) quota = parsed.data;
+  let aiUnavailable: AiUnavailableReason | undefined;
+  if (res.status === 422 || res.status === 429 || res.status === 503) {
+    const body: unknown = await res.json().catch(() => null);
+    const quotaBody = quotaExceededErrorSchema.safeParse(body);
+    if (quotaBody.success) quota = quotaBody.data;
+    const aiBody = aiUnavailableErrorSchema.safeParse(body);
+    if (aiBody.success) aiUnavailable = aiBody.data.reason;
   }
-  throw new ApiError(`${label} failed with status ${res.status}`, res.status, quota);
+  throw new ApiError(`${label} failed with status ${res.status}`, res.status, quota, aiUnavailable);
 }
 
 function pageQuery(cursor: string | null): string {
@@ -399,4 +438,231 @@ export async function fetchMemoryGaps(
     gaps: data.gaps.map((item) => memoryGapSchema.parse(item)),
     hasMemoryText: Boolean(data.hasMemoryText),
   };
+}
+
+export type AiCredentialFailure =
+  "invalid_key" | "provider_unreachable" | "keys_unavailable" | "unknown";
+
+export class AiCredentialError extends Error {
+  constructor(readonly reason: AiCredentialFailure) {
+    super(`Save AI credential failed: ${reason}`);
+    this.name = "AiCredentialError";
+  }
+}
+
+export async function fetchAiSettings(): Promise<AiSettings> {
+  const res = await apiFetch("/ai/settings", { method: "GET" });
+  if (!res.ok) await failed(res, "Fetch AI settings");
+  const data = (await res.json()) as { settings: unknown };
+  return aiSettingsSchema.parse(data.settings);
+}
+
+export async function updateAiSettings(input: UpdateAiSettingsInput): Promise<AiSettings> {
+  const res = await apiFetch("/ai/settings", { method: "PUT", body: JSON.stringify(input) });
+  if (!res.ok) await failed(res, "Update AI settings");
+  const data = (await res.json()) as { settings: unknown };
+  return aiSettingsSchema.parse(data.settings);
+}
+
+export async function saveGroqKey(apiKey: string): Promise<AiCredentialSummary> {
+  const res = await apiFetch("/ai/credentials", {
+    method: "POST",
+    body: JSON.stringify({ provider: "groq", apiKey }),
+  });
+  if (!res.ok) throw new AiCredentialError(await credentialFailure(res));
+  const data = (await res.json()) as { credential: unknown };
+  return aiCredentialSummarySchema.parse(data.credential);
+}
+
+export async function removeAiCredential(provider: AiCredentialSummary["provider"]): Promise<void> {
+  const res = await apiFetch(`/ai/credentials/${encodeURIComponent(provider)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok && res.status !== 404) await failed(res, "Remove AI credential");
+}
+
+async function credentialFailure(res: Response): Promise<AiCredentialFailure> {
+  const body: unknown = await res.json().catch(() => null);
+  const known = aiCredentialTestFailureSchema.safeParse(body);
+  if (known.success) return known.data.code;
+  if (
+    res.status === 503 &&
+    typeof body === "object" &&
+    body !== null &&
+    (body as { message?: unknown }).message === "ai_keys_unavailable"
+  ) {
+    return "keys_unavailable";
+  }
+  return "unknown";
+}
+
+export async function suggestQuestions(noteId: string): Promise<QuestionSuggestionsDto> {
+  const res = await apiFetch(`/notes/${encodeURIComponent(noteId)}/questions/suggestions`, {
+    method: "POST",
+  });
+  if (!res.ok) await failed(res, "Suggest questions");
+  return questionSuggestionsSchema.parse(await res.json());
+}
+
+export async function approveQuestion(questionId: string): Promise<QuestionDto> {
+  const res = await apiFetch(`/questions/${encodeURIComponent(questionId)}/approve`, {
+    method: "POST",
+  });
+  if (!res.ok) await failed(res, "Approve question");
+  const data = (await res.json()) as { question: unknown };
+  return questionSchema.parse(data.question);
+}
+
+export async function discardQuestion(questionId: string): Promise<void> {
+  const res = await apiFetch(`/questions/${encodeURIComponent(questionId)}/discard`, {
+    method: "POST",
+  });
+  if (!res.ok && res.status !== 404) await failed(res, "Discard question");
+}
+
+export async function gradeAnswers(items: GradeAnswersInput["items"]): Promise<GradedAnswerDto[]> {
+  const res = await apiFetch("/questions/grade", {
+    method: "POST",
+    body: JSON.stringify({ items }),
+  });
+  if (!res.ok) await failed(res, "Grade answers");
+  const data = (await res.json()) as { results: unknown[] };
+  return data.results.map((item) => gradedAnswerSchema.parse(item));
+}
+
+export async function explainAnswer(questionId: string, answer: string): Promise<string> {
+  const res = await apiFetch(`/questions/${encodeURIComponent(questionId)}/explain`, {
+    method: "POST",
+    body: JSON.stringify({ answer }),
+  });
+  if (!res.ok) await failed(res, "Explain answer");
+  const data = (await res.json()) as { explanation: unknown };
+  if (typeof data.explanation !== "string") throw new ApiError("Explain answer: bad body", 500);
+  return data.explanation;
+}
+
+export async function checkMemoryGapsWithAi(
+  noteId: string,
+): Promise<{ gaps: AiMemoryGapDto[]; hasMemoryText: boolean }> {
+  const res = await apiFetch("/sources/memory-gaps/check", {
+    method: "POST",
+    body: JSON.stringify({ noteId }),
+  });
+  if (!res.ok) await failed(res, "Check memory gaps with AI");
+  const data = (await res.json()) as { gaps: unknown[]; hasMemoryText: boolean };
+  return {
+    gaps: data.gaps.map((item) => aiMemoryGapSchema.parse(item)),
+    hasMemoryText: Boolean(data.hasMemoryText),
+  };
+}
+
+export type OpenRouterFailure = OpenRouterConnectFailure["code"] | "unknown";
+
+export class OpenRouterConnectError extends Error {
+  constructor(readonly reason: OpenRouterFailure) {
+    super(`Connect OpenRouter failed: ${reason}`);
+    this.name = "OpenRouterConnectError";
+  }
+}
+
+export async function startOpenRouterConnection(): Promise<string> {
+  const res = await apiFetch("/ai/openrouter/connect", { method: "POST" });
+  if (!res.ok) await failed(res, "Start OpenRouter connection");
+  const data = (await res.json()) as { url?: unknown };
+  const url = typeof data.url === "string" ? new URL(data.url) : null;
+  if (!url || url.origin !== "https://openrouter.ai") {
+    throw new OpenRouterConnectError("unknown");
+  }
+  return url.toString();
+}
+
+export async function finishOpenRouterConnection(
+  state: string,
+  code: string,
+): Promise<AiCredentialSummary> {
+  const res = await apiFetch("/ai/openrouter/finish", {
+    method: "POST",
+    body: JSON.stringify({ state, code }),
+  });
+  if (res.status === 401) await failed(res, "Finish OpenRouter connection");
+  if (!res.ok) {
+    const parsed = openRouterConnectFailureSchema.safeParse(await res.json().catch(() => null));
+    throw new OpenRouterConnectError(parsed.success ? parsed.data.code : "unknown");
+  }
+  const data = (await res.json()) as { credential: unknown };
+  return aiCredentialSummarySchema.parse(data.credential);
+}
+
+export async function fetchStudioOverview(notebookId: string): Promise<StudioOverviewDto> {
+  const res = await apiFetch(`/notebooks/${encodeURIComponent(notebookId)}/studio`);
+  if (!res.ok) await failed(res, "Studio overview");
+  return studioOverviewSchema.parse(await res.json());
+}
+
+export async function fetchSourceChunks(sourceId: string): Promise<SourceChunksDto> {
+  const res = await apiFetch(`/sources/${encodeURIComponent(sourceId)}/chunks`);
+  if (!res.ok) await failed(res, "Source chunks");
+  return sourceChunksSchema.parse(await res.json());
+}
+
+const practiceListSchema = practiceItemSchema.array();
+
+export async function fetchSourcePractice(sourceId: string): Promise<PracticeItemDto[]> {
+  const res = await apiFetch(`/sources/${encodeURIComponent(sourceId)}/practice`);
+  if (!res.ok) await failed(res, "Source practice");
+  const data = (await res.json()) as { items: unknown };
+  return practiceListSchema.parse(data.items);
+}
+
+export async function generatePractice(
+  sourceId: string,
+  kinds: PracticeKind[],
+): Promise<PracticeItemDto[]> {
+  const res = await apiFetch(`/sources/${encodeURIComponent(sourceId)}/practice/generate`, {
+    method: "POST",
+    body: JSON.stringify({ kinds }),
+  });
+  if (!res.ok) await failed(res, "Generate practice");
+  const data = (await res.json()) as { items: unknown };
+  return practiceListSchema.parse(data.items);
+}
+
+export async function approvePractice(practiceId: string): Promise<PracticeItemDto> {
+  const res = await apiFetch(`/practice/${encodeURIComponent(practiceId)}/approve`, {
+    method: "POST",
+  });
+  if (!res.ok) await failed(res, "Approve practice");
+  const data = (await res.json()) as { item: unknown };
+  return practiceItemSchema.parse(data.item);
+}
+
+export async function discardPractice(practiceId: string): Promise<void> {
+  const res = await apiFetch(`/practice/${encodeURIComponent(practiceId)}/discard`, {
+    method: "POST",
+  });
+  if (!res.ok) await failed(res, "Discard practice");
+}
+
+export async function askNotebook(
+  notebookId: string,
+  input: AskNotebookInput,
+): Promise<AskNotebookResultDto> {
+  const res = await apiFetch(`/notebooks/${encodeURIComponent(notebookId)}/ask`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) await failed(res, "Ask notebook");
+  return askNotebookResultSchema.parse(await res.json());
+}
+
+export async function buildStudioSession(
+  notebookId: string,
+  input: StudioSessionRequest,
+): Promise<StudioSessionDto> {
+  const res = await apiFetch(`/notebooks/${encodeURIComponent(notebookId)}/studio/session`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) await failed(res, "Studio session");
+  return studioSessionSchema.parse(await res.json());
 }

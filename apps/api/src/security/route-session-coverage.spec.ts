@@ -11,60 +11,65 @@ import { POLICY_METADATA_KEY } from "../policies/require-policy.decorator";
  * for them, so `req.user` stays undefined.
  */
 const ALLOWED_WITHOUT_POLICY = new Set(["AuthController.googleCallback"]);
+const WHOLE_APP_GRAPH_TIMEOUT_MS = 30_000;
 
 describe("session coverage", () => {
-  it("every handler that receives @Req() declares @RequirePolicy, so SessionGuard fills req.user", async () => {
-    process.env.DATABASE_URL ??= "postgresql://u:p@localhost:5999/db";
-    process.env.REDIS_URL ??= "redis://localhost:6999";
-    const { AppModule } = await import("../app.module");
+  it(
+    "every handler that receives @Req() declares @RequirePolicy, so SessionGuard fills req.user",
+    async () => {
+      process.env.DATABASE_URL ??= "postgresql://u:p@localhost:5999/db";
+      process.env.REDIS_URL ??= "redis://localhost:6999";
+      const { AppModule } = await import("../app.module");
 
-    // compile() only builds the graph: no module init, no DB or Redis connections.
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule, DiscoveryModule],
-    }).compile();
-    const discovery = moduleRef.get(DiscoveryService);
+      // compile() only builds the graph: no module init, no DB or Redis connections.
+      const moduleRef = await Test.createTestingModule({
+        imports: [AppModule, DiscoveryModule],
+      }).compile();
+      const discovery = moduleRef.get(DiscoveryService);
 
-    const handlersWithReq: string[] = [];
-    const missingPolicy: string[] = [];
+      const handlersWithReq: string[] = [];
+      const missingPolicy: string[] = [];
 
-    for (const wrapper of discovery.getControllers()) {
-      const controller = wrapper.metatype as (new (...args: never[]) => unknown) | undefined;
-      if (!controller) continue;
-      const classPolicy = Reflect.getMetadata(POLICY_METADATA_KEY, controller) as unknown;
+      for (const wrapper of discovery.getControllers()) {
+        const controller = wrapper.metatype as (new (...args: never[]) => unknown) | undefined;
+        if (!controller) continue;
+        const classPolicy = Reflect.getMetadata(POLICY_METADATA_KEY, controller) as unknown;
 
-      for (const name of Object.getOwnPropertyNames(controller.prototype)) {
-        const handler = (controller.prototype as Record<string, unknown>)[name];
-        if (name === "constructor" || typeof handler !== "function") continue;
-        if (Reflect.getMetadata(PATH_METADATA, handler) === undefined) continue;
+        for (const name of Object.getOwnPropertyNames(controller.prototype)) {
+          const handler = (controller.prototype as Record<string, unknown>)[name];
+          if (name === "constructor" || typeof handler !== "function") continue;
+          if (Reflect.getMetadata(PATH_METADATA, handler) === undefined) continue;
 
-        const args = (Reflect.getMetadata(ROUTE_ARGS_METADATA, controller, name) ?? {}) as Record<
-          string,
-          unknown
-        >;
-        const takesRequest = Object.keys(args).some((key) =>
-          key.startsWith(`${RouteParamtypes.REQUEST}:`),
-        );
-        if (!takesRequest) continue;
+          const args = (Reflect.getMetadata(ROUTE_ARGS_METADATA, controller, name) ?? {}) as Record<
+            string,
+            unknown
+          >;
+          const takesRequest = Object.keys(args).some((key) =>
+            key.startsWith(`${RouteParamtypes.REQUEST}:`),
+          );
+          if (!takesRequest) continue;
 
-        const id = `${controller.name}.${name}`;
-        handlersWithReq.push(id);
-        const policy =
-          (Reflect.getMetadata(POLICY_METADATA_KEY, handler) as unknown) ?? classPolicy;
-        if (!policy && !ALLOWED_WITHOUT_POLICY.has(id)) {
-          missingPolicy.push(id);
+          const id = `${controller.name}.${name}`;
+          handlersWithReq.push(id);
+          const policy =
+            (Reflect.getMetadata(POLICY_METADATA_KEY, handler) as unknown) ?? classPolicy;
+          if (!policy && !ALLOWED_WITHOUT_POLICY.has(id)) {
+            missingPolicy.push(id);
+          }
         }
       }
-    }
 
-    // Sanity check that the scan really walked the app's controllers.
-    expect(handlersWithReq).toEqual(
-      expect.arrayContaining([
-        "AuthController.me",
-        "AuthController.logout",
-        "AuthController.logoutAll",
-        "NotebooksController.list",
-      ]),
-    );
-    expect(missingPolicy).toEqual([]);
-  });
+      // Sanity check that the scan really walked the app's controllers.
+      expect(handlersWithReq).toEqual(
+        expect.arrayContaining([
+          "AuthController.me",
+          "AuthController.logout",
+          "AuthController.logoutAll",
+          "NotebooksController.list",
+        ]),
+      );
+      expect(missingPolicy).toEqual([]);
+    },
+    WHOLE_APP_GRAPH_TIMEOUT_MS,
+  );
 });

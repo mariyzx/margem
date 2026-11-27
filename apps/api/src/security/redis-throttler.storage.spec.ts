@@ -79,4 +79,20 @@ describe("RedisThrottlerStorage", () => {
     expect(over).toMatchObject({ totalHits: 2, isBlocked: true, timeToBlockExpire: 30 });
     expect(whileBlocked).toMatchObject({ isBlocked: true, totalHits: 2 });
   });
+
+  it("lets the request through when Redis is closed instead of failing it", async () => {
+    const closed = {
+      pttl: vi.fn(async () => {
+        throw new Error("Connection is closed.");
+      }),
+    };
+    const storage = new RedisThrottlerStorage(closed as unknown as Redis);
+
+    await expect(storage.increment("k1", 60_000, 10, 60_000, "default")).resolves.toEqual({
+      totalHits: 0,
+      timeToExpire: 60,
+      isBlocked: false,
+      timeToBlockExpire: 0,
+    });
+  });
 });

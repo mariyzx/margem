@@ -61,36 +61,6 @@ const STOPWORDS = new Set([
   "about",
 ]);
 
-interface TipTapNode {
-  type?: string;
-  text?: string;
-  attrs?: Record<string, unknown>;
-  content?: TipTapNode[];
-}
-
-function collectNodeText(node: TipTapNode): string {
-  if (typeof node.text === "string") return node.text;
-  if (!Array.isArray(node.content)) return "";
-  return node.content.map(collectNodeText).join(" ");
-}
-
-export function extractMemoryParagraphs(doc: unknown): string[] {
-  if (!doc || typeof doc !== "object") return [];
-  const root = doc as TipTapNode;
-  if (!Array.isArray(root.content)) return [];
-
-  const paragraphs: string[] = [];
-  for (const block of root.content) {
-    const origin = block.attrs?.origin;
-    if (origin === "material") continue;
-    const text = collectNodeText(block).replace(/\s+/g, " ").trim();
-    if (text.length >= 3) {
-      paragraphs.push(text);
-    }
-  }
-  return paragraphs;
-}
-
 export function cosineSimilarity(a: number[], b: number[]): number {
   if (a.length === 0 || a.length !== b.length) return 0;
   let dot = 0;

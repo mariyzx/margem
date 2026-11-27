@@ -6,11 +6,14 @@ import {
   Optional,
   ServiceUnavailableException,
 } from "@nestjs/common";
-import type {
-  CreateLinkSourceInput,
-  CreateTextSourceInput,
-  MemoryGapDto,
-  SourceDto,
+import {
+  type CreateLinkSourceInput,
+  extractMemoryParagraphs,
+  type CreateTextSourceInput,
+  MAX_READ_CHUNKS,
+  type MemoryGapDto,
+  type SourceChunksDto,
+  type SourceDto,
 } from "@margem/shared";
 import type { Source } from "@prisma/client";
 import { PolicyService } from "../policies/policy.service";
@@ -24,7 +27,7 @@ import { SourceIngestQueue } from "./source-ingest.queue";
 import { resolveAndValidateUrl, SsrfBlockedError } from "./ssrf-guard";
 import { StorageService } from "./storage.service";
 import { EmbeddingsService } from "../search/embeddings.service";
-import { extractMemoryParagraphs, findMemoryGaps } from "./memory-gaps";
+import { findMemoryGaps } from "./memory-gaps";
 
 @Injectable()
 export class SourcesService {
@@ -102,6 +105,17 @@ export class SourcesService {
     }
 
     return this.toDto(source);
+  }
+
+  async listChunks(userId: string, sourceId: string): Promise<SourceChunksDto> {
+    await this.getById(userId, sourceId);
+    const rows = await this.prisma.sourceChunk.findMany({
+      where: { sourceId },
+      orderBy: { ord: "asc" },
+      take: MAX_READ_CHUNKS + 1,
+      select: { id: true, ord: true, page: true, text: true },
+    });
+    return { chunks: rows.slice(0, MAX_READ_CHUNKS), truncated: rows.length > MAX_READ_CHUNKS };
   }
 
   private toDto(source: {

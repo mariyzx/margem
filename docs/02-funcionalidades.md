@@ -26,7 +26,7 @@ Aceite:
 
 Fluxo em dois passos, numa nota só:
 1. **Material (opcional):** subir arquivo (PDF, slides, documento), colar link (vídeo: transcrição; página: texto) ou colar texto. Vira uma `Source` do caderno.
-2. **Escrever a nota:** o material fica fechado num painel lateral. A pessoa escreve de memória. Quando clica em "Abrir o material", o painel abre e ela **continua na mesma nota**. O editor marca a origem de cada parágrafo: `memory` (barra cinza) antes de abrir, `material` (barra azul) depois.
+2. **Escrever a nota:** o material fica fechado num painel lateral. A pessoa escreve de memória. Quando clica em "Abrir o material", o painel abre e ela **continua na mesma nota**. O editor marca a origem de cada parágrafo: `memory` (barra cinza) antes de abrir, `material` (barra azul) depois. Listas têm uma barra só, à esquerda dos marcadores, com a origem da lista; nada dentro da lista tem barra própria, e linhas vazias ficam sem barra (decisão de 27/11/2026).
 3. Com IA conectada (ou busca semântica, sem IA), o painel mostra **"O que faltou na sua memória"**: pontos principais da fonte que não aparecem no texto escrito de memória. Cada um tem "Virar pergunta da revisão".
 
 Aceite:
@@ -75,13 +75,15 @@ Aceite:
 
 Três modos na mesma tela, com navegação fixa e transição entre eles:
 1. **Visão geral (fichário):** cada fonte como cartão, com "você domina X%", baralhos de prática e as ações "Praticar" e "Abrir material". Ordenado do mais fraco pro mais forte. Inclui "Estudar o mais fraco, 20 min".
+   - "Você domina X%" (decisão de 27/11/2026): % dos itens de revisão da fonte cuja **última avaliação** foi "difícil" ou "fácil"; item nunca revisado conta como não dominado. Os itens de uma fonte são as práticas aprovadas dela e as perguntas aprovadas das notas ligadas a ela (as lacunas das notas entram quando virarem item de revisão). Fonte sem nenhum item fica no fim, sem porcentagem.
 2. **Ler e praticar (folha com margem):** a fonte como uma folha, com abas de fichário pra cada fonte. A prática escolhida aparece na margem, ao lado do parágrafo de onde saiu: quiz (resposta escrita), lacunas na fonte, flashcards, "por quê?". "Pergunte ao caderno" fica no pé da folha, e a resposta cai na margem citando o trecho.
 3. **Sessão guiada:** a pessoa escolhe fontes e tempo (10, 20 ou 40 min); o app monta um roteiro misturando lacuna, quiz e "por quê?", uma atividade por vez, com o trecho de origem escondido até conferir.
+   - Decisões de 27/11/2026: a avaliação da sessão (Errei / Difícil / Fácil) **entra no FSRS**, como na revisão do dia, e por isso muda o "você domina X%"; "Pular" não grava nada. O roteiro usa só práticas aprovadas de lacuna, quiz e "por quê?" das fontes escolhidas, com as mais fracas primeiro (nunca revisadas ou com última avaliação "Errei", depois as vencidas, depois o resto) e tipo e fonte intercalados sempre que der. São 8, 16 ou 32 atividades (cerca de 75 s cada); o tempo restante é estimado pelas atividades que faltam.
 
 Consulta (secundário): resumo (bloqueado até a nota da fonte existir), slides, mapa mental (abre no canvas como mapa de memória), áudio.
 
 Aceite:
-- [ ] Toda prática gerada vira `ReviewItem` ligado ao `SourceChunk` de origem.
+- [ ] Toda prática gerada vira `ReviewItem` ligado ao `SourceChunk` de origem, depois que a pessoa aprova (as da IA nascem pendentes, como as sugestões de pergunta; decisão de 27/11/2026).
 - [ ] Respostas de "Pergunte ao caderno" sempre citam nota ou trecho de fonte; sem fonte encontrada, dizem que não encontraram.
 - [ ] Sem IA conectada, os geradores mostram o botão de prompt pronto.
 

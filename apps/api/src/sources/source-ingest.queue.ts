@@ -1,4 +1,11 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit, Optional } from "@nestjs/common";
+import {
+  Injectable,
+  Logger,
+  type OnApplicationShutdown,
+  OnModuleDestroy,
+  OnModuleInit,
+  Optional,
+} from "@nestjs/common";
 import { type Job, Queue, Worker } from "bullmq";
 import { loadEnv } from "../config/env";
 import { PrismaService } from "../prisma/prisma.service";
@@ -17,7 +24,7 @@ export interface SourceIngestJobData {
 }
 
 @Injectable()
-export class SourceIngestQueue implements OnModuleInit, OnModuleDestroy {
+export class SourceIngestQueue implements OnModuleInit, OnModuleDestroy, OnApplicationShutdown {
   private readonly logger = new Logger(SourceIngestQueue.name);
   private queue: Queue<SourceIngestJobData> | null = null;
   private dlq: Queue<SourceIngestJobData & { reason: string; failedAt: string }> | null = null;
@@ -60,6 +67,9 @@ export class SourceIngestQueue implements OnModuleInit, OnModuleDestroy {
 
   async onModuleDestroy() {
     await this.worker?.close();
+  }
+
+  async onApplicationShutdown() {
     await this.queue?.close();
     await this.dlq?.close();
   }

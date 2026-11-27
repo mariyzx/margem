@@ -1,4 +1,11 @@
+import type { MulterOptions } from "@nestjs/platform-express/multer/interfaces/multer-options.interface";
+
 export const MAX_PDF_BYTES = 25 * 1024 * 1024;
+
+export const PDF_UPLOAD_OPTIONS: MulterOptions = {
+  limits: { fileSize: MAX_PDF_BYTES },
+  defParamCharset: "utf8",
+};
 const PDF_MAGIC_BYTES = Buffer.from("%PDF-");
 
 export function isPdfBuffer(buffer: Buffer): boolean {

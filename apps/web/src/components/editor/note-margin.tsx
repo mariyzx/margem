@@ -1,13 +1,17 @@
 "use client";
 
 import { cn } from "@margem/config/cn";
-import type { CreateQuestionInput, QuestionDto } from "@margem/shared";
+import type { CreateQuestionInput, GradedAnswerDto, QuestionDto } from "@margem/shared";
 import { Button, Field } from "@margem/ui";
 import { Trash2 } from "lucide-react";
 import * as React from "react";
+import { gradeAnswers, isAiUnavailable } from "../../lib/api";
 import { createErrorMessage } from "../../lib/errors";
+import { buildHandoffPrompt } from "../../lib/prompt-handoff";
 import { messages } from "../../messages/pt-br";
+import { PromptHandoff } from "../ai/prompt-handoff";
 import type { QuestionAnchorDraft } from "./selection-toolbar";
+import { StudyQuestion } from "./study-question";
 
 interface NoteMarginProps {
   mode?: "write" | "study";
@@ -19,6 +23,7 @@ interface NoteMarginProps {
   onCreateQuestion: (input: CreateQuestionInput) => Promise<void>;
   onDeleteQuestion: (questionId: string) => Promise<void>;
   onHighlightBlock: (blockId: string) => void;
+  aiReview?: React.ReactNode;
 }
 
 export function NoteMargin({
@@ -31,12 +36,61 @@ export function NoteMargin({
   onCreateQuestion,
   onDeleteQuestion,
   onHighlightBlock,
+  aiReview,
 }: NoteMarginProps) {
   const [text, setText] = React.useState("");
   const [answer, setAnswer] = React.useState("");
   const [error, setError] = React.useState<string | undefined>();
   const [saving, setSaving] = React.useState(false);
   const [revealedIds, setRevealedIds] = React.useState<Record<string, boolean>>({});
+  const [answers, setAnswers] = React.useState<Record<string, string>>({});
+  const [graded, setGraded] = React.useState<Record<string, GradedAnswerDto>>({});
+  const [grading, setGrading] = React.useState(false);
+  const [gradeError, setGradeError] = React.useState(false);
+  const [gradeHandoff, setGradeHandoff] = React.useState<string | null>(null);
+
+  const toGrade = questions.filter(
+    (question) => !revealedIds[question.id] && (answers[question.id] ?? "").trim().length > 0,
+  );
+
+  async function handleGradeAll() {
+    if (toGrade.length === 0) return;
+    setGrading(true);
+    setGradeError(false);
+    setGradeHandoff(null);
+    try {
+      const results = await gradeAnswers(
+        toGrade.map((question) => ({
+          questionId: question.id,
+          answer: (answers[question.id] ?? "").trim(),
+        })),
+      );
+      setGraded((prev) => ({
+        ...prev,
+        ...Object.fromEntries(results.map((result) => [result.questionId, result])),
+      }));
+      setRevealedIds((prev) => ({
+        ...prev,
+        ...Object.fromEntries(results.map((result) => [result.questionId, true])),
+      }));
+    } catch (error) {
+      setGradeError(true);
+      if (isAiUnavailable(error)) {
+        setGradeHandoff(
+          buildHandoffPrompt({
+            kind: "grade",
+            items: toGrade.map((question) => ({
+              question: question.text,
+              expected: question.answer,
+              answer: (answers[question.id] ?? "").trim(),
+            })),
+          }),
+        );
+      }
+    } finally {
+      setGrading(false);
+    }
+  }
 
   React.useEffect(() => {
     setText("");
@@ -46,6 +100,10 @@ export function NoteMargin({
 
   React.useEffect(() => {
     setRevealedIds({});
+    setAnswers({});
+    setGraded({});
+    setGradeError(false);
+    setGradeHandoff(null);
   }, [mode]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -81,6 +139,34 @@ export function NoteMargin({
       <h2 className="text-xs font-medium tracking-wide text-ink-muted uppercase">
         {messages.margin.title}
       </h2>
+
+      {mode === "write" ? aiReview : null}
+
+      {mode === "study" && questions.length > 0 ? (
+        <div className="flex flex-col gap-1.5">
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            loading={grading}
+            disabled={toGrade.length === 0}
+            onClick={() => void handleGradeAll()}
+          >
+            {grading ? messages.study.grading : messages.study.gradeAll(toGrade.length)}
+          </Button>
+          <p
+            aria-live="polite"
+            className={gradeError ? "text-xs text-danger" : "text-xs text-ink-muted"}
+          >
+            {gradeError
+              ? messages.study.gradeError
+              : toGrade.length === 0
+                ? messages.study.gradeHint
+                : null}
+          </p>
+          {gradeHandoff ? <PromptHandoff prompt={gradeHandoff} /> : null}
+        </div>
+      ) : null}
 
       {draft ? (
         <form
@@ -179,42 +265,19 @@ export function NoteMargin({
               </div>
 
               {mode === "study" ? (
-                <div className="mt-3 flex flex-col gap-2 border-t border-margin-rule pt-2.5">
-                  {!revealedIds[question.id] ? (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => setRevealedIds((prev) => ({ ...prev, [question.id]: true }))}
-                    >
-                      {messages.study.showAnswer}
-                    </Button>
-                  ) : (
-                    <>
-                      <p className="text-sm text-ink-muted">{question.answer}</p>
-                      <div className="flex items-center gap-2 pt-1">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant={
-                            studyResults[question.id] === "correct" ? "primary" : "secondary"
-                          }
-                          onClick={() => onMarkStudyResult?.(question.id, "correct")}
-                        >
-                          {messages.study.gotIt}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant={studyResults[question.id] === "missed" ? "primary" : "ghost"}
-                          onClick={() => onMarkStudyResult?.(question.id, "missed")}
-                        >
-                          {messages.study.missed}
-                        </Button>
-                      </div>
-                    </>
-                  )}
-                </div>
+                <StudyQuestion
+                  question={question}
+                  answer={answers[question.id] ?? ""}
+                  onAnswerChange={(value) =>
+                    setAnswers((prev) => ({ ...prev, [question.id]: value }))
+                  }
+                  revealed={Boolean(revealedIds[question.id])}
+                  onReveal={() => setRevealedIds((prev) => ({ ...prev, [question.id]: true }))}
+                  graded={graded[question.id]}
+                  result={studyResults[question.id]}
+                  onMarkResult={(result) => onMarkStudyResult?.(question.id, result)}
+                  locked={grading}
+                />
               ) : null}
             </li>
           );

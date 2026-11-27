@@ -3,7 +3,9 @@
 import {
   createLinkSourceSchema,
   createTextSourceSchema,
+  extractMemoryParagraphs,
   MemoryGapDto,
+  type AiMemoryGapDto,
   type SourceDto,
 } from "@margem/shared";
 import { Button, Field } from "@margem/ui";
@@ -17,9 +19,18 @@ import {
   Trash2,
 } from "lucide-react";
 import * as React from "react";
-import { fetchMemoryGaps, fetchSourceFileUrl } from "../../lib/api";
+import {
+  ApiError,
+  checkMemoryGapsWithAi,
+  fetchMemoryGaps,
+  fetchSourceChunks,
+  fetchSourceFileUrl,
+  isAiUnavailable,
+} from "../../lib/api";
+import { buildHandoffPrompt } from "../../lib/prompt-handoff";
 import { createErrorMessage } from "../../lib/errors";
 import { messages } from "../../messages/pt-br";
+import { PromptHandoff } from "../ai/prompt-handoff";
 
 interface SourcePanelProps {
   notebookId: string;
@@ -37,6 +48,7 @@ interface SourcePanelProps {
   onAttachLinkSource: (input: { notebookId: string; url: string; title?: string }) => Promise<void>;
   onRemoveSource?: (sourceId: string) => Promise<void>;
   onCreateQuestionFromGap?: (excerpt: string) => void;
+  getNoteDoc: () => Record<string, unknown>;
 }
 
 export function SourcePanel({
@@ -45,6 +57,7 @@ export function SourcePanel({
   source,
   materialOpened,
   noteId,
+  getNoteDoc,
   onOpenMaterial,
   onCreateNoteWithMaterial,
   onAttachPdfSource,
@@ -66,11 +79,62 @@ export function SourcePanel({
   const [gaps, setGaps] = React.useState<MemoryGapDto[] | null>(null);
   const [hasMemoryText, setHasMemoryText] = React.useState(true);
   const [checkingGaps, setCheckingGaps] = React.useState(false);
+  const [aiGaps, setAiGaps] = React.useState<AiMemoryGapDto[] | null>(null);
+  const [checkingAiGaps, setCheckingAiGaps] = React.useState(false);
+  const [aiNotice, setAiNotice] = React.useState<string | null>(null);
+  const [gapsHandoff, setGapsHandoff] = React.useState<string | null | undefined>(undefined);
+  const gapsRequestRef = React.useRef(0);
 
   React.useEffect(() => {
     setGaps(null);
+    setAiGaps(null);
+    setAiNotice(null);
+    setGapsHandoff(undefined);
     setHasMemoryText(true);
+    gapsRequestRef.current++;
   }, [noteId, sourceId]);
+
+  async function prepareGapsHandoff() {
+    const requestId = ++gapsRequestRef.current;
+    setGapsHandoff(null);
+    let sourceText: string[] = source?.content ? [source.content] : [];
+    if (sourceText.length === 0 && sourceId) {
+      sourceText = await fetchSourceChunks(sourceId)
+        .then((result) => result.chunks.map((chunk) => chunk.text))
+        .catch(() => []);
+    }
+    if (gapsRequestRef.current !== requestId) return;
+    setGapsHandoff(
+      buildHandoffPrompt({
+        kind: "memoryGaps",
+        memory: extractMemoryParagraphs(getNoteDoc()),
+        source: sourceText,
+      }),
+    );
+  }
+
+  async function handleCheckGapsWithAi() {
+    setCheckingAiGaps(true);
+    setError(undefined);
+    setAiNotice(null);
+    setGapsHandoff(undefined);
+    try {
+      const result = await checkMemoryGapsWithAi(noteId);
+      setAiGaps(result.gaps);
+      setGaps(null);
+      setHasMemoryText(result.hasMemoryText);
+    } catch (err) {
+      const reason = err instanceof ApiError ? err.aiUnavailable : undefined;
+      setAiNotice(
+        `${reason ? messages.aiReview.unavailable[reason] : messages.aiReview.genericError} ${messages.source.gapsAiFallback}`,
+      );
+      setAiGaps(null);
+      if (isAiUnavailable(err)) void prepareGapsHandoff();
+      await handleCheckGaps();
+    } finally {
+      setCheckingAiGaps(false);
+    }
+  }
 
   async function handleCheckGaps() {
     setCheckingGaps(true);
@@ -78,6 +142,7 @@ export function SourcePanel({
     try {
       const result = await fetchMemoryGaps(noteId);
       setGaps(result.gaps);
+      setAiGaps(null);
       setHasMemoryText(result.hasMemoryText);
     } catch (err) {
       setError(createErrorMessage(err, messages.source.loadError));
@@ -421,22 +486,76 @@ export function SourcePanel({
           )}
           {source.status === "ready" ? (
             <div className="mt-2 flex flex-col gap-2 border-t border-margin-rule pt-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-medium text-ink-muted">
-                  {messages.source.gapsTitle}
-                </span>
+              <span className="text-[11px] font-medium text-ink-muted">
+                {messages.source.gapsTitle}
+              </span>
+              <div className="flex flex-wrap items-center gap-1">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  loading={checkingAiGaps}
+                  disabled={checkingGaps}
+                  onClick={() => void handleCheckGapsWithAi()}
+                >
+                  {checkingAiGaps ? null : (
+                    <Sparkles className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden="true" />
+                  )}
+                  <span>
+                    {checkingAiGaps ? messages.source.gapsAiChecking : messages.source.gapsAiButton}
+                  </span>
+                </Button>
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   loading={checkingGaps}
+                  disabled={checkingAiGaps}
                   onClick={() => void handleCheckGaps()}
                 >
-                  <Sparkles className="h-3.5 w-3.5" strokeWidth={1.5} />
-                  <span>
-                    {checkingGaps ? messages.source.gapsChecking : messages.source.gapsCheckButton}
-                  </span>
+                  {checkingGaps ? messages.source.gapsChecking : messages.source.gapsCheckButton}
                 </Button>
+              </div>
+
+              <div aria-live="polite" className="flex flex-col gap-2 empty:hidden">
+                {aiNotice ? <p className="text-xs text-ink-muted">{aiNotice}</p> : null}
+                {gapsHandoff !== undefined ? <PromptHandoff prompt={gapsHandoff} /> : null}
+                {aiGaps !== null ? (
+                  !hasMemoryText ? (
+                    <p className="text-xs text-ink-muted">{messages.source.gapsNoMemory}</p>
+                  ) : aiGaps.length === 0 ? (
+                    <p className="text-xs text-correct">{messages.source.gapsAiNoneFound}</p>
+                  ) : (
+                    <ul className="flex flex-col gap-2">
+                      {aiGaps.map((gap) => (
+                        <li
+                          key={`${gap.chunkId}:${gap.point}`}
+                          className="flex flex-col gap-1.5 rounded border border-margin-rule bg-margin p-2"
+                        >
+                          <p className="text-xs font-medium leading-relaxed text-ink">
+                            {gap.point}
+                          </p>
+                          <details className="text-[11px] text-ink-muted">
+                            <summary className="cursor-pointer">
+                              {messages.source.gapsFromSource}
+                              {gap.page ? ` · p. ${gap.page}` : ""}
+                            </summary>
+                            <p className="mt-1 leading-relaxed">{gap.excerpt}</p>
+                          </details>
+                          {onCreateQuestionFromGap ? (
+                            <button
+                              type="button"
+                              onClick={() => onCreateQuestionFromGap(gap.excerpt)}
+                              className="self-start text-[11px] font-medium text-bic hover:underline"
+                            >
+                              {messages.source.gapsTurnIntoQuestion}
+                            </button>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  )
+                ) : null}
               </div>
 
               {gaps !== null ? (

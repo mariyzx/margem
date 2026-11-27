@@ -101,6 +101,10 @@ services:
     image: ollama/ollama:0.6.5
     container_name: margem-ollama
     restart: unless-stopped
+    environment:
+      OLLAMA_CONTEXT_LENGTH: "8192"
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_KEEP_ALIVE: "30m"
     ports:
       - "127.0.0.1:11434:11434"
     volumes:

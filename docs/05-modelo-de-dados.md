@@ -24,8 +24,9 @@ Source          notebookId, type ('file' | 'link' | 'text'), title, storageKey?,
                 ('queued' | 'processing' | 'ready' | 'failed'), failureReason?
 SourceChunk     sourceId, ord, text, page?, startSec?, endSec?   // embedding fica no Elasticsearch
 
-PracticeItem    notebookId, kind ('quiz' | 'flashcard' | 'cloze' | 'why'), prompt, answer,
-                sourceChunkId?, noteId?, createdBy ('self' | 'ai')
+PracticeItem    notebookId, sourceId, sourceChunkId?, kind ('quiz' | 'flashcard' | 'cloze' | 'why'),
+                prompt, answer, createdBy ('self' | 'ai'), status ('pending' | 'approved' | 'discarded')
+                // as da IA nascem 'pending'; só a aprovada vira ReviewItem 'practice'
 
 ReviewItem      userId, kind ('cloze' | 'question' | 'practice' | 'link'), refId,
                 fsrs state: due, stability, difficulty, elapsedDays, scheduledDays, reps, lapses, state, lastReview

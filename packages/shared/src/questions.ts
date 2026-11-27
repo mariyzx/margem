@@ -60,6 +60,49 @@ export const updateQuestionSchema = z.object({
 });
 export type UpdateQuestionInput = z.infer<typeof updateQuestionSchema>;
 
+export const questionSuggestionsSchema = z.object({
+  clozes: z.array(z.object({ blockId: z.string(), quote: z.string() })),
+  questions: z.array(questionSchema),
+});
+export type QuestionSuggestionsDto = z.infer<typeof questionSuggestionsSchema>;
+
+export const GRADE_ANSWERS_MAX_ITEMS = 20;
+
+const writtenAnswerSchema = z
+  .string()
+  .trim()
+  .min(1, "Escreva sua resposta antes")
+  .max(2000, "Resposta muito longa");
+
+export const gradeAnswersSchema = z.strictObject({
+  items: z
+    .array(z.strictObject({ questionId: z.string().min(1), answer: writtenAnswerSchema }))
+    .min(1)
+    .max(GRADE_ANSWERS_MAX_ITEMS)
+    .refine((items) => new Set(items.map((item) => item.questionId)).size === items.length, {
+      message: "Pergunta repetida",
+    }),
+});
+export type GradeAnswersInput = z.infer<typeof gradeAnswersSchema>;
+
+export const answerVerdictSchema = z.enum(["right", "partial", "wrong"]);
+export type AnswerVerdict = z.infer<typeof answerVerdictSchema>;
+
+export const gradedAnswerSchema = z.object({
+  questionId: z.string(),
+  verdict: answerVerdictSchema,
+  missing: z.array(z.string()),
+});
+export type GradedAnswerDto = z.infer<typeof gradedAnswerSchema>;
+
+export const explainAnswerSchema = z.strictObject({ answer: writtenAnswerSchema });
+export type ExplainAnswerInput = z.infer<typeof explainAnswerSchema>;
+
+export interface NoteBlockText {
+  blockId: string;
+  text: string;
+}
+
 export interface AnchorMatch {
   found: boolean;
   blockId: string;
@@ -71,6 +114,19 @@ function extractNodeText(node: unknown): string {
   if (typeof record.text === "string") return record.text;
   if (!Array.isArray(record.content)) return "";
   return record.content.map(extractNodeText).join("");
+}
+
+export function extractNoteBlocks(doc: Record<string, unknown>): NoteBlockText[] {
+  const blocks = Array.isArray(doc.content) ? doc.content : [];
+  const result: NoteBlockText[] = [];
+  for (const rawBlock of blocks) {
+    if (!rawBlock || typeof rawBlock !== "object") continue;
+    const block = rawBlock as { attrs?: { blockId?: unknown } };
+    const blockId = typeof block.attrs?.blockId === "string" ? block.attrs.blockId : "";
+    const text = extractNodeText(block);
+    if (blockId && text.trim()) result.push({ blockId, text });
+  }
+  return result;
 }
 
 /**
