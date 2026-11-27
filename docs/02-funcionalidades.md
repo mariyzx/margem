@@ -26,7 +26,7 @@ Aceite:
 
 Fluxo em dois passos, numa nota só:
 1. **Material (opcional):** subir arquivo (PDF, slides, documento), colar link (vídeo: transcrição; página: texto) ou colar texto. Vira uma `Source` do caderno.
-2. **Escrever a nota:** o material fica fechado num painel lateral. A pessoa escreve de memória. Quando clica em "Abrir o material", o painel abre e ela **continua na mesma nota**. O editor marca a origem de cada parágrafo: `memory` (barra cinza) antes de abrir, `material` (barra azul) depois.
+2. **Escrever a nota:** o material fica fechado num painel lateral. A pessoa escreve de memória. Quando clica em "Abrir o material", o painel abre e ela **continua na mesma nota**. O editor marca a origem de cada parágrafo: `memory` (barra cinza) antes de abrir, `material` (barra azul) depois. Listas têm uma barra só, à esquerda dos marcadores, com a origem da lista; nada dentro da lista tem barra própria, e linhas vazias ficam sem barra (decisão de 27/11/2026).
 3. Com IA conectada (ou busca semântica, sem IA), o painel mostra **"O que faltou na sua memória"**: pontos principais da fonte que não aparecem no texto escrito de memória. Cada um tem "Virar pergunta da revisão".
 
 Aceite:
