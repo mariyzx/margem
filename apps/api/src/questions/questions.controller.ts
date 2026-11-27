@@ -5,6 +5,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   Patch,
   Post,
@@ -15,11 +16,15 @@ import { createQuestionSchema, updateQuestionSchema } from "@margem/shared";
 import type { AuthenticatedRequest } from "../auth/session";
 import { parsePagination } from "../common/pagination";
 import { RequirePolicy } from "../policies/require-policy.decorator";
+import { QuestionSuggestionsService } from "./question-suggestions.service";
 import { QuestionsService } from "./questions.service";
 
 @Controller()
 export class QuestionsController {
-  constructor(private readonly questionsService: QuestionsService) {}
+  constructor(
+    private readonly questionsService: QuestionsService,
+    private readonly suggestions: QuestionSuggestionsService,
+  ) {}
 
   @Get("notes/:noteId/questions")
   @RequirePolicy("read", "note")
@@ -44,6 +49,26 @@ export class QuestionsController {
     }
     const question = await this.questionsService.create(req.user!.id, noteId, parsed.data);
     return { question };
+  }
+
+  @Post("notes/:noteId/questions/suggestions")
+  @RequirePolicy("update", "note")
+  suggest(@Req() req: AuthenticatedRequest, @Param("noteId") noteId: string) {
+    return this.suggestions.suggest(req.user!.id, noteId);
+  }
+
+  @Post("questions/:id/approve")
+  @HttpCode(200)
+  @RequirePolicy("update", "note")
+  async approve(@Req() req: AuthenticatedRequest, @Param("id") id: string) {
+    return { question: await this.questionsService.approve(req.user!.id, id) };
+  }
+
+  @Post("questions/:id/discard")
+  @HttpCode(200)
+  @RequirePolicy("update", "note")
+  discard(@Req() req: AuthenticatedRequest, @Param("id") id: string) {
+    return this.questionsService.discard(req.user!.id, id);
   }
 
   @Patch("questions/:id")

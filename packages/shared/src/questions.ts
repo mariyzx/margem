@@ -60,6 +60,17 @@ export const updateQuestionSchema = z.object({
 });
 export type UpdateQuestionInput = z.infer<typeof updateQuestionSchema>;
 
+export const questionSuggestionsSchema = z.object({
+  clozes: z.array(z.object({ blockId: z.string(), quote: z.string() })),
+  questions: z.array(questionSchema),
+});
+export type QuestionSuggestionsDto = z.infer<typeof questionSuggestionsSchema>;
+
+export interface NoteBlockText {
+  blockId: string;
+  text: string;
+}
+
 export interface AnchorMatch {
   found: boolean;
   blockId: string;
@@ -71,6 +82,19 @@ function extractNodeText(node: unknown): string {
   if (typeof record.text === "string") return record.text;
   if (!Array.isArray(record.content)) return "";
   return record.content.map(extractNodeText).join("");
+}
+
+export function extractNoteBlocks(doc: Record<string, unknown>): NoteBlockText[] {
+  const blocks = Array.isArray(doc.content) ? doc.content : [];
+  const result: NoteBlockText[] = [];
+  for (const rawBlock of blocks) {
+    if (!rawBlock || typeof rawBlock !== "object") continue;
+    const block = rawBlock as { attrs?: { blockId?: unknown } };
+    const blockId = typeof block.attrs?.blockId === "string" ? block.attrs.blockId : "";
+    const text = extractNodeText(block);
+    if (blockId && text.trim()) result.push({ blockId, text });
+  }
+  return result;
 }
 
 /**

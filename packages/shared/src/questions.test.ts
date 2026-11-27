@@ -1,4 +1,4 @@
-import { resolveAnchorInDoc } from "@margem/shared";
+import { extractNoteBlocks, resolveAnchorInDoc } from "./questions";
 import { describe, expect, it } from "vitest";
 
 describe("resolveAnchorInDoc", () => {
@@ -31,5 +31,30 @@ describe("resolveAnchorInDoc", () => {
       suffix: "",
     });
     expect(res.found).toBe(false);
+  });
+});
+
+describe("extractNoteBlocks", () => {
+  it("returns top-level blocks with an id and some text, nested text joined", () => {
+    const doc = {
+      type: "doc",
+      content: [
+        { type: "paragraph", attrs: { blockId: "b1" }, content: [{ type: "text", text: "TCP" }] },
+        { type: "paragraph", attrs: { blockId: "b2" }, content: [] },
+        { type: "paragraph", content: [{ type: "text", text: "sem id" }] },
+        {
+          type: "bulletList",
+          attrs: { blockId: "b3" },
+          content: [
+            { type: "listItem", content: [{ type: "text", text: "um " }] },
+            { type: "listItem", content: [{ type: "text", text: "dois" }] },
+          ],
+        },
+      ],
+    };
+    expect(extractNoteBlocks(doc)).toEqual([
+      { blockId: "b1", text: "TCP" },
+      { blockId: "b3", text: "um dois" },
+    ]);
   });
 });

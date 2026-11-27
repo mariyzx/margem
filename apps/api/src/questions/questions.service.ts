@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { ConflictException, Injectable, Logger } from "@nestjs/common";
 import {
   resolveAnchorInDoc,
   type CreateQuestionInput,
@@ -10,8 +10,9 @@ import { cursorArgs, toPage } from "../common/pagination";
 import { PolicyService } from "../policies/policy.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { assertWithinQuota } from "../quotas/quota";
-import { createInitialSrsState } from "@margem/srs";
 import { withAuditContext } from "../security/request-context";
+import { toQuestionDto } from "./question-dto";
+import { createQuestionReviewItem } from "./question-review-item";
 
 @Injectable()
 export class QuestionsService {
@@ -54,7 +55,7 @@ export class QuestionsService {
             }
           : null;
 
-      return this.toDto({ ...q, anchor });
+      return toQuestionDto({ ...q, anchor });
     });
     return { questions: dtos, nextCursor };
   }
@@ -98,24 +99,7 @@ export class QuestionsService {
         include: { anchor: true },
       });
 
-      const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
-      const initialSrs = createInitialSrsState(tomorrow);
-      await tx.reviewItem.create({
-        data: {
-          userId,
-          kind: "question",
-          refId: question.id,
-          due: initialSrs.due,
-          stability: initialSrs.stability,
-          difficulty: initialSrs.difficulty,
-          scheduledDays: initialSrs.scheduledDays,
-          learningSteps: initialSrs.learningSteps,
-          reps: initialSrs.reps,
-          lapses: initialSrs.lapses,
-          state: initialSrs.state,
-          lastReview: initialSrs.lastReview,
-        },
-      });
+      await createQuestionReviewItem(tx, userId, question.id);
 
       await tx.auditLog.create({
         data: withAuditContext({
@@ -130,7 +114,7 @@ export class QuestionsService {
 
     this.logger.log({ questionId: created.id, noteId, userId }, "Question created");
 
-    return this.toDto(created);
+    return toQuestionDto(created);
   }
 
   async update(
@@ -171,7 +155,93 @@ export class QuestionsService {
 
     this.logger.log({ questionId: updated.id, userId }, "Question updated");
 
-    return this.toDto(updated);
+    return toQuestionDto(updated);
+  }
+
+  async approve(userId: string, questionId: string): Promise<QuestionDto> {
+    const existing = await this.findOwnedActive(userId, questionId);
+    if (existing.status === "approved") {
+      return toQuestionDto(await this.findWithAnchor(questionId));
+    }
+    if (existing.status !== "pending") {
+      throw new ConflictException("Question is not pending");
+    }
+
+    const approved = await this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.question.updateMany({
+        where: { id: questionId, status: "pending", deletedAt: null },
+        data: { status: "approved" },
+      });
+      const saved = await tx.question.findUniqueOrThrow({
+        where: { id: questionId },
+        include: { anchor: true },
+      });
+      if (count === 0) return saved;
+      await createQuestionReviewItem(tx, userId, questionId);
+      await tx.auditLog.create({
+        data: withAuditContext({
+          userId,
+          action: "question.approved",
+          metadata: { questionId, noteId: saved.noteId },
+        }),
+      });
+      return saved;
+    });
+
+    this.logger.log({ questionId, userId }, "Question approved");
+    return toQuestionDto(approved);
+  }
+
+  async discard(userId: string, questionId: string): Promise<{ ok: true }> {
+    const existing = await this.findOwnedActive(userId, questionId);
+    if (existing.status !== "pending") {
+      throw new ConflictException("Question is not pending");
+    }
+
+    const now = new Date();
+    await this.prisma.$transaction(async (tx) => {
+      await tx.question.update({
+        where: { id: questionId },
+        data: { status: "discarded", deletedAt: now },
+      });
+      if (existing.anchorId) {
+        await tx.anchor.update({ where: { id: existing.anchorId }, data: { deletedAt: now } });
+      }
+      await tx.auditLog.create({
+        data: withAuditContext({
+          userId,
+          action: "question.discarded",
+          metadata: { questionId, noteId: existing.noteId },
+        }),
+      });
+    });
+
+    this.logger.log({ questionId, userId }, "Question discarded");
+    return { ok: true };
+  }
+
+  private async findOwnedActive(userId: string, questionId: string) {
+    const existing = await this.prisma.question.findUnique({
+      where: { id: questionId },
+      select: {
+        id: true,
+        noteId: true,
+        anchorId: true,
+        status: true,
+        deletedAt: true,
+        note: { select: { authorId: true, deletedAt: true } },
+      },
+    });
+    const isActive = existing && !existing.deletedAt && !existing.note.deletedAt;
+    this.policyService.assertOwner(userId, isActive ? existing.note.authorId : null);
+    return existing!;
+  }
+
+  private async findWithAnchor(questionId: string) {
+    return this.prisma.question.findUniqueOrThrow({
+      where: { id: questionId },
+      include: { anchor: true },
+    });
   }
 
   async remove(userId: string, questionId: string): Promise<{ ok: true }> {
@@ -216,51 +286,5 @@ export class QuestionsService {
     this.logger.log({ questionId, userId }, "Question soft-deleted");
 
     return { ok: true };
-  }
-
-  private toDto(question: {
-    id: string;
-    noteId: string;
-    anchorId: string | null;
-    authorType: QuestionDto["authorType"];
-    authorId: string | null;
-    text: string;
-    answer: string;
-    status: QuestionDto["status"];
-    anchor: {
-      id: string;
-      noteId: string | null;
-      blockId: string;
-      quote: string;
-      prefix: string;
-      suffix: string;
-      status: "active" | "orphaned";
-    } | null;
-    createdAt: Date;
-    updatedAt: Date;
-  }): QuestionDto {
-    return {
-      id: question.id,
-      noteId: question.noteId,
-      anchorId: question.anchorId,
-      authorType: question.authorType,
-      authorId: question.authorId,
-      text: question.text,
-      answer: question.answer,
-      status: question.status,
-      anchor: question.anchor
-        ? {
-            id: question.anchor.id,
-            noteId: question.anchor.noteId,
-            blockId: question.anchor.blockId,
-            quote: question.anchor.quote,
-            prefix: question.anchor.prefix,
-            suffix: question.anchor.suffix,
-            status: question.anchor.status,
-          }
-        : null,
-      createdAt: question.createdAt.toISOString(),
-      updatedAt: question.updatedAt.toISOString(),
-    };
   }
 }
