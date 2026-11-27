@@ -101,8 +101,8 @@ export function AiReviewPanel({
       aria-labelledby="ai-review-title"
       className="flex flex-col gap-3 rounded-md border border-bic/30 bg-paper p-3 shadow-xs"
     >
-      <div className="flex items-center justify-between gap-2">
-        <h3 id="ai-review-title" className="text-xs font-semibold text-bic">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 id="ai-review-title" className="shrink-0 text-xs font-semibold text-bic">
           {messages.aiReview.title}
         </h3>
         <Button

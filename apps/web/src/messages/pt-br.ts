@@ -280,6 +280,11 @@ export const messages = {
     gapsNoMemory: "Escreva primeiro o que você lembra para comparar com o material.",
     gapsNoneFound: "Você cobriu os principais pontos deste material!",
     gapsTurnIntoQuestion: "Virar pergunta",
+    gapsAiButton: "Conferir com IA",
+    gapsAiChecking: "A IA está comparando",
+    gapsAiNoneFound: "A IA não achou ponto importante faltando na sua nota.",
+    gapsAiFallback: "Mostrando a comparação sem IA.",
+    gapsFromSource: "Trecho da fonte",
   },
   quota: {
     notebooks: "Você chegou ao limite de {limit} cadernos. Apague algum para criar outro.",

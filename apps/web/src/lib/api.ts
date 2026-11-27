@@ -28,6 +28,8 @@ import {
   searchHitSchema,
   MemoryGapDto,
   memoryGapSchema,
+  aiMemoryGapSchema,
+  type AiMemoryGapDto,
   aiCredentialSummarySchema,
   aiCredentialTestFailureSchema,
   aiSettingsSchema,
@@ -518,4 +520,19 @@ export async function explainAnswer(questionId: string, answer: string): Promise
   const data = (await res.json()) as { explanation: unknown };
   if (typeof data.explanation !== "string") throw new ApiError("Explain answer: bad body", 500);
   return data.explanation;
+}
+
+export async function checkMemoryGapsWithAi(
+  noteId: string,
+): Promise<{ gaps: AiMemoryGapDto[]; hasMemoryText: boolean }> {
+  const res = await apiFetch("/sources/memory-gaps/check", {
+    method: "POST",
+    body: JSON.stringify({ noteId }),
+  });
+  if (!res.ok) await failed(res, "Check memory gaps with AI");
+  const data = (await res.json()) as { gaps: unknown[]; hasMemoryText: boolean };
+  return {
+    gaps: data.gaps.map((item) => aiMemoryGapSchema.parse(item)),
+    hasMemoryText: Boolean(data.hasMemoryText),
+  };
 }

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AiCredentialError,
   ApiError,
+  checkMemoryGapsWithAi,
   explainAnswer,
   gradeAnswers,
   fetchAiSettings,
@@ -132,5 +133,36 @@ describe("grading and explanation client", () => {
 
     const error = await explainAnswer("q1", "x").catch((e: unknown) => e);
     expect((error as ApiError).aiUnavailable).toBe("timeout");
+  });
+});
+
+describe("memory gaps with AI client", () => {
+  const fetchMock = vi.fn<typeof fetch>();
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    fetchMock.mockReset();
+  });
+
+  it("posts the note id and reads points tied to source excerpts", async () => {
+    vi.stubGlobal("fetch", fetchMock);
+    fetchMock.mockResolvedValueOnce(
+      respond(200, {
+        hasMemoryText: true,
+        gaps: [{ point: "Faltou: janela.", chunkId: "c1", ord: 0, page: 3, excerpt: "janela" }],
+      }),
+    );
+
+    const result = await checkMemoryGapsWithAi("n1");
+
+    expect(result.gaps[0]?.point).toBe("Faltou: janela.");
+    expect(fetchMock.mock.calls[0]![1]).toMatchObject({ method: "POST", body: '{"noteId":"n1"}' });
+  });
+
+  it("carries the ai_unavailable reason so the panel can fall back", async () => {
+    vi.stubGlobal("fetch", fetchMock);
+    fetchMock.mockResolvedValueOnce(respond(503, { code: "ai_unavailable", reason: "quota" }));
+
+    const error = await checkMemoryGapsWithAi("n1").catch((e: unknown) => e);
+    expect((error as ApiError).aiUnavailable).toBe("quota");
   });
 });
