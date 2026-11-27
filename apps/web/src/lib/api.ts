@@ -34,6 +34,10 @@ import {
   type AiCredentialSummary,
   type AiSettings,
   type UpdateAiSettingsInput,
+  aiUnavailableErrorSchema,
+  questionSuggestionsSchema,
+  type AiUnavailableReason,
+  type QuestionSuggestionsDto,
 } from "@margem/shared";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
@@ -47,6 +51,7 @@ export class ApiError extends Error {
     readonly status: number,
     /** Set when the API answered 422 because a per-user cap was reached. */
     readonly quota?: QuotaExceededError,
+    readonly aiUnavailable?: AiUnavailableReason,
   ) {
     super(message);
     this.name = "ApiError";
@@ -55,11 +60,15 @@ export class ApiError extends Error {
 
 async function failed(res: Response, label: string): Promise<never> {
   let quota: QuotaExceededError | undefined;
-  if (res.status === 422) {
-    const parsed = quotaExceededErrorSchema.safeParse(await res.json().catch(() => null));
-    if (parsed.success) quota = parsed.data;
+  let aiUnavailable: AiUnavailableReason | undefined;
+  if (res.status === 422 || res.status === 429 || res.status === 503) {
+    const body: unknown = await res.json().catch(() => null);
+    const quotaBody = quotaExceededErrorSchema.safeParse(body);
+    if (quotaBody.success) quota = quotaBody.data;
+    const aiBody = aiUnavailableErrorSchema.safeParse(body);
+    if (aiBody.success) aiUnavailable = aiBody.data.reason;
   }
-  throw new ApiError(`${label} failed with status ${res.status}`, res.status, quota);
+  throw new ApiError(`${label} failed with status ${res.status}`, res.status, quota, aiUnavailable);
 }
 
 function pageQuery(cursor: string | null): string {
@@ -461,4 +470,28 @@ async function credentialFailure(res: Response): Promise<AiCredentialFailure> {
     return "keys_unavailable";
   }
   return "unknown";
+}
+
+export async function suggestQuestions(noteId: string): Promise<QuestionSuggestionsDto> {
+  const res = await apiFetch(`/notes/${encodeURIComponent(noteId)}/questions/suggestions`, {
+    method: "POST",
+  });
+  if (!res.ok) await failed(res, "Suggest questions");
+  return questionSuggestionsSchema.parse(await res.json());
+}
+
+export async function approveQuestion(questionId: string): Promise<QuestionDto> {
+  const res = await apiFetch(`/questions/${encodeURIComponent(questionId)}/approve`, {
+    method: "POST",
+  });
+  if (!res.ok) await failed(res, "Approve question");
+  const data = (await res.json()) as { question: unknown };
+  return questionSchema.parse(data.question);
+}
+
+export async function discardQuestion(questionId: string): Promise<void> {
+  const res = await apiFetch(`/questions/${encodeURIComponent(questionId)}/discard`, {
+    method: "POST",
+  });
+  if (!res.ok && res.status !== 404) await failed(res, "Discard question");
 }

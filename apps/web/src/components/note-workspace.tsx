@@ -16,7 +16,8 @@ import {
   uploadFileSource,
 } from "../lib/api";
 import { messages } from "../messages/pt-br";
-import { NoteEditor } from "./editor/note-editor";
+import { NoteEditor, type NoteEditorApi } from "./editor/note-editor";
+import { AiReviewPanel } from "./editor/ai-review-panel";
 import { NoteMargin } from "./editor/note-margin";
 import type { QuestionAnchorDraft } from "./editor/selection-toolbar";
 import { SourcePanel } from "./editor/source-panel";
@@ -68,6 +69,18 @@ export function NoteWorkspace({
   const [sendingErrors, setSendingErrors] = React.useState(false);
   const [errorsSentNotice, setErrorsSentNotice] = React.useState(false);
   const [questions, setQuestions] = React.useState<QuestionDto[]>([]);
+  const editorApiRef = React.useRef<NoteEditorApi | null>(null);
+  const handleEditorReady = React.useCallback((api: NoteEditorApi | null) => {
+    editorApiRef.current = api;
+  }, []);
+  const approvedQuestions = React.useMemo(
+    () => questions.filter((question) => question.status === "approved"),
+    [questions],
+  );
+  const pendingQuestions = React.useMemo(
+    () => questions.filter((question) => question.status === "pending"),
+    [questions],
+  );
   const [questionDraft, setQuestionDraft] = React.useState<QuestionAnchorDraft | null>(null);
   const [materialOpened, setMaterialOpened] = React.useState(
     Boolean(selectedNote?.materialOpenedAt),
@@ -373,7 +386,7 @@ export function NoteWorkspace({
             <div className="mb-5 flex flex-wrap items-center justify-between gap-2 rounded-md border border-marker bg-marker-soft/50 px-3 py-2 text-xs text-ink">
               <span>
                 {clozeStats.revealed} de {clozeStats.total} {messages.study.progressClozes} ·{" "}
-                {answeredCount} de {questions.length} {messages.study.progressQuestions}
+                {answeredCount} de {approvedQuestions.length} {messages.study.progressQuestions}
               </span>
               {wrongQuestionIds.length > 0 ? (
                 <Button
@@ -416,6 +429,7 @@ export function NoteWorkspace({
             }}
             onCreateQuestion={(draft) => setQuestionDraft(draft)}
             onClozeStatsChange={setClozeStats}
+            onReady={handleEditorReady}
           />
         </article>
         <div className="flex flex-col gap-4">
@@ -436,7 +450,7 @@ export function NoteWorkspace({
           />
           <NoteMargin
             mode={mode}
-            questions={questions}
+            questions={approvedQuestions}
             draft={questionDraft}
             studyResults={studyResults}
             onMarkStudyResult={(id, result) =>
@@ -453,6 +467,30 @@ export function NoteWorkspace({
               setQuestions((prev) => prev.filter((q) => q.id !== id));
             }}
             onHighlightBlock={handleHighlightBlock}
+            aiReview={
+              <AiReviewPanel
+                noteId={selectedNote.id}
+                pendingQuestions={pendingQuestions}
+                onPendingReplaced={(pending) =>
+                  setQuestions((prev) => [
+                    ...prev.filter((question) => question.status !== "pending"),
+                    ...pending,
+                  ])
+                }
+                onQuestionApproved={(approved) =>
+                  setQuestions((prev) =>
+                    prev.map((question) => (question.id === approved.id ? approved : question)),
+                  )
+                }
+                onQuestionDiscarded={(id) =>
+                  setQuestions((prev) => prev.filter((question) => question.id !== id))
+                }
+                onApplyCloze={(blockId, quote) =>
+                  editorApiRef.current?.applyCloze(blockId, quote) ?? false
+                }
+                onHighlightBlock={handleHighlightBlock}
+              />
+            }
           />
         </div>
       </div>

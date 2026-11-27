@@ -19,6 +19,7 @@ import { BlockOrigin } from "./block-origin";
 import { Callout } from "./callout-node";
 import { Cloze } from "./cloze-mark";
 import { QuestionAnchorDraft, SelectionToolbar } from "./selection-toolbar";
+import { findQuoteRange } from "./quote-range";
 import { SlashMenu } from "./slash-menu";
 
 const lowlight = createLowlight(common);
@@ -46,6 +47,11 @@ interface NoteEditorProps {
   currentOrigin?: NoteOrigin;
   showOriginBars?: boolean;
   onClozeStatsChange?: (stats: { revealed: number; total: number }) => void;
+  onReady?: (api: NoteEditorApi | null) => void;
+}
+
+export interface NoteEditorApi {
+  applyCloze: (blockId: string, quote: string) => boolean;
 }
 
 export function NoteEditor({
@@ -57,6 +63,7 @@ export function NoteEditor({
   onChangeDoc,
   onCreateQuestion,
   onClozeStatsChange,
+  onReady,
 }: NoteEditorProps) {
   const originRef = React.useRef<NoteOrigin>(currentOrigin);
   originRef.current = currentOrigin;
@@ -165,6 +172,23 @@ export function NoteEditor({
       onClozeStatsRef.current?.({ revealed: 0, total: all.length });
     }
   }, [editor, mode]);
+
+  React.useEffect(() => {
+    if (!editor || !onReady) return;
+    onReady({
+      applyCloze: (blockId, quote) => {
+        const range = findQuoteRange(editor.state.doc, blockId, quote);
+        if (!range) return false;
+        return editor
+          .chain()
+          .setTextSelection(range)
+          .setMark("cloze")
+          .setTextSelection(range.to)
+          .run();
+      },
+    });
+    return () => onReady(null);
+  }, [editor, onReady]);
 
   function handleRequestImage() {
     if (!editor) return;
