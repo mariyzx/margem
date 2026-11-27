@@ -19,6 +19,7 @@ interface NoteMarginProps {
   onCreateQuestion: (input: CreateQuestionInput) => Promise<void>;
   onDeleteQuestion: (questionId: string) => Promise<void>;
   onHighlightBlock: (blockId: string) => void;
+  aiReview?: React.ReactNode;
 }
 
 export function NoteMargin({
@@ -31,6 +32,7 @@ export function NoteMargin({
   onCreateQuestion,
   onDeleteQuestion,
   onHighlightBlock,
+  aiReview,
 }: NoteMarginProps) {
   const [text, setText] = React.useState("");
   const [answer, setAnswer] = React.useState("");
@@ -81,6 +83,8 @@ export function NoteMargin({
       <h2 className="text-xs font-medium tracking-wide text-ink-muted uppercase">
         {messages.margin.title}
       </h2>
+
+      {mode === "write" ? aiReview : null}
 
       {draft ? (
         <form
