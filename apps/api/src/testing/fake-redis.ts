@@ -43,6 +43,11 @@ export class FakeRedis {
         return this.live(key)?.value ?? null;
       case "del":
         return this.store.delete(key) ? 1 : 0;
+      case "getdel": {
+        const value = this.live(key)?.value ?? null;
+        this.store.delete(key);
+        return value;
+      }
       case "set": {
         const [, value, ...opts] = args as [string, string, ...unknown[]];
         let expiresAt: number | null = null;
@@ -99,6 +104,7 @@ export class FakeRedis {
   incr = (...args: unknown[]) => this.standalone("incr", args);
   get = (...args: unknown[]) => this.standalone("get", args);
   del = (...args: unknown[]) => this.standalone("del", args);
+  getdel = (...args: unknown[]) => this.standalone("getdel", args);
   set = (...args: unknown[]) => this.standalone("set", args);
   pexpire = (...args: unknown[]) => this.standalone("pexpire", args);
   expire = (...args: unknown[]) => this.standalone("expire", args);
@@ -114,6 +120,7 @@ export class FakeRedis {
       "incr",
       "get",
       "del",
+      "getdel",
       "set",
       "pexpire",
       "expire",
