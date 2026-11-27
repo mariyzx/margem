@@ -38,12 +38,12 @@ export const envSchema = z.object({
   OLLAMA_EMBED_MODEL: z.string().trim().min(1).default("nomic-embed-text"),
   OLLAMA_CHAT_MODEL: z.string().trim().min(1).default("qwen2.5:3b"),
   OLLAMA_CONTEXT_TOKENS: z.coerce.number().int().min(1024).default(8192),
-  GROQ_CHAT_MODEL: z.string().trim().min(1).default("llama-3.3-70b-versatile"),
+  GROQ_CHAT_MODEL: z.string().trim().min(1).default("openai/gpt-oss-120b"),
   OPENROUTER_CHAT_MODEL: z
     .string()
     .trim()
     .regex(/:free$/, "OPENROUTER_CHAT_MODEL must be a :free model")
-    .default("meta-llama/llama-3.3-70b-instruct:free"),
+    .default("google/gemma-4-31b-it:free"),
   AI_CALLS_PER_MINUTE_PER_USER: z.coerce.number().int().positive().default(20),
   AI_KEYS_MASTER_KEY: z
     .string()

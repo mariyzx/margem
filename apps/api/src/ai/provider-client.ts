@@ -10,6 +10,7 @@ export interface ProviderTarget {
   apiKey?: string;
   timeoutMs: number;
   contextTokens?: number;
+  reasoning?: boolean;
 }
 
 export interface ChatMessage {
@@ -29,6 +30,7 @@ export class AiProviderError extends Error {
   constructor(
     readonly kind: ProviderFailure,
     readonly status?: number,
+    readonly code?: string,
   ) {
     super(`AI provider call failed: ${kind}${status ? ` (${status})` : ""}`);
     this.name = "AiProviderError";
@@ -65,14 +67,23 @@ const targetEnvSchema = envSchema.pick({
   OPENROUTER_CHAT_MODEL: true,
 });
 
+const REASONING_MODEL = /(^|\/)gpt-oss-/;
+export const REASONING_HEADROOM_TOKENS = 2_048;
+
+export function isReasoningModel(model: string): boolean {
+  return REASONING_MODEL.test(model);
+}
+
 export function remoteTarget(id: "groq" | "openrouter", apiKey: string): ProviderTarget {
   const env = targetEnvSchema.parse(process.env);
+  const model = id === "groq" ? env.GROQ_CHAT_MODEL : env.OPENROUTER_CHAT_MODEL;
   return {
     id,
     baseUrl: REMOTE_BASE_URL[id],
-    model: id === "groq" ? env.GROQ_CHAT_MODEL : env.OPENROUTER_CHAT_MODEL,
+    model,
     apiKey,
     timeoutMs: REMOTE_TIMEOUT_MS,
+    reasoning: isReasoningModel(model),
   };
 }
 
@@ -107,7 +118,10 @@ export class AiProviderClient {
         model: target.model,
         messages,
         temperature: 0.2,
-        max_tokens: options.maxTokens,
+        max_tokens: target.reasoning
+          ? options.maxTokens + REASONING_HEADROOM_TOKENS
+          : options.maxTokens,
+        ...(target.reasoning ? { reasoning_effort: "low" } : {}),
         ...(options.json ? { response_format: { type: "json_object" } } : {}),
       }),
     });
@@ -178,11 +192,24 @@ export class AiProviderClient {
     }
 
     if (!res.ok) {
-      await res.body?.cancel().catch(() => undefined);
-      throw new AiProviderError(classifyStatus(res.status), res.status);
+      const body = (await res.json().catch(() => null)) as unknown;
+      throw new AiProviderError(classifyStatus(res.status), res.status, providerErrorCode(body));
     }
     return res;
   }
+}
+
+const SAFE_CODE = /^[a-z0-9_.-]{1,64}$/i;
+
+export function providerErrorCode(body: unknown): string | undefined {
+  if (!body || typeof body !== "object") return undefined;
+  const error = (body as { error?: unknown }).error;
+  if (!error || typeof error !== "object") return undefined;
+  const { code, type } = error as { code?: unknown; type?: unknown };
+  for (const candidate of [code, type]) {
+    if (typeof candidate === "string" && SAFE_CODE.test(candidate)) return candidate;
+  }
+  return undefined;
 }
 
 function toCount(value: unknown): number {
