@@ -14,8 +14,16 @@ const B2 = "O UDP não garante entrega nem ordem.";
 const DOC = {
   type: "doc",
   content: [
-    { type: "paragraph", attrs: { blockId: "b1" }, content: [{ type: "text", text: B1 }] },
-    { type: "paragraph", attrs: { blockId: "b2" }, content: [{ type: "text", text: B2 }] },
+    {
+      type: "paragraph",
+      attrs: { blockId: "7f3c-tcp-block" },
+      content: [{ type: "text", text: B1 }],
+    },
+    {
+      type: "paragraph",
+      attrs: { blockId: "9a1d-udp-block" },
+      content: [{ type: "text", text: B2 }],
+    },
   ],
 };
 
@@ -176,11 +184,14 @@ describe("QuestionSuggestionsService.suggest", () => {
 
   it("saves grounded questions as pending AI suggestions and only returns the clozes", async () => {
     const prisma = makePrisma();
-    const { service } = makeService(prisma, GOOD);
+    const { service, ai } = makeService(prisma, GOOD);
 
     const result = await service.suggest("user-a", "note-1");
 
-    expect(result.clozes).toEqual([{ blockId: "b1", quote: "three-way handshake" }]);
+    const prompt = JSON.stringify(ai.completeJson.mock.calls[0]![2]);
+    expect(prompt).toContain('"id":"b1"');
+    expect(prompt).not.toContain("7f3c-tcp-block");
+    expect(result.clozes).toEqual([{ blockId: "7f3c-tcp-block", quote: "three-way handshake" }]);
     expect(result.questions).toHaveLength(1);
     expect(prisma.question.create).toHaveBeenCalledTimes(1);
     expect(prisma.question.create.mock.calls[0]![0].data).toMatchObject({
@@ -191,7 +202,7 @@ describe("QuestionSuggestionsService.suggest", () => {
       text: "O que o UDP não garante?",
     });
     expect(prisma.anchor.create.mock.calls[0]![0].data).toMatchObject({
-      blockId: "b2",
+      blockId: "9a1d-udp-block",
       quote: "não garante entrega nem ordem",
       prefix: "O UDP ",
       suffix: ".",

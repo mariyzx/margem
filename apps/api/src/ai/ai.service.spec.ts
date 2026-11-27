@@ -6,7 +6,7 @@ import type { PrismaService } from "../prisma/prisma.service";
 import { AiUnavailableException } from "./ai-errors";
 import type { AiRateLimit } from "./ai-rate-limit";
 import { type AiSettingsService, credentialContext } from "./ai-settings.service";
-import { AiService } from "./ai.service";
+import { AiService, FEATURE_MAX_TOKENS } from "./ai.service";
 import { encryptCredential } from "./credential-cipher";
 import {
   type AiProviderClient,
@@ -57,7 +57,7 @@ function setup(opts: { groq?: boolean; settings?: AiSettings } = {}) {
   const settingsService = { preferences: vi.fn(async () => opts.settings ?? settings()) };
   const providers = {
     complete: vi.fn(
-      async (_t: ProviderTarget, _m: ChatMessage[], _o: { json: boolean }) =>
+      async (_t: ProviderTarget, _m: ChatMessage[], _o: { json: boolean; maxTokens: number }) =>
         ({ text: VALID, tokensIn: 10, tokensOut: 2 }) as {
           text: string;
           tokensIn: number;
@@ -97,6 +97,26 @@ describe("AiService", () => {
     expect(result).toEqual({ data: { verdict: "right" }, provider: "groq" });
     expect(providersCalled()).toEqual(["groq"]);
     expect(providers.complete.mock.calls[0]![0].apiKey).toBe(GROQ_KEY);
+  });
+
+  it("caps the answer length per feature on every call", async () => {
+    const { service, providers } = setup({ groq: true });
+    await service.completeJson("user-a", "suggest-clozes-questions", PROMPT, schema);
+    expect(providers.complete.mock.calls[0]![2]).toEqual({
+      json: true,
+      maxTokens: FEATURE_MAX_TOKENS["suggest-clozes-questions"],
+    });
+  });
+
+  it("skips the local model when the prompt would not fit its context", async () => {
+    vi.stubEnv("OLLAMA_CONTEXT_TOKENS", "1024");
+    const { service, providersCalled } = setup();
+    const long = { instructions: "Corrija.", data: [{ label: "nota", text: "x".repeat(3_000) }] };
+
+    expect(await reasonOf(service.completeJson("user-a", "grade-answer", long, schema))).toBe(
+      "provider_error",
+    );
+    expect(providersCalled()).toEqual([]);
   });
 
   it("uses the IA do Margem when nothing is connected", async () => {
@@ -308,7 +328,10 @@ describe("AiService", () => {
     const result = await service.completeText("user-a", "explain-after-error", PROMPT);
 
     expect(result.data).toBe("Pense no handshake.");
-    expect(providers.complete.mock.calls[0]![2]).toEqual({ json: false });
+    expect(providers.complete.mock.calls[0]![2]).toEqual({
+      json: false,
+      maxTokens: FEATURE_MAX_TOKENS["explain-after-error"],
+    });
   });
 
   it("refuses to queue more local calls than it can serve instead of hanging", async () => {

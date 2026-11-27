@@ -14,6 +14,7 @@ import {
   type AiProviderId,
   type ChatMessage,
   type CompletionResult,
+  estimateTokens,
   type ProviderFailure,
   localTarget,
   remoteTarget,
@@ -28,6 +29,15 @@ const FEATURE_TOGGLE: Record<AiUsageFeature, keyof AiFeatures | null> = {
   "ask-notebook": "askNotebook",
   "memory-gaps": null,
   "generate-practice": null,
+};
+
+export const FEATURE_MAX_TOKENS: Record<AiUsageFeature, number> = {
+  "suggest-clozes-questions": 1100,
+  "grade-answer": 1200,
+  "explain-after-error": 400,
+  "memory-gaps": 500,
+  "generate-practice": 1500,
+  "ask-notebook": 500,
 };
 
 const LOCAL_ATTEMPTS = 2;
@@ -95,12 +105,19 @@ export class AiService {
     if (targets.length === 0) throw new AiUnavailableException("no_provider");
 
     let lastReason: AiUnavailableReason = "provider_error";
+    const maxTokens = FEATURE_MAX_TOKENS[feature];
+    const estimatedTokens = estimateTokens(messages);
     for (const target of targets) {
+      if (target.contextTokens && estimatedTokens + maxTokens > target.contextTokens) {
+        this.logger.warn({ provider: target.id, feature, estimatedTokens }, "ai.context_exceeded");
+        lastReason = "provider_error";
+        continue;
+      }
       const attempts = target.id === "local" ? LOCAL_ATTEMPTS : 1;
       for (let attempt = 1; attempt <= attempts; attempt++) {
         let result: CompletionResult;
         try {
-          result = await this.call(target, messages, json, feature);
+          result = await this.call(target, messages, json, feature, maxTokens);
         } catch (error) {
           if (!(error instanceof AiProviderError)) throw error;
           await this.recordUsage(userId, feature, target.id, null, false);
@@ -167,6 +184,7 @@ export class AiService {
     messages: ChatMessage[],
     json: boolean,
     feature: AiUsageFeature,
+    maxTokens: number,
   ): Promise<CompletionResult> {
     const attempt = () =>
       Sentry.startSpan(
@@ -177,7 +195,7 @@ export class AiService {
         },
         async (span) => {
           const result = await this.withTransientRetry(() =>
-            this.providers.complete(target, messages, { json }),
+            this.providers.complete(target, messages, { json, maxTokens }),
           );
           span.setAttribute("ai.tokens_in", result.tokensIn);
           span.setAttribute("ai.tokens_out", result.tokensOut);
