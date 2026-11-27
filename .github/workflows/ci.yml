@@ -146,10 +146,7 @@ jobs:
           } > .env
 
       - name: Build for production
-        run: |
-          pnpm --filter @margem/shared build
-          pnpm --filter @margem/api build
-          pnpm --filter @margem/web build
+        run: pnpm exec turbo run build --filter=@margem/api --filter=@margem/web
 
       - name: Apply migrations
         working-directory: apps/api
