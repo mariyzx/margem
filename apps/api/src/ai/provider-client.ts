@@ -9,6 +9,7 @@ export interface ProviderTarget {
   model: string;
   apiKey?: string;
   timeoutMs: number;
+  contextTokens?: number;
 }
 
 export interface ChatMessage {
@@ -43,9 +44,23 @@ const REMOTE_TIMEOUT_MS = 30_000;
 const LOCAL_TIMEOUT_MS = 120_000;
 const TEST_TIMEOUT_MS = 10_000;
 
+export const CHARS_PER_TOKEN_ESTIMATE = 2.5;
+const MESSAGE_OVERHEAD_TOKENS = 8;
+
+export function estimateTokens(messages: ChatMessage[]): number {
+  return messages.reduce(
+    (total, message) =>
+      total +
+      Math.ceil(message.content.length / CHARS_PER_TOKEN_ESTIMATE) +
+      MESSAGE_OVERHEAD_TOKENS,
+    0,
+  );
+}
+
 const targetEnvSchema = envSchema.pick({
   OLLAMA_URL: true,
   OLLAMA_CHAT_MODEL: true,
+  OLLAMA_CONTEXT_TOKENS: true,
   GROQ_CHAT_MODEL: true,
   OPENROUTER_CHAT_MODEL: true,
 });
@@ -69,6 +84,7 @@ export function localTarget(): ProviderTarget | null {
     baseUrl: `${env.OLLAMA_URL.replace(/\/+$/, "")}/v1`,
     model: env.OLLAMA_CHAT_MODEL,
     timeoutMs: LOCAL_TIMEOUT_MS,
+    contextTokens: env.OLLAMA_CONTEXT_TOKENS,
   };
 }
 
@@ -83,7 +99,7 @@ export class AiProviderClient {
   async complete(
     target: ProviderTarget,
     messages: ChatMessage[],
-    options: { json: boolean },
+    options: { json: boolean; maxTokens: number },
   ): Promise<CompletionResult> {
     const res = await this.request(target, "/chat/completions", target.timeoutMs, {
       method: "POST",
@@ -91,6 +107,7 @@ export class AiProviderClient {
         model: target.model,
         messages,
         temperature: 0.2,
+        max_tokens: options.maxTokens,
         ...(options.json ? { response_format: { type: "json_object" } } : {}),
       }),
     });

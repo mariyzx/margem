@@ -3,6 +3,7 @@ import {
   AiProviderClient,
   AiProviderError,
   classifyStatus,
+  estimateTokens,
   localTarget,
   remoteTarget,
   type ProviderTarget,
@@ -41,7 +42,7 @@ describe("AiProviderClient", () => {
       }),
     );
 
-    const result = await client.complete(groq, MESSAGES, { json: true });
+    const result = await client.complete(groq, MESSAGES, { json: true, maxTokens: 500 });
 
     expect(result).toEqual({ text: '{"ok":true}', tokensIn: 12, tokensOut: 3 });
     const [url, init] = fetchMock.mock.calls[0]!;
@@ -51,6 +52,7 @@ describe("AiProviderClient", () => {
       model: groq.model,
       messages: MESSAGES,
       response_format: { type: "json_object" },
+      max_tokens: 500,
     });
   });
 
@@ -61,7 +63,7 @@ describe("AiProviderClient", () => {
     );
 
     const local = localTarget()!;
-    const result = await client.complete(local, MESSAGES, { json: false });
+    const result = await client.complete(local, MESSAGES, { json: false, maxTokens: 500 });
 
     expect(local.baseUrl).toBe("http://ollama:11434/v1");
     expect(result.tokensIn).toBe(0);
@@ -85,14 +87,18 @@ describe("AiProviderClient", () => {
   ] as const)("maps HTTP %i to %s", async (status, kind) => {
     expect(classifyStatus(status)).toBe(kind);
     fetchMock.mockResolvedValueOnce(jsonResponse(status, { error: { message: "nope" } }));
-    await expect(client.complete(groq, MESSAGES, { json: true })).rejects.toMatchObject({ kind });
+    await expect(
+      client.complete(groq, MESSAGES, { json: true, maxTokens: 500 }),
+    ).rejects.toMatchObject({ kind });
   });
 
   it("never carries the response body or the key in the error", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse(401, { error: { message: `Invalid API Key ${KEY}`, prompt: "pergunta" } }),
     );
-    const error = await client.complete(groq, MESSAGES, { json: true }).catch((e: unknown) => e);
+    const error = await client
+      .complete(groq, MESSAGES, { json: true, maxTokens: 500 })
+      .catch((e: unknown) => e);
     expect(error).toBeInstanceOf(AiProviderError);
     expect(String(error)).not.toContain(KEY);
     expect(String(error)).not.toContain("pergunta");
@@ -100,18 +106,24 @@ describe("AiProviderClient", () => {
 
   it("reports a timeout as its own kind", async () => {
     fetchMock.mockRejectedValueOnce(Object.assign(new Error("aborted"), { name: "TimeoutError" }));
-    await expect(client.complete(groq, MESSAGES, { json: true })).rejects.toMatchObject({
+    await expect(
+      client.complete(groq, MESSAGES, { json: true, maxTokens: 500 }),
+    ).rejects.toMatchObject({
       kind: "timeout",
     });
   });
 
   it("treats a network failure or an answer without text as a provider error", async () => {
     fetchMock.mockRejectedValueOnce(new TypeError("fetch failed"));
-    await expect(client.complete(groq, MESSAGES, { json: true })).rejects.toMatchObject({
+    await expect(
+      client.complete(groq, MESSAGES, { json: true, maxTokens: 500 }),
+    ).rejects.toMatchObject({
       kind: "provider_error",
     });
     fetchMock.mockResolvedValueOnce(jsonResponse(200, { choices: [] }));
-    await expect(client.complete(groq, MESSAGES, { json: true })).rejects.toMatchObject({
+    await expect(
+      client.complete(groq, MESSAGES, { json: true, maxTokens: 500 }),
+    ).rejects.toMatchObject({
       kind: "provider_error",
     });
   });
@@ -162,5 +174,26 @@ describe("AiProviderClient", () => {
     });
     fetchMock.mockResolvedValueOnce(jsonResponse(200, { user_id: "u" }));
     await expect(client.exchangeOpenRouterCode("c", "v")).rejects.toBeInstanceOf(AiProviderError);
+  });
+});
+
+describe("estimateTokens", () => {
+  it("errs on the safe side for Portuguese text", () => {
+    const messages = [
+      { role: "system" as const, content: "a".repeat(250) },
+      { role: "user" as const, content: "b".repeat(2500) },
+    ];
+    expect(estimateTokens(messages)).toBe(100 + 8 + 1000 + 8);
+  });
+});
+
+describe("localTarget", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("carries the configured context size, 8192 by default", () => {
+    vi.stubEnv("OLLAMA_URL", "http://ollama:11434");
+    expect(localTarget()?.contextTokens).toBe(8192);
+    vi.stubEnv("OLLAMA_CONTEXT_TOKENS", "4096");
+    expect(localTarget()?.contextTokens).toBe(4096);
   });
 });

@@ -64,13 +64,27 @@ export class QuestionSuggestionsService {
     });
     assertWithinQuota("questions", owned);
 
+    const promptBlocks = blocks.map((block, index) => ({ ...block, blockId: `b${index + 1}` }));
+    const realBlockId = new Map(
+      promptBlocks.map((block, index) => [block.blockId, blocks[index]!.blockId]),
+    );
     const { data, provider } = await this.ai.completeJson(
       userId,
       "suggest-clozes-questions",
-      buildSuggestClozesQuestionsPrompt(blocks),
+      buildSuggestClozesQuestionsPrompt(promptBlocks),
       suggestClozesQuestionsOutputSchema,
     );
-    const grounded = groundSuggestions(data, blocks);
+    const shortGrounded = groundSuggestions(data, promptBlocks);
+    const grounded = {
+      clozes: shortGrounded.clozes.map((cloze) => ({
+        ...cloze,
+        blockId: realBlockId.get(cloze.blockId)!,
+      })),
+      questions: shortGrounded.questions.map((question) => ({
+        ...question,
+        blockId: realBlockId.get(question.blockId)!,
+      })),
+    };
     const questions = grounded.questions.slice(0, quotaLimit("questions") - owned);
 
     const created = await this.prisma.$transaction(async (tx) => {

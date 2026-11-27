@@ -37,6 +37,7 @@ export const envSchema = z.object({
   OLLAMA_URL: z.string().url().optional().or(z.literal("")),
   OLLAMA_EMBED_MODEL: z.string().trim().min(1).default("nomic-embed-text"),
   OLLAMA_CHAT_MODEL: z.string().trim().min(1).default("qwen2.5:3b"),
+  OLLAMA_CONTEXT_TOKENS: z.coerce.number().int().min(1024).default(8192),
   GROQ_CHAT_MODEL: z.string().trim().min(1).default("llama-3.3-70b-versatile"),
   OPENROUTER_CHAT_MODEL: z
     .string()
