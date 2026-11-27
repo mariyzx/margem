@@ -68,3 +68,19 @@ export const aiMemoryGapSchema = z.object({
   excerpt: z.string(),
 });
 export type AiMemoryGapDto = z.infer<typeof aiMemoryGapSchema>;
+
+export const MAX_READ_CHUNKS = 500;
+
+export const sourceChunkSchema = z.object({
+  id: z.string(),
+  ord: z.number().int().nonnegative(),
+  page: z.number().int().nullable(),
+  text: z.string(),
+});
+export type SourceChunkDto = z.infer<typeof sourceChunkSchema>;
+
+export const sourceChunksSchema = z.object({
+  chunks: z.array(sourceChunkSchema),
+  truncated: z.boolean(),
+});
+export type SourceChunksDto = z.infer<typeof sourceChunksSchema>;

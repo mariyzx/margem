@@ -18,7 +18,7 @@ describe("studioReducer", () => {
       type: "switch",
       mode: "read",
     });
-    expect(back.read).toEqual({ sourceId: "s1" });
+    expect(back.read.sourceId).toBe("s1");
     expect(back.session).toEqual({ sourceIds: ["s2"], minutes: 40 });
   });
 
@@ -37,6 +37,18 @@ describe("studioReducer", () => {
   it("returns the same state when the mode does not change", () => {
     expect(studioReducer(initialStudioState, { type: "switch", mode: "overview" })).toBe(
       initialStudioState,
+    );
+  });
+
+  it("opens the material on the deck's practice kind", () => {
+    const opened = studioReducer(initialStudioState, {
+      type: "openMaterial",
+      sourceId: "s1",
+      kind: "flashcard",
+    });
+    expect(opened).toMatchObject({ mode: "read", read: { sourceId: "s1", kind: "flashcard" } });
+    expect(studioReducer(opened, { type: "openMaterial", sourceId: "s2" }).read.kind).toBe(
+      "flashcard",
     );
   });
 });

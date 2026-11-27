@@ -4,6 +4,7 @@ import {
   UnprocessableEntityException,
 } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
+import { MAX_READ_CHUNKS } from "@margem/shared";
 import { PolicyService } from "../policies/policy.service";
 import type { PrismaService } from "../prisma/prisma.service";
 import { chunkText } from "./chunk-text";
@@ -108,6 +109,50 @@ describe("SourcesService", () => {
     await expect(service.getById("user-2", "src-1")).rejects.toThrow(NotFoundException);
     await expect(service.getSignedFileUrl("user-2", "src-1")).rejects.toThrow(NotFoundException);
     await expect(service.remove("user-2", "src-1")).rejects.toThrow(NotFoundException);
+    await expect(service.listChunks("user-2", "src-1")).rejects.toThrow(NotFoundException);
+  });
+
+  it("lists the source's chunks in order and flags when the list was cut", async () => {
+    const now = new Date();
+    const many = Array.from({ length: MAX_READ_CHUNKS + 1 }, (_, ord) => ({
+      id: `c${ord}`,
+      ord,
+      page: 1,
+      text: `Trecho ${ord}`,
+    }));
+    const findMany = vi.fn(async (args: { take: number }) => many.slice(0, args.take));
+    const prisma = {
+      source: {
+        findUnique: vi.fn(async () => ({
+          id: "src-1",
+          notebookId: "nb-1",
+          type: "text",
+          title: "Aula",
+          content: null,
+          status: "ready",
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now,
+          notebook: { ownerId: "user-1", deletedAt: null },
+        })),
+      },
+      sourceChunk: { findMany },
+    } as unknown as PrismaService;
+    const service = new SourcesService(
+      prisma,
+      new PolicyService(),
+      { enqueue: vi.fn() } as unknown as SourceIngestQueue,
+      {} as StorageService,
+    );
+
+    const result = await service.listChunks("user-1", "src-1");
+    expect(result.truncated).toBe(true);
+    expect(result.chunks).toHaveLength(MAX_READ_CHUNKS);
+    expect(result.chunks[0]).toEqual({ id: "c0", ord: 0, page: 1, text: "Trecho 0" });
+    expect(findMany.mock.calls[0]![0]).toMatchObject({
+      where: { sourceId: "src-1" },
+      orderBy: { ord: "asc" },
+    });
   });
 
   it("uploads a valid PDF with generated storageKey, enqueues ingestion and rejects non-PDF", async () => {

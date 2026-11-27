@@ -6,6 +6,8 @@ import { AnimatePresence, m, useReducedMotion, type Variants } from "motion/reac
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import * as React from "react";
+import { ReadMode } from "../../../components/studio/read-mode";
+import type { SheetCache } from "../../../components/studio/source-sheet";
 import { StudioOverview } from "../../../components/studio/studio-overview";
 import { StudioPendingMode } from "../../../components/studio/studio-pending-mode";
 import {
@@ -41,6 +43,8 @@ export default function StudioPage() {
   const [load, setLoad] = React.useState<LoadState>({ status: "loading" });
   const [studio, dispatch] = React.useReducer(studioReducer, initialStudioState);
   const reduceMotion = useReducedMotion();
+  const [sheets, setSheets] = React.useState<SheetCache>({});
+  const [overviewStale, setOverviewStale] = React.useState(false);
 
   const requestIdRef = React.useRef(0);
 
@@ -66,6 +70,20 @@ export default function StudioPage() {
   }, [notebookId, router]);
 
   React.useEffect(() => {
+    if (studio.mode !== "overview" || !overviewStale) return;
+    setOverviewStale(false);
+    let active = true;
+    fetchStudioOverview(notebookId)
+      .then((overview) => {
+        if (active) setLoad({ status: "ready", overview });
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [studio.mode, overviewStale, notebookId]);
+
+  React.useEffect(() => {
     void loadOverview();
     return () => {
       requestIdRef.current++;
@@ -74,7 +92,6 @@ export default function StudioPage() {
 
   const sources = load.status === "ready" ? load.overview.sources : [];
   const titleOf = (sourceId: string) => sources.find((source) => source.id === sourceId)?.title;
-  const readTitle = studio.read.sourceId ? titleOf(studio.read.sourceId) : undefined;
   const sessionTitles = studio.session.sourceIds.map(titleOf).filter(Boolean).join(", ");
 
   const views: Record<StudioMode, React.ReactNode> = {
@@ -82,14 +99,18 @@ export default function StudioPage() {
       <StudioOverview
         sources={sources}
         onPractice={(sourceIds, minutes) => dispatch({ type: "practice", sourceIds, minutes })}
-        onOpenMaterial={(sourceId) => dispatch({ type: "openMaterial", sourceId })}
+        onOpenMaterial={(sourceId, kind) => dispatch({ type: "openMaterial", sourceId, kind })}
       />
     ),
     read: (
-      <StudioPendingMode
-        title={text.modes.read.label}
-        description={text.readEmpty}
-        detail={readTitle ? text.readOpen(readTitle) : null}
+      <ReadMode
+        notebookId={notebookId}
+        sources={sources}
+        state={studio.read}
+        dispatch={(event) => dispatch({ type: "read", event })}
+        sheets={sheets}
+        setSheets={setSheets}
+        onPracticeChanged={() => setOverviewStale(true)}
       />
     ),
     session: (

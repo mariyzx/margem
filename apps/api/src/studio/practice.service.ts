@@ -76,7 +76,13 @@ export class PracticeService {
 
     const created = await this.prisma.$transaction(async (tx) => {
       const replaced = await tx.practiceItem.updateMany({
-        where: { sourceId, createdBy: "ai", status: "pending", deletedAt: null },
+        where: {
+          sourceId,
+          createdBy: "ai",
+          status: "pending",
+          deletedAt: null,
+          kind: { in: kinds },
+        },
         data: { status: "discarded", deletedAt: new Date() },
       });
       const saved = [];

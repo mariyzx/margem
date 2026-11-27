@@ -32,7 +32,7 @@ const addedFormat = new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "s
 interface SourceCardProps {
   source: StudioSourceDto;
   onPractice: () => void;
-  onOpenMaterial: () => void;
+  onOpenMaterial: (kind?: PracticeKind) => void;
 }
 
 export function SourceCard({ source, onPractice, onOpenMaterial }: SourceCardProps) {
@@ -102,7 +102,7 @@ export function SourceCard({ source, onPractice, onOpenMaterial }: SourceCardPro
                     color="bg-margin-rule"
                     label={text.generatePractice}
                     detail={text.nothingYet}
-                    onClick={onOpenMaterial}
+                    onClick={() => onOpenMaterial()}
                   />
                 </li>
               ) : (
@@ -112,7 +112,7 @@ export function SourceCard({ source, onPractice, onOpenMaterial }: SourceCardPro
                       color={DECK_COLOR[deck.kind]}
                       label={text.decks[deck.kind].label}
                       detail={text.decks[deck.kind].unit(deck.count)}
-                      onClick={onOpenMaterial}
+                      onClick={() => onOpenMaterial(deck.kind)}
                     />
                   </li>
                 ))
@@ -133,7 +133,7 @@ export function SourceCard({ source, onPractice, onOpenMaterial }: SourceCardPro
             type="button"
             size="sm"
             variant="secondary"
-            onClick={onOpenMaterial}
+            onClick={() => onOpenMaterial()}
             disabled={!ready}
           >
             {text.openMaterial}
