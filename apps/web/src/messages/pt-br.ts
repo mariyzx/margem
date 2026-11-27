@@ -211,6 +211,8 @@ export const messages = {
     openRouterSaved: "OpenRouter conectado",
     openRouterRemoved: "OpenRouter removido do Margem",
     openRouterFinishing: "Concluindo a conexão com o OpenRouter",
+    openRouterContinueInTab:
+      "Continue na aba do OpenRouter. Quando você autorizar, esta página atualiza sozinha.",
     openRouterErrors: {
       oauth_state_invalid:
         "O pedido de conexão expirou ou não é desta sessão. Tente conectar de novo.",
