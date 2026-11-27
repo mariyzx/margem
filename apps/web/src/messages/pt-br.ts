@@ -480,8 +480,17 @@ export const messages = {
       noSources: "Este caderno ainda não tem material pronto pra praticar.",
       building: "Montando o roteiro",
       buildError: "Não foi possível montar a sessão. Tente de novo.",
-      empty:
-        "Estas fontes ainda não têm prática aprovada de quiz, lacuna ou “por quê?”. Gere e aprove em “Ler e praticar”.",
+      setupTitle: "Gere e aprove as práticas",
+      setupIntro:
+        "Estas fontes ainda não têm prática aprovada de quiz, lacuna ou “por quê?”. Peça à IA, aprove as que fazem sentido e monte a sessão.",
+      generate: "Gerar práticas com IA",
+      generating: "A IA está lendo as fontes",
+      nothingGenerated: "A IA não achou o que praticar nestas fontes. Tente outra fonte.",
+      pendingHint:
+        "Só as aprovadas entram na sessão e na revisão do dia. Gerar de novo troca as sugestões pendentes.",
+      buildWithApproved: (count: number) =>
+        count === 1 ? "Montar a sessão (1 aprovada)" : `Montar a sessão (${count} aprovadas)`,
+      allReviewed: "Você revisou todas as sugestões. Monte a sessão ou gere mais.",
       goToRead: "Ir pra Ler e praticar",
       restart: "Recomeçar com estas opções",
       restartHint: "Mudar fontes ou tempo no meio da sessão monta um roteiro novo.",

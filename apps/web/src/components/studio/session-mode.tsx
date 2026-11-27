@@ -13,6 +13,7 @@ import * as React from "react";
 import { buildStudioSession, submitReview } from "../../lib/api";
 import { messages } from "../../messages/pt-br";
 import { splitBlanks } from "./read-rules";
+import { SessionSetup } from "./session-setup";
 import {
   currentActivity,
   kindCounts,
@@ -55,6 +56,10 @@ export function SessionMode({
   const ready = React.useMemo(
     () => sources.filter((source) => source.status === "ready"),
     [sources],
+  );
+  const chosenSources = React.useMemo(
+    () => ready.filter((source) => state.sourceIds.includes(source.id)),
+    [ready, state.sourceIds],
   );
   const chosen = React.useMemo(() => {
     const readyIds = new Set(ready.map((source) => source.id));
@@ -203,12 +208,12 @@ export function SessionMode({
             </Button>
           </Panel>
         ) : stale && !started ? null : activities.length === 0 ? (
-          <Panel>
-            <p>{text.empty}</p>
-            <Button type="button" size="sm" onClick={onGoToRead}>
-              {text.goToRead}
-            </Button>
-          </Panel>
+          <SessionSetup
+            sources={chosenSources}
+            onBuild={() => void build()}
+            onGoToRead={onGoToRead}
+            onPracticeChanged={onRated}
+          />
         ) : state.index >= activities.length ? (
           <Panel>
             <h2 className="font-serif text-2xl font-semibold text-ink">{text.doneTitle}</h2>
