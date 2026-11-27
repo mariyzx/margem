@@ -19,7 +19,7 @@ describe("studioReducer", () => {
       mode: "read",
     });
     expect(back.read.sourceId).toBe("s1");
-    expect(back.session).toEqual({ sourceIds: ["s2"], minutes: 40 });
+    expect(back.session).toMatchObject({ sourceIds: ["s2"], minutes: 40 });
   });
 
   it("keeps the chosen time when practicing without one", () => {
@@ -28,7 +28,7 @@ describe("studioReducer", () => {
       sourceIds: ["s1"],
       minutes: 10,
     });
-    expect(studioReducer(planned, { type: "practice", sourceIds: ["s2"] }).session).toEqual({
+    expect(studioReducer(planned, { type: "practice", sourceIds: ["s2"] }).session).toMatchObject({
       sourceIds: ["s2"],
       minutes: 10,
     });

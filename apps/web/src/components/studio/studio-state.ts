@@ -1,30 +1,34 @@
-import type { PracticeKind } from "@margem/shared";
+import type { PracticeKind, SessionMinutes } from "@margem/shared";
 import { initialReadState, type ReadEvent, readReducer, type ReadState } from "./read-state";
+import {
+  initialSessionState,
+  type SessionEvent,
+  sessionReducer,
+  type SessionState,
+} from "./session-state";
 
 export const STUDIO_MODES = ["overview", "read", "session"] as const;
 export type StudioMode = (typeof STUDIO_MODES)[number];
-
-export const SESSION_MINUTES = [10, 20, 40] as const;
-export type SessionMinutes = (typeof SESSION_MINUTES)[number];
 
 export interface StudioState {
   mode: StudioMode;
   direction: 1 | -1;
   read: ReadState;
-  session: { sourceIds: string[]; minutes: SessionMinutes };
+  session: SessionState;
 }
 
 export type StudioAction =
   | { type: "switch"; mode: StudioMode }
   | { type: "openMaterial"; sourceId: string; kind?: PracticeKind }
   | { type: "read"; event: ReadEvent }
+  | { type: "session"; event: SessionEvent }
   | { type: "practice"; sourceIds: string[]; minutes?: SessionMinutes };
 
 export const initialStudioState: StudioState = {
   mode: "overview",
   direction: 1,
   read: initialReadState,
-  session: { sourceIds: [], minutes: 20 },
+  session: initialSessionState,
 };
 
 function moveTo(state: StudioState, mode: StudioMode): StudioState {
@@ -49,11 +53,14 @@ export function studioReducer(state: StudioState, action: StudioAction): StudioS
     case "practice":
       return {
         ...moveTo(state, "session"),
-        session: {
+        session: sessionReducer(state.session, {
+          type: "configure",
           sourceIds: action.sourceIds,
-          minutes: action.minutes ?? state.session.minutes,
-        },
+          minutes: action.minutes,
+        }),
       };
+    case "session":
+      return { ...state, session: sessionReducer(state.session, action.event) };
   }
 }
 

@@ -1,8 +1,9 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import type { PracticeKind, StudioOverviewDto, StudioSourceDto } from "@margem/shared";
 import { practiceKindSchema } from "@margem/shared";
-import { Prisma, type ReviewKind, type ReviewRating } from "@prisma/client";
+import type { ReviewKind, ReviewRating } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { lastRatings } from "./last-ratings";
 import { byWeakestFirst, masteryOf } from "./mastery";
 
 const KIND_ORDER: PracticeKind[] = practiceKindSchema.options;
@@ -91,16 +92,10 @@ export class StudioOverviewService {
       where: { userId, deletedAt: null, archivedAt: null, OR: byKind },
       select: { id: true, kind: true, refId: true },
     });
-    const lastLogs =
-      items.length === 0
-        ? []
-        : await this.prisma.$queryRaw<Array<{ reviewItemId: string; rating: ReviewRating }>>`
-            SELECT DISTINCT ON ("reviewItemId") "reviewItemId", "rating"
-            FROM "ReviewLog"
-            WHERE "reviewItemId" IN (${Prisma.join(items.map((item) => item.id))})
-            ORDER BY "reviewItemId", "reviewedAt" DESC, "id" DESC
-          `;
-    const lastRatingByItem = new Map(lastLogs.map((log) => [log.reviewItemId, log.rating]));
+    const lastRatingByItem = await lastRatings(
+      this.prisma,
+      items.map((item) => item.id),
+    );
 
     const bySource = new Map<string, Array<ReviewRating | undefined>>();
     for (const item of items) {

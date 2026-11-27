@@ -55,6 +55,9 @@ import {
   askNotebookResultSchema,
   type AskNotebookInput,
   type AskNotebookResultDto,
+  studioSessionSchema,
+  type StudioSessionDto,
+  type StudioSessionRequest,
 } from "@margem/shared";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
@@ -646,4 +649,16 @@ export async function askNotebook(
   });
   if (!res.ok) await failed(res, "Ask notebook");
   return askNotebookResultSchema.parse(await res.json());
+}
+
+export async function buildStudioSession(
+  notebookId: string,
+  input: StudioSessionRequest,
+): Promise<StudioSessionDto> {
+  const res = await apiFetch(`/notebooks/${encodeURIComponent(notebookId)}/studio/session`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) await failed(res, "Studio session");
+  return studioSessionSchema.parse(await res.json());
 }

@@ -8,12 +8,17 @@ import {
   Post,
   Req,
 } from "@nestjs/common";
-import { askNotebookSchema, generatePracticeSchema } from "@margem/shared";
+import {
+  askNotebookSchema,
+  generatePracticeSchema,
+  studioSessionRequestSchema,
+} from "@margem/shared";
 import type { AuthenticatedRequest } from "../auth/session";
 import { RequirePolicy } from "../policies/require-policy.decorator";
 import { AskNotebookService } from "./ask-notebook.service";
 import { PracticeService } from "./practice.service";
 import { StudioOverviewService } from "./studio-overview.service";
+import { StudioSessionService } from "./studio-session.service";
 
 @Controller()
 export class StudioController {
@@ -21,7 +26,23 @@ export class StudioController {
     private readonly practice: PracticeService,
     private readonly askNotebook: AskNotebookService,
     private readonly studioOverview: StudioOverviewService,
+    private readonly studioSession: StudioSessionService,
   ) {}
+
+  @Post("notebooks/:notebookId/studio/session")
+  @HttpCode(200)
+  @RequirePolicy("read", "notebook")
+  session(
+    @Req() req: AuthenticatedRequest,
+    @Param("notebookId") notebookId: string,
+    @Body() body: unknown,
+  ) {
+    const parsed = studioSessionRequestSchema.safeParse(body ?? {});
+    if (!parsed.success) {
+      throw new BadRequestException(parsed.error.flatten());
+    }
+    return this.studioSession.build(req.user!.id, notebookId, parsed.data);
+  }
 
   @Get("notebooks/:notebookId/studio")
   @RequirePolicy("read", "notebook")
