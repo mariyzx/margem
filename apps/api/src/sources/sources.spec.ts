@@ -81,6 +81,26 @@ describe("SourceIngestQueue", () => {
     expect(createdChunks).toHaveLength(1);
     expect(createdChunks[0]?.ord).toBe(0);
   });
+
+  it("stops the worker early and closes the queues only after the HTTP server", async () => {
+    const queue = new SourceIngestQueue({} as PrismaService, {} as StorageService);
+    const closed: string[] = [];
+    const closer = (name: string) => ({
+      close: vi.fn(async () => {
+        closed.push(name);
+      }),
+    });
+    Object.assign(queue, {
+      worker: closer("worker"),
+      queue: closer("queue"),
+      dlq: closer("dlq"),
+    });
+
+    await queue.onModuleDestroy();
+    expect(closed).toEqual(["worker"]);
+    await queue.onApplicationShutdown();
+    expect(closed).toEqual(["worker", "queue", "dlq"]);
+  });
 });
 
 describe("SourcesService", () => {

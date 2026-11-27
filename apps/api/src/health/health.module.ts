@@ -1,4 +1,4 @@
-import { Module, type OnModuleDestroy, Inject } from "@nestjs/common";
+import { Inject, Module, type OnApplicationShutdown } from "@nestjs/common";
 import { TerminusModule } from "@nestjs/terminus";
 import Redis from "ioredis";
 import { HealthController } from "./health.controller";
@@ -21,10 +21,10 @@ import { PrismaHealthIndicator } from "./prisma.health";
   ],
   exports: [REDIS_CLIENT],
 })
-export class HealthModule implements OnModuleDestroy {
+export class HealthModule implements OnApplicationShutdown {
   constructor(@Inject(REDIS_CLIENT) private readonly redis: Redis) {}
 
-  async onModuleDestroy() {
+  async onApplicationShutdown() {
     await this.redis.quit().catch(() => undefined);
   }
 }
