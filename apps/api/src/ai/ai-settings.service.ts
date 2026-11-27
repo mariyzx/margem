@@ -1,8 +1,14 @@
-import { Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  ServiceUnavailableException,
+} from "@nestjs/common";
 import type { AiCredentialProvider as DbProvider, Prisma } from "@prisma/client";
 import {
   aiFeaturesSchema,
   type AiCredentialProvider,
+  type AiCredentialTestFailure,
   type AiCredentialSummary,
   type AiSettings,
   type CreateAiCredentialInput,
@@ -11,20 +17,29 @@ import {
 import { PrismaService } from "../prisma/prisma.service";
 import { withAuditContext } from "../security/request-context";
 import { encryptCredential, keyLast4, loadMasterKey } from "./credential-cipher";
+import { AiProviderClient, AiProviderError, remoteTarget } from "./provider-client";
 
-/** Never select `encryptedKey` for a response: what leaves the API is only this. */
 const CREDENTIAL_SUMMARY_SELECT = { provider: true, keyLast4: true, createdAt: true } as const;
 
-/** AAD of a stored key: binds the ciphertext to its own row (see credential-cipher.ts). */
 export function credentialContext(userId: string, provider: AiCredentialProvider): string {
   return `${userId}:${provider}`;
 }
 
 @Injectable()
 export class AiSettingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly providers: AiProviderClient,
+  ) {}
 
-  /** Creates the row with the defaults on first read, so every user has settings. */
+  async preferences(userId: string): Promise<Pick<AiSettings, "enabled" | "features">> {
+    const row = await this.prisma.aiSettings.findUnique({
+      where: { userId },
+      select: { enabled: true, features: true },
+    });
+    return { enabled: row?.enabled ?? true, features: readFeatures(row?.features) };
+  }
+
   async get(userId: string): Promise<AiSettings> {
     const [settings, credentials] = await Promise.all([
       this.prisma.aiSettings.upsert({ where: { userId }, create: { userId }, update: {} }),
@@ -42,7 +57,6 @@ export class AiSettingsService {
     };
   }
 
-  /** Partial update: features the person did not send keep their stored value. */
   async update(userId: string, input: UpdateAiSettingsInput): Promise<AiSettings> {
     const current = await this.prisma.aiSettings.findUnique({
       where: { userId },
@@ -62,10 +76,12 @@ export class AiSettingsService {
     userId: string,
     input: CreateAiCredentialInput,
   ): Promise<AiCredentialSummary> {
+    const masterKey = masterKeyOrUnavailable();
+    await this.testKey(input);
     const encryptedKey = encryptCredential(
       input.apiKey,
       credentialContext(userId, input.provider),
-      masterKeyOrUnavailable(),
+      masterKey,
     );
     const last4 = keyLast4(input.apiKey);
 
@@ -73,7 +89,6 @@ export class AiSettingsService {
       const row = await tx.aiCredential.upsert({
         where: { userId_provider: { userId, provider: input.provider } },
         create: { userId, provider: input.provider, encryptedKey, keyLast4: last4 },
-        // A pasted key replaces the old one: it is a new credential, so createdAt restarts.
         update: { encryptedKey, keyLast4: last4, createdAt: new Date() },
         select: CREDENTIAL_SUMMARY_SELECT,
       });
@@ -89,7 +104,21 @@ export class AiSettingsService {
     return toCredentialSummary(saved);
   }
 
-  /** "Remover" deletes the row (docs/06-ia.md). 404 when there is nothing of this user to delete. */
+  private async testKey(input: CreateAiCredentialInput): Promise<void> {
+    try {
+      await this.providers.testKey(remoteTarget(input.provider, input.apiKey));
+    } catch (error) {
+      if (!(error instanceof AiProviderError)) throw error;
+      if (error.kind === "quota") return;
+      if (error.kind === "invalid_key") {
+        const body: AiCredentialTestFailure = { code: "invalid_key" };
+        throw new BadRequestException(body);
+      }
+      const body: AiCredentialTestFailure = { code: "provider_unreachable" };
+      throw new ServiceUnavailableException(body);
+    }
+  }
+
   async removeCredential(userId: string, provider: AiCredentialProvider): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       const { count } = await tx.aiCredential.deleteMany({ where: { userId, provider } });
@@ -103,7 +132,6 @@ export class AiSettingsService {
   }
 }
 
-/** The JSON column has no shape in Postgres; Zod gives it one (missing key = on). */
 function readFeatures(stored: Prisma.JsonValue | undefined) {
   return aiFeaturesSchema.parse(stored ?? {});
 }
@@ -116,7 +144,6 @@ function toCredentialSummary(row: {
   return { provider: row.provider, keyLast4: row.keyLast4, createdAt: row.createdAt.toISOString() };
 }
 
-/** Without the master key the API still runs, but can't store keys: 503, not a crash. */
 function masterKeyOrUnavailable(): Buffer {
   try {
     return loadMasterKey();

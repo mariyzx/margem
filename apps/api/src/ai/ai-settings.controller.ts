@@ -19,10 +19,6 @@ import type { AuthenticatedRequest } from "../auth/session";
 import { RequirePolicy } from "../policies/require-policy.decorator";
 import { AiSettingsService } from "./ai-settings.service";
 
-/**
- * AI settings of the signed-in person (docs/02-funcionalidades.md §10).
- * Every route works on `req.user.id` only: there is no id in the path to point at someone else.
- */
 @Controller("ai")
 export class AiSettingsController {
   constructor(private readonly aiSettings: AiSettingsService) {}
@@ -48,7 +44,6 @@ export class AiSettingsController {
   async saveCredential(@Req() req: AuthenticatedRequest, @Body() body: unknown) {
     const parsed = createAiCredentialSchema.safeParse(body);
     if (!parsed.success) {
-      // flatten() keeps only field names and messages: the pasted key is not echoed back.
       throw new BadRequestException(parsed.error.flatten());
     }
     return { credential: await this.aiSettings.saveCredential(req.user!.id, parsed.data) };
