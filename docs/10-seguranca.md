@@ -49,9 +49,16 @@ Análise de ameaças e controles do Margem. Leia antes de mexer em auth, permiss
 
 ### Chaves de IA — obrigatório
 - [ ] AES-256-GCM, IV aleatório por registro, chave mestra em variável de ambiente fora do repositório.
+  - `AI_KEYS_MASTER_KEY`: base64 de exatamente 32 bytes (`openssl rand -base64 32`). A API não sobe em produção sem ela; em dev, salvar chave responde 503 `ai_keys_unavailable`.
+  - `AiCredential.encryptedKey` guarda o envelope `v1.<iv>.<authTag>.<cifrado>` (base64; IV de 12 bytes, tag de 16). Código em `apps/api/src/ai/credential-cipher.ts`.
+  - O AAD é `userId:provider`: um envelope copiado pra linha de outra pessoa não descriptografa.
+  - Salvar e remover chave gravam `ai_credential.saved` / `ai_credential.removed` no AuditLog, só com o `provider`.
 - [ ] Descriptografar só dentro do `AiService`, na hora da chamada. Nunca em log, erro, resposta, analytics ou fila (o job leva o `userId`, não a chave).
 - [ ] API devolve só `keyLast4`. "Remover" apaga o registro.
 - [ ] Plano de rotação da chave mestra documentado (re-criptografar em lote).
+  - **Quando:** só se a chave vazar ou o servidor for comprometido. Perder a chave sem rotação deixa todas as chaves salvas ilegíveis: as pessoas precisam colar de novo.
+  - **Como:** o prefixo do envelope (`v1`) diz com qual chave mestra ele foi feito. Para rodar: (1) gerar a nova chave; (2) a API passa a aceitar as duas, decifrando `v1` com a antiga e cifrando tudo novo como `v2`; (3) um script, rodando no container da API, re-cifra em lote cada `AiCredential` de `v1` para `v2`, linha a linha, numa transação por linha; (4) quando não restar `v1`, tirar a chave antiga do ambiente.
+  - `TODO(decisão)`: o suporte a duas chaves (passo 2) e o script (passo 3) ainda não existem; escrever quando a primeira rotação for necessária.
 - [ ] Login do OpenRouter com OAuth PKCE; o token recebido tem o mesmo tratamento de uma chave.
 
 ### Busca de links (SSRF) — obrigatório antes de liberar "colar link"

@@ -23,6 +23,9 @@ model User {
   questions     Question[]
   reviewItems   ReviewItem[]
   authAccounts  AuthAccount[]
+  aiSettings    AiSettings?
+  aiCredentials AiCredential[]
+  aiUsages      AiUsage[]
 }
 
 enum NotebookColor {
@@ -305,4 +308,63 @@ model AuthAccount {
 
   @@unique([provider, providerAccountId])
   @@index([userId])
+}
+
+enum AiPromptTarget {
+  claude
+  chatgpt
+  gemini
+}
+
+enum AiCredentialProvider {
+  openrouter
+  groq
+}
+
+enum AiProviderKind {
+  local
+  openrouter
+  groq
+}
+
+model AiSettings {
+  id           String         @id @default(cuid())
+  userId       String         @unique
+  enabled      Boolean        @default(true)
+  promptTarget AiPromptTarget @default(chatgpt)
+  features     Json           @default("{}")
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AiCredential {
+  id           String               @id @default(cuid())
+  userId       String
+  provider     AiCredentialProvider
+  encryptedKey String
+  keyLast4     String
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider])
+  @@index([userId])
+}
+
+model AiUsage {
+  id        String         @id @default(cuid())
+  userId    String
+  feature   String
+  provider  AiProviderKind
+  tokensIn  Int            @default(0)
+  tokensOut Int            @default(0)
+  ok        Boolean        @default(true)
+  createdAt DateTime       @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }

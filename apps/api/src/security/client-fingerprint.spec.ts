@@ -59,6 +59,8 @@ describe("LOG_HASH_SECRET in loadEnv", () => {
   const base = {
     DATABASE_URL: "postgresql://u:p@localhost:5432/db",
     REDIS_URL: "redis://localhost:6379",
+    // Also required in production; set here so these cases only exercise LOG_HASH_SECRET.
+    AI_KEYS_MASTER_KEY: Buffer.alloc(32, 1).toString("base64"),
   };
 
   it("is required in production and must have at least 32 characters", () => {
