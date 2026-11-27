@@ -130,4 +130,37 @@ describe("AiProviderClient", () => {
     expect(shape.safeParse("meta-llama/llama-3.3-70b-instruct:free").success).toBe(true);
     expect(shape.safeParse("openai/gpt-5").success).toBe(false);
   });
+
+  it("tests an OpenRouter key on GET /key, which needs a valid key", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { data: { label: "Margem" } }));
+    await client.testKey(remoteTarget("openrouter", KEY));
+    expect(String(fetchMock.mock.calls[0]![0])).toBe("https://openrouter.ai/api/v1/key");
+  });
+
+  it("exchanges an OpenRouter PKCE code for a key", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { key: "sk-or-v1-abc", user_id: "u" }));
+
+    await expect(client.exchangeOpenRouterCode("the-code", "the-verifier")).resolves.toBe(
+      "sk-or-v1-abc",
+    );
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("https://openrouter.ai/api/v1/auth/keys");
+    expect(init?.method).toBe("POST");
+    expect(init?.headers).not.toHaveProperty("Authorization");
+    expect(JSON.parse(init?.body as string)).toEqual({
+      code: "the-code",
+      code_verifier: "the-verifier",
+      code_challenge_method: "S256",
+    });
+  });
+
+  it("fails the exchange when OpenRouter refuses the code or answers without a key", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(403, { error: "Invalid code or code_verifier" }));
+    await expect(client.exchangeOpenRouterCode("c", "v")).rejects.toMatchObject({
+      kind: "invalid_key",
+      status: 403,
+    });
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { user_id: "u" }));
+    await expect(client.exchangeOpenRouterCode("c", "v")).rejects.toBeInstanceOf(AiProviderError);
+  });
 });

@@ -13,15 +13,20 @@ import {
 import {
   aiCredentialProviderSchema,
   createAiCredentialSchema,
+  finishOpenRouterSchema,
   updateAiSettingsSchema,
 } from "@margem/shared";
 import type { AuthenticatedRequest } from "../auth/session";
 import { RequirePolicy } from "../policies/require-policy.decorator";
 import { AiSettingsService } from "./ai-settings.service";
+import { OpenRouterOAuthService } from "./openrouter-oauth.service";
 
 @Controller("ai")
 export class AiSettingsController {
-  constructor(private readonly aiSettings: AiSettingsService) {}
+  constructor(
+    private readonly aiSettings: AiSettingsService,
+    private readonly openRouter: OpenRouterOAuthService,
+  ) {}
 
   @Get("settings")
   @RequirePolicy("read", "user")
@@ -58,5 +63,22 @@ export class AiSettingsController {
       throw new BadRequestException("Unknown provider");
     }
     await this.aiSettings.removeCredential(req.user!.id, parsed.data);
+  }
+
+  @Post("openrouter/connect")
+  @HttpCode(200)
+  @RequirePolicy("update", "user")
+  connectOpenRouter(@Req() req: AuthenticatedRequest) {
+    return this.openRouter.start(req.user!.id);
+  }
+
+  @Post("openrouter/finish")
+  @RequirePolicy("update", "user")
+  async finishOpenRouter(@Req() req: AuthenticatedRequest, @Body() body: unknown) {
+    const parsed = finishOpenRouterSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException({ code: "oauth_state_invalid" });
+    }
+    return { credential: await this.openRouter.finish(req.user!.id, parsed.data) };
   }
 }

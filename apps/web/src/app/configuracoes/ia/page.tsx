@@ -11,6 +11,7 @@ import { ThemeToggle } from "../../../components/theme-toggle";
 import { Wordmark } from "../../../components/wordmark";
 import {
   AiCredentialError,
+  startOpenRouterConnection,
   fetchAiSettings,
   fetchCurrentUser,
   removeAiCredential,
@@ -27,6 +28,8 @@ const FEATURE_KEYS: Array<keyof AiFeatures> = [
 ];
 const PROMPT_TARGETS: AiPromptTarget[] = ["claude", "chatgpt", "gemini"];
 const GROQ_CONSOLE_URL = "https://console.groq.com/keys";
+const OPENROUTER_SITE_URL = "https://openrouter.ai";
+const OPENROUTER_RESULTS = new Set(Object.keys(messages.ai.openRouterErrors));
 
 type Notice = { tone: "success" | "danger"; text: string } | null;
 
@@ -46,7 +49,22 @@ export default function AiSettingsPage() {
           return;
         }
         const loaded = await fetchAiSettings();
-        if (active) setSettings(loaded);
+        if (!active) return;
+        setSettings(loaded);
+        const result = new URLSearchParams(window.location.search).get("openrouter");
+        if (result) {
+          window.history.replaceState(null, "", window.location.pathname);
+          if (result === "connected") {
+            setNotice({ tone: "success", text: messages.ai.openRouterSaved });
+          } else if (OPENROUTER_RESULTS.has(result)) {
+            setNotice({
+              tone: "danger",
+              text: messages.ai.openRouterErrors[
+                result as keyof typeof messages.ai.openRouterErrors
+              ],
+            });
+          }
+        }
       })
       .catch(() => {
         if (active) setLoadFailed(true);
@@ -253,6 +271,9 @@ function GroqKeySection({
       </div>
       <p className="mt-1 mb-4 text-xs text-ink-muted">{messages.ai.accountDescription}</p>
 
+      <OpenRouterBlock settings={settings} onChange={onChange} onNotice={onNotice} />
+
+      <h3 className="mt-5 mb-2 text-xs font-semibold text-ink">{messages.ai.groqTitle}</h3>
       {groq ? (
         <div className="flex items-center justify-between gap-4 rounded-md border border-margin-rule px-3 py-2">
           <div className="flex items-center gap-2">
@@ -304,5 +325,94 @@ function GroqKeySection({
         </form>
       )}
     </section>
+  );
+}
+
+function OpenRouterBlock({
+  settings,
+  onChange,
+  onNotice,
+}: {
+  settings: AiSettings;
+  onChange: (credentials: AiSettings["credentials"]) => void;
+  onNotice: (notice: Notice) => void;
+}) {
+  const [busy, setBusy] = React.useState(false);
+  const openRouter = settings.credentials.find(
+    (credential) => credential.provider === "openrouter",
+  );
+  const others = settings.credentials.filter((credential) => credential.provider !== "openrouter");
+
+  async function handleConnect() {
+    setBusy(true);
+    try {
+      window.location.assign(await startOpenRouterConnection());
+    } catch {
+      setBusy(false);
+      onNotice({ tone: "danger", text: messages.ai.openRouterErrors.unknown });
+    }
+  }
+
+  async function handleRemove() {
+    setBusy(true);
+    try {
+      await removeAiCredential("openrouter");
+      onChange(others);
+      onNotice({ tone: "success", text: messages.ai.openRouterRemoved });
+    } catch {
+      onNotice({ tone: "danger", text: messages.ai.removeError });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <h3 className="mb-1 text-xs font-semibold text-ink">{messages.ai.openRouterTitle}</h3>
+      {openRouter ? (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between gap-4 rounded-md border border-margin-rule px-3 py-2">
+            <div className="flex items-center gap-2">
+              <KeyRound className="size-4 text-correct" strokeWidth={1.5} aria-hidden="true" />
+              <div className="flex flex-col">
+                <span className="text-sm font-medium text-ink">
+                  {messages.ai.openRouterConnected}
+                </span>
+                <span className="text-xs text-ink-muted">
+                  {messages.ai.keyEnding(openRouter.keyLast4)}
+                </span>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              loading={busy}
+              onClick={() => void handleRemove()}
+            >
+              {busy ? messages.ai.removingKey : messages.ai.removeKey}
+            </Button>
+          </div>
+          <p className="text-xs text-ink-muted">
+            {messages.ai.openRouterRevokeHint}{" "}
+            <a
+              href={OPENROUTER_SITE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-bic underline-offset-4 hover:underline"
+            >
+              {messages.ai.openRouterSiteLink}
+            </a>
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col items-start gap-2">
+          <p className="text-xs text-ink-muted">{messages.ai.openRouterDescription}</p>
+          <Button type="button" loading={busy} onClick={() => void handleConnect()}>
+            {busy ? messages.ai.connectingOpenRouter : messages.ai.connectOpenRouter}
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }

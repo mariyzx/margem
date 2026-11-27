@@ -111,7 +111,30 @@ export class AiProviderClient {
   }
 
   async testKey(target: ProviderTarget): Promise<void> {
-    await this.request(target, "/models", TEST_TIMEOUT_MS, { method: "GET" });
+    const path = target.id === "openrouter" ? "/key" : "/models";
+    await this.request(target, path, TEST_TIMEOUT_MS, { method: "GET" });
+  }
+
+  async exchangeOpenRouterCode(code: string, codeVerifier: string): Promise<string> {
+    const res = await this.request(
+      {
+        id: "openrouter",
+        baseUrl: REMOTE_BASE_URL.openrouter,
+        model: "",
+        timeoutMs: TEST_TIMEOUT_MS,
+      },
+      "/auth/keys",
+      TEST_TIMEOUT_MS,
+      {
+        method: "POST",
+        body: JSON.stringify({ code, code_verifier: codeVerifier, code_challenge_method: "S256" }),
+      },
+    );
+    const data = (await res.json().catch(() => null)) as { key?: unknown } | null;
+    if (typeof data?.key !== "string" || data.key.length === 0) {
+      throw new AiProviderError("provider_error", res.status);
+    }
+    return data.key;
   }
 
   private async request(
