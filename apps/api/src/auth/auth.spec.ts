@@ -637,6 +637,17 @@ describe("Magic link authentication", () => {
         .set("Cookie", cbCookies)
         .expect(200);
       expect(meRes.body.user.email).toBe("mari@margem.local");
+
+      expect(redis.standaloneCalls.map((call) => call.name)).toContain("getdel");
+      const replay = await request(app.getHttpServer())
+        .get(`/auth/google/callback?code=auth-code-1&state=${encodeURIComponent(state)}`)
+        .set("Cookie", stateCookies)
+        .expect(302);
+      expect(replay.headers.location).toBe("http://localhost:3000/entrar?error=google");
+      expect(auditLogs.at(-1)).toMatchObject({
+        action: "auth.google_failed",
+        metadata: { reason: "state_mismatch" },
+      });
     } finally {
       fetchSpy.mockRestore();
       await app.close();
