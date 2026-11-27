@@ -4,8 +4,10 @@ import type { AskCitationDto, AskNotebookResultDto } from "@margem/shared";
 import { MAX_ASK_QUESTION_CHARS } from "@margem/shared";
 import { Button } from "@margem/ui";
 import * as React from "react";
-import { askNotebook } from "../../lib/api";
+import { askNotebook, isAiUnavailable } from "../../lib/api";
+import { buildHandoffPrompt } from "../../lib/prompt-handoff";
 import { messages } from "../../messages/pt-br";
+import { PromptHandoff } from "../ai/prompt-handoff";
 import type { ReadEvent } from "./read-state";
 import { unavailableText } from "./ai-unavailable";
 
@@ -17,6 +19,8 @@ interface AskNotebookProps {
   asked: AskNotebookResultDto | null;
   showAnswerHere: boolean;
   dispatch: (event: ReadEvent) => void;
+  sourceTitle: string;
+  sourceTexts: string[];
 }
 
 export function AskNotebook({
@@ -25,11 +29,14 @@ export function AskNotebook({
   asked,
   showAnswerHere,
   dispatch,
+  sourceTitle,
+  sourceTexts,
 }: AskNotebookProps) {
   const inputId = React.useId();
   const hintId = React.useId();
   const [asking, setAsking] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [handoff, setHandoff] = React.useState<string | null>(null);
   const trimmed = question.trim();
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -37,10 +44,16 @@ export function AskNotebook({
     if (trimmed.length < 3 || asking) return;
     setAsking(true);
     setError(null);
+    setHandoff(null);
     try {
       dispatch({ type: "answered", result: await askNotebook(notebookId, { question: trimmed }) });
     } catch (caught) {
       setError(unavailableText(caught));
+      if (isAiUnavailable(caught)) {
+        setHandoff(
+          buildHandoffPrompt({ kind: "ask", question: trimmed, sourceTitle, source: sourceTexts }),
+        );
+      }
     } finally {
       setAsking(false);
     }
@@ -72,6 +85,7 @@ export function AskNotebook({
       </form>
       <div aria-live="polite" className="flex flex-col gap-2 empty:hidden">
         {error ? <p className="text-sm text-danger">{error}</p> : null}
+        {handoff ? <PromptHandoff prompt={handoff} /> : null}
         {asked && showAnswerHere ? <AskAnswer asked={asked} /> : null}
       </div>
     </div>

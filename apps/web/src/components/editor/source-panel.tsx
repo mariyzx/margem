@@ -3,6 +3,7 @@
 import {
   createLinkSourceSchema,
   createTextSourceSchema,
+  extractMemoryParagraphs,
   MemoryGapDto,
   type AiMemoryGapDto,
   type SourceDto,
@@ -22,10 +23,14 @@ import {
   ApiError,
   checkMemoryGapsWithAi,
   fetchMemoryGaps,
+  fetchSourceChunks,
   fetchSourceFileUrl,
+  isAiUnavailable,
 } from "../../lib/api";
+import { buildHandoffPrompt } from "../../lib/prompt-handoff";
 import { createErrorMessage } from "../../lib/errors";
 import { messages } from "../../messages/pt-br";
+import { PromptHandoff } from "../ai/prompt-handoff";
 
 interface SourcePanelProps {
   notebookId: string;
@@ -43,6 +48,7 @@ interface SourcePanelProps {
   onAttachLinkSource: (input: { notebookId: string; url: string; title?: string }) => Promise<void>;
   onRemoveSource?: (sourceId: string) => Promise<void>;
   onCreateQuestionFromGap?: (excerpt: string) => void;
+  getNoteDoc: () => Record<string, unknown>;
 }
 
 export function SourcePanel({
@@ -51,6 +57,7 @@ export function SourcePanel({
   source,
   materialOpened,
   noteId,
+  getNoteDoc,
   onOpenMaterial,
   onCreateNoteWithMaterial,
   onAttachPdfSource,
@@ -75,18 +82,42 @@ export function SourcePanel({
   const [aiGaps, setAiGaps] = React.useState<AiMemoryGapDto[] | null>(null);
   const [checkingAiGaps, setCheckingAiGaps] = React.useState(false);
   const [aiNotice, setAiNotice] = React.useState<string | null>(null);
+  const [gapsHandoff, setGapsHandoff] = React.useState<string | null | undefined>(undefined);
+  const gapsRequestRef = React.useRef(0);
 
   React.useEffect(() => {
     setGaps(null);
     setAiGaps(null);
     setAiNotice(null);
+    setGapsHandoff(undefined);
     setHasMemoryText(true);
+    gapsRequestRef.current++;
   }, [noteId, sourceId]);
+
+  async function prepareGapsHandoff() {
+    const requestId = ++gapsRequestRef.current;
+    setGapsHandoff(null);
+    let sourceText: string[] = source?.content ? [source.content] : [];
+    if (sourceText.length === 0 && sourceId) {
+      sourceText = await fetchSourceChunks(sourceId)
+        .then((result) => result.chunks.map((chunk) => chunk.text))
+        .catch(() => []);
+    }
+    if (gapsRequestRef.current !== requestId) return;
+    setGapsHandoff(
+      buildHandoffPrompt({
+        kind: "memoryGaps",
+        memory: extractMemoryParagraphs(getNoteDoc()),
+        source: sourceText,
+      }),
+    );
+  }
 
   async function handleCheckGapsWithAi() {
     setCheckingAiGaps(true);
     setError(undefined);
     setAiNotice(null);
+    setGapsHandoff(undefined);
     try {
       const result = await checkMemoryGapsWithAi(noteId);
       setAiGaps(result.gaps);
@@ -98,6 +129,7 @@ export function SourcePanel({
         `${reason ? messages.aiReview.unavailable[reason] : messages.aiReview.genericError} ${messages.source.gapsAiFallback}`,
       );
       setAiGaps(null);
+      if (isAiUnavailable(err)) void prepareGapsHandoff();
       await handleCheckGaps();
     } finally {
       setCheckingAiGaps(false);
@@ -487,6 +519,7 @@ export function SourcePanel({
 
               <div aria-live="polite" className="flex flex-col gap-2 empty:hidden">
                 {aiNotice ? <p className="text-xs text-ink-muted">{aiNotice}</p> : null}
+                {gapsHandoff !== undefined ? <PromptHandoff prompt={gapsHandoff} /> : null}
                 {aiGaps !== null ? (
                   !hasMemoryText ? (
                     <p className="text-xs text-ink-muted">{messages.source.gapsNoMemory}</p>

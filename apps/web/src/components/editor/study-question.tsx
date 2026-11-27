@@ -4,8 +4,10 @@ import { cn } from "@margem/config/cn";
 import type { GradedAnswerDto, QuestionDto } from "@margem/shared";
 import { Button } from "@margem/ui";
 import * as React from "react";
-import { explainAnswer } from "../../lib/api";
+import { explainAnswer, isAiUnavailable } from "../../lib/api";
+import { buildHandoffPrompt } from "../../lib/prompt-handoff";
 import { messages } from "../../messages/pt-br";
+import { PromptHandoff } from "../ai/prompt-handoff";
 
 const VERDICT_STYLE: Record<GradedAnswerDto["verdict"], string> = {
   right: "border-correct/50 text-correct",
@@ -40,6 +42,7 @@ export function StudyQuestion({
   const [explanation, setExplanation] = React.useState<string | null>(null);
   const [explaining, setExplaining] = React.useState(false);
   const [explainError, setExplainError] = React.useState(false);
+  const [explainHandoff, setExplainHandoff] = React.useState<string | null>(null);
 
   const attempt = answer.trim();
   const missed = result === "missed" || (graded !== undefined && graded.verdict !== "right");
@@ -48,10 +51,21 @@ export function StudyQuestion({
   async function handleExplain() {
     setExplaining(true);
     setExplainError(false);
+    setExplainHandoff(null);
     try {
       setExplanation(await explainAnswer(question.id, attempt));
-    } catch {
+    } catch (error) {
       setExplainError(true);
+      if (isAiUnavailable(error)) {
+        setExplainHandoff(
+          buildHandoffPrompt({
+            kind: "explain",
+            question: question.text,
+            expected: question.answer,
+            answer: attempt,
+          }),
+        );
+      }
     } finally {
       setExplaining(false);
     }
@@ -150,6 +164,7 @@ export function StudyQuestion({
           {explainError ? (
             <p className="text-xs text-danger">{messages.study.explainError}</p>
           ) : null}
+          {explainHandoff ? <PromptHandoff prompt={explainHandoff} /> : null}
           {explanation ? (
             <div className="rounded-md border border-bic/30 bg-margin p-2.5">
               <p className="mb-1 text-[11px] font-semibold text-bic">

@@ -504,4 +504,15 @@ export const messages = {
       again: "Montar outra sessão",
     },
   },
+  handoff: {
+    intro:
+      "Use a sua IA de fora: o Margem monta o pedido, você cola na conversa. A resposta não volta pra cá.",
+    copyAndOpen: (target: string) => `Copiar pedido e abrir o ${target}`,
+    preparing: "Montando o pedido",
+    copied: (target: string) => `Pedido copiado. Cole na conversa que abriu no ${target}.`,
+    copyFailed: "Não deu pra copiar. Selecione o pedido abaixo e copie à mão.",
+    showPrompt: "Ver o pedido",
+    promptLabel: "Pedido pronto",
+    changeTarget: "Trocar de assistente",
+  },
 } as const;

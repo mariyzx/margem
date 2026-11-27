@@ -5,9 +5,11 @@ import type { CreateQuestionInput, GradedAnswerDto, QuestionDto } from "@margem/
 import { Button, Field } from "@margem/ui";
 import { Trash2 } from "lucide-react";
 import * as React from "react";
-import { gradeAnswers } from "../../lib/api";
+import { gradeAnswers, isAiUnavailable } from "../../lib/api";
 import { createErrorMessage } from "../../lib/errors";
+import { buildHandoffPrompt } from "../../lib/prompt-handoff";
 import { messages } from "../../messages/pt-br";
+import { PromptHandoff } from "../ai/prompt-handoff";
 import type { QuestionAnchorDraft } from "./selection-toolbar";
 import { StudyQuestion } from "./study-question";
 
@@ -45,6 +47,7 @@ export function NoteMargin({
   const [graded, setGraded] = React.useState<Record<string, GradedAnswerDto>>({});
   const [grading, setGrading] = React.useState(false);
   const [gradeError, setGradeError] = React.useState(false);
+  const [gradeHandoff, setGradeHandoff] = React.useState<string | null>(null);
 
   const toGrade = questions.filter(
     (question) => !revealedIds[question.id] && (answers[question.id] ?? "").trim().length > 0,
@@ -54,6 +57,7 @@ export function NoteMargin({
     if (toGrade.length === 0) return;
     setGrading(true);
     setGradeError(false);
+    setGradeHandoff(null);
     try {
       const results = await gradeAnswers(
         toGrade.map((question) => ({
@@ -69,8 +73,20 @@ export function NoteMargin({
         ...prev,
         ...Object.fromEntries(results.map((result) => [result.questionId, true])),
       }));
-    } catch {
+    } catch (error) {
       setGradeError(true);
+      if (isAiUnavailable(error)) {
+        setGradeHandoff(
+          buildHandoffPrompt({
+            kind: "grade",
+            items: toGrade.map((question) => ({
+              question: question.text,
+              expected: question.answer,
+              answer: (answers[question.id] ?? "").trim(),
+            })),
+          }),
+        );
+      }
     } finally {
       setGrading(false);
     }
@@ -87,6 +103,7 @@ export function NoteMargin({
     setAnswers({});
     setGraded({});
     setGradeError(false);
+    setGradeHandoff(null);
   }, [mode]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -147,6 +164,7 @@ export function NoteMargin({
                 ? messages.study.gradeHint
                 : null}
           </p>
+          {gradeHandoff ? <PromptHandoff prompt={gradeHandoff} /> : null}
         </div>
       ) : null}
 

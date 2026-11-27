@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import type { AiMemoryGapDto } from "@margem/shared";
+import { type AiMemoryGapDto, extractMemoryParagraphs } from "@margem/shared";
 import { AiService } from "../ai/ai.service";
 import {
   buildMemoryGapsPrompt,
@@ -11,7 +11,6 @@ import {
 } from "../ai/prompts/memory-gaps";
 import { PolicyService } from "../policies/policy.service";
 import { PrismaService } from "../prisma/prisma.service";
-import { extractMemoryParagraphs } from "./memory-gaps";
 import { takeWithinBudget } from "../ai/prompt";
 
 const MAX_CHUNKS = 40;
