@@ -37,6 +37,10 @@ export class SearchIndexService {
     return url ? url.replace(/\/+$/, "") : null;
   }
 
+  isConfigured(): boolean {
+    return this.getBaseUrl() !== null;
+  }
+
   async ensureIndices(): Promise<boolean> {
     if (this.indicesEnsured) return true;
     const baseUrl = this.getBaseUrl();
@@ -160,6 +164,7 @@ export class SearchIndexService {
     query: string;
     embedding: number[] | null;
     limit: number;
+    sourceIds?: string[];
   }): Promise<Array<{
     id: string;
     sourceId: string;
@@ -173,11 +178,14 @@ export class SearchIndexService {
     const ready = await this.ensureIndices();
     if (!ready) return null;
 
+    const filter: Array<Record<string, unknown>> = [{ term: { notebookId: params.notebookId } }];
+    if (params.sourceIds) filter.push({ terms: { sourceId: params.sourceIds } });
+
     const body: Record<string, unknown> = {
       size: params.limit,
       query: {
         bool: {
-          filter: [{ term: { notebookId: params.notebookId } }],
+          filter,
           must: [{ match: { text: params.query } }],
         },
       },
@@ -188,7 +196,7 @@ export class SearchIndexService {
               query_vector: params.embedding,
               k: params.limit,
               num_candidates: Math.max(params.limit * 4, 20),
-              filter: { term: { notebookId: params.notebookId } },
+              filter,
             },
           }
         : {}),
