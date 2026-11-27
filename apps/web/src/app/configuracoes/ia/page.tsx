@@ -18,6 +18,11 @@ import {
   saveGroqKey,
   updateAiSettings,
 } from "../../../lib/api";
+import {
+  isOpenRouterTabMessage,
+  OPENROUTER_CHANNEL,
+  openBlankTab,
+} from "../../../lib/openrouter-tab";
 import { messages } from "../../../messages/pt-br";
 
 const FEATURE_KEYS: Array<keyof AiFeatures> = [
@@ -31,7 +36,7 @@ const GROQ_CONSOLE_URL = "https://console.groq.com/keys";
 const OPENROUTER_SITE_URL = "https://openrouter.ai";
 const OPENROUTER_RESULTS = new Set(Object.keys(messages.ai.openRouterErrors));
 
-type Notice = { tone: "success" | "danger"; text: string } | null;
+type Notice = { tone: "success" | "danger" | "default"; text: string } | null;
 
 export default function AiSettingsPage() {
   const router = useRouter();
@@ -54,16 +59,7 @@ export default function AiSettingsPage() {
         const result = new URLSearchParams(window.location.search).get("openrouter");
         if (result) {
           window.history.replaceState(null, "", window.location.pathname);
-          if (result === "connected") {
-            setNotice({ tone: "success", text: messages.ai.openRouterSaved });
-          } else if (OPENROUTER_RESULTS.has(result)) {
-            setNotice({
-              tone: "danger",
-              text: messages.ai.openRouterErrors[
-                result as keyof typeof messages.ai.openRouterErrors
-              ],
-            });
-          }
+          setNotice(openRouterNotice(result));
         }
       })
       .catch(() => {
@@ -73,6 +69,22 @@ export default function AiSettingsPage() {
       active = false;
     };
   }, [router]);
+
+  React.useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") return;
+    const channel = new BroadcastChannel(OPENROUTER_CHANNEL);
+    channel.onmessage = (event: MessageEvent<unknown>) => {
+      if (!isOpenRouterTabMessage(event.data)) return;
+      const notice = openRouterNotice(event.data.result);
+      fetchAiSettings()
+        .then((loaded) => {
+          setSettings(loaded);
+          setNotice(notice);
+        })
+        .catch(() => setNotice(notice));
+    };
+    return () => channel.close();
+  }, []);
 
   async function applyChange(
     change: Partial<AiSettings>,
@@ -344,10 +356,19 @@ function OpenRouterBlock({
   const others = settings.credentials.filter((credential) => credential.provider !== "openrouter");
 
   async function handleConnect() {
+    const tab = openBlankTab();
     setBusy(true);
     try {
-      window.location.assign(await startOpenRouterConnection());
+      const url = await startOpenRouterConnection();
+      if (!tab || tab.closed) {
+        window.location.assign(url);
+        return;
+      }
+      tab.location.href = url;
+      setBusy(false);
+      onNotice({ tone: "default", text: messages.ai.openRouterContinueInTab });
     } catch {
+      tab?.close();
       setBusy(false);
       onNotice({ tone: "danger", text: messages.ai.openRouterErrors.unknown });
     }
@@ -415,4 +436,15 @@ function OpenRouterBlock({
       )}
     </div>
   );
+}
+
+function openRouterNotice(result: string): Notice {
+  if (result === "connected") return { tone: "success", text: messages.ai.openRouterSaved };
+  if (OPENROUTER_RESULTS.has(result)) {
+    return {
+      tone: "danger",
+      text: messages.ai.openRouterErrors[result as keyof typeof messages.ai.openRouterErrors],
+    };
+  }
+  return null;
 }

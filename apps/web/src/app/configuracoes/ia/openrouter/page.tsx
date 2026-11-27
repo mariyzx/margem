@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import * as React from "react";
 import { Wordmark } from "../../../../components/wordmark";
 import { ApiError, finishOpenRouterConnection, OpenRouterConnectError } from "../../../../lib/api";
+import { announceOpenRouterResult } from "../../../../lib/openrouter-tab";
 import { messages } from "../../../../messages/pt-br";
 
 const SETTINGS_PATH = "/configuracoes/ia";
@@ -22,7 +23,10 @@ export default function OpenRouterCallbackPage() {
     const state = params.get("state");
     window.history.replaceState(null, "", window.location.pathname);
 
-    const done = (result: string) => router.replace(`${SETTINGS_PATH}?openrouter=${result}`);
+    const done = (result: string) => {
+      announceOpenRouterResult(result);
+      router.replace(`${SETTINGS_PATH}?openrouter=${result}`);
+    };
     if (!code || !state) {
       done(code ? "oauth_state_invalid" : "denied");
       return;
