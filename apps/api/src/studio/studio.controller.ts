@@ -13,13 +13,21 @@ import type { AuthenticatedRequest } from "../auth/session";
 import { RequirePolicy } from "../policies/require-policy.decorator";
 import { AskNotebookService } from "./ask-notebook.service";
 import { PracticeService } from "./practice.service";
+import { StudioOverviewService } from "./studio-overview.service";
 
 @Controller()
 export class StudioController {
   constructor(
     private readonly practice: PracticeService,
     private readonly askNotebook: AskNotebookService,
+    private readonly studioOverview: StudioOverviewService,
   ) {}
+
+  @Get("notebooks/:notebookId/studio")
+  @RequirePolicy("read", "notebook")
+  overview(@Req() req: AuthenticatedRequest, @Param("notebookId") notebookId: string) {
+    return this.studioOverview.overview(req.user!.id, notebookId);
+  }
 
   @Post("notebooks/:notebookId/ask")
   @HttpCode(200)

@@ -75,6 +75,7 @@ Aceite:
 
 Três modos na mesma tela, com navegação fixa e transição entre eles:
 1. **Visão geral (fichário):** cada fonte como cartão, com "você domina X%", baralhos de prática e as ações "Praticar" e "Abrir material". Ordenado do mais fraco pro mais forte. Inclui "Estudar o mais fraco, 20 min".
+   - "Você domina X%" (decisão de 27/11/2026): % dos itens de revisão da fonte cuja **última avaliação** foi "difícil" ou "fácil"; item nunca revisado conta como não dominado. Os itens de uma fonte são as práticas aprovadas dela e as perguntas aprovadas das notas ligadas a ela (as lacunas das notas entram quando virarem item de revisão). Fonte sem nenhum item fica no fim, sem porcentagem.
 2. **Ler e praticar (folha com margem):** a fonte como uma folha, com abas de fichário pra cada fonte. A prática escolhida aparece na margem, ao lado do parágrafo de onde saiu: quiz (resposta escrita), lacunas na fonte, flashcards, "por quê?". "Pergunte ao caderno" fica no pé da folha, e a resposta cai na margem citando o trecho.
 3. **Sessão guiada:** a pessoa escolhe fontes e tempo (10, 20 ou 40 min); o app monta um roteiro misturando lacuna, quiz e "por quê?", uma atividade por vez, com o trecho de origem escondido até conferir.
 
