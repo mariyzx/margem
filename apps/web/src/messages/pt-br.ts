@@ -456,7 +456,52 @@ export const messages = {
         rate_limited: "Muitos pedidos seguidos. Espere um minuto e tente de novo.",
       },
     },
-    sessionEmpty: "Escolha uma fonte na Visão geral pra montar a sessão.",
-    sessionPlan: (titles: string, minutes: number) => `${titles}, ${minutes} min`,
+    session: {
+      title: "Montar uma sessão",
+      intro: "Diga quanto tempo você tem. O Margem mistura as práticas que mais fixam.",
+      sourcesLabel: "Fontes",
+      minutesLabel: "Quanto tempo",
+      minutes: (value: number) => `${value} min`,
+      mixTitle: "Esta sessão vai ter",
+      mix: (counts: { cloze: number; quiz: number; why: number }) => {
+        const parts = [
+          counts.cloze > 0 ? (counts.cloze === 1 ? "1 lacuna" : `${counts.cloze} lacunas`) : null,
+          counts.quiz > 0 ? (counts.quiz === 1 ? "1 pergunta" : `${counts.quiz} perguntas`) : null,
+          counts.why > 0 ? `${counts.why} de “por quê?”` : null,
+        ].filter(Boolean);
+        if (parts.length <= 1) return parts.join("");
+        return `${parts.slice(0, -1).join(", ")} e ${parts.at(-1)}`;
+      },
+      planTitle: "Roteiro",
+      kinds: { quiz: "Quiz", cloze: "Lacuna", why: "Por quê?" },
+      chooseSources: "Escolha pelo menos uma fonte pra montar a sessão.",
+      noSources: "Este caderno ainda não tem material pronto pra praticar.",
+      building: "Montando o roteiro",
+      buildError: "Não foi possível montar a sessão. Tente de novo.",
+      empty:
+        "Estas fontes ainda não têm prática aprovada de quiz, lacuna ou “por quê?”. Gere e aprove em “Ler e praticar”.",
+      goToRead: "Ir pra Ler e praticar",
+      restart: "Recomeçar com estas opções",
+      restartHint: "Mudar fontes ou tempo no meio da sessão monta um roteiro novo.",
+      progress: (current: number, total: number) => `${current} de ${total}`,
+      remaining: (minutes: number) => `uns ${minutes} min restantes`,
+      yourAnswer: "Responda com as suas palavras",
+      yourAnswerPlaceholder: "Escreva antes de olhar o trecho",
+      check: "Ver o trecho e conferir",
+      skip: "Pular",
+      from: (title: string, page: number | null) =>
+        page === null ? `De onde veio: ${title}` : `De onde veio: ${title}, página ${page}`,
+      hiddenExcerpt: "O trecho aparece depois que você conferir.",
+      noExcerpt: "O trecho de origem não está mais disponível.",
+      expected: "Resposta esperada",
+      yourAttempt: "Você escreveu",
+      howDidItGo: "Como foi?",
+      rateError: "Não foi possível registrar sua resposta. Tente de novo.",
+      doneTitle: "Sessão concluída",
+      doneSummary: (counts: { again: number; hard: number; easy: number; skipped: number }) =>
+        `Errei: ${counts.again} · Difícil: ${counts.hard} · Fácil: ${counts.easy} · Puladas: ${counts.skipped}`,
+      doneHint: "O que você errou volta antes na revisão do dia.",
+      again: "Montar outra sessão",
+    },
   },
 } as const;

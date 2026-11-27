@@ -1,8 +1,7 @@
-import type { PracticeKind, StudioSourceDto } from "@margem/shared";
+import type { PracticeKind, SessionMinutes, StudioSourceDto } from "@margem/shared";
 import { Button } from "@margem/ui";
 import { messages } from "../../messages/pt-br";
 import { SourceCard } from "./source-card";
-import type { SessionMinutes } from "./studio-state";
 import { weakestSource } from "./studio-rules";
 
 const text = messages.studio;

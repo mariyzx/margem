@@ -84,3 +84,41 @@ export const studioOverviewSchema = z.object({
   sources: z.array(studioSourceSchema),
 });
 export type StudioOverviewDto = z.infer<typeof studioOverviewSchema>;
+
+export const SESSION_MINUTES = [10, 20, 40] as const;
+export type SessionMinutes = (typeof SESSION_MINUTES)[number];
+
+export const SESSION_SECONDS_PER_ACTIVITY = 75;
+
+export const SESSION_SIZE = Object.fromEntries(
+  SESSION_MINUTES.map((minutes) => [
+    minutes,
+    Math.floor((minutes * 60) / SESSION_SECONDS_PER_ACTIVITY),
+  ]),
+) as Record<SessionMinutes, number>;
+
+export const sessionKindSchema = z.enum(["quiz", "cloze", "why"]);
+export type SessionKind = z.infer<typeof sessionKindSchema>;
+
+export const studioSessionRequestSchema = z.strictObject({
+  sourceIds: z.array(z.string().min(1)).min(1, "Escolha pelo menos uma fonte").max(20),
+  minutes: z.union([z.literal(10), z.literal(20), z.literal(40)]),
+});
+export type StudioSessionRequest = z.infer<typeof studioSessionRequestSchema>;
+
+export const sessionActivitySchema = z.object({
+  reviewItemId: z.string(),
+  practiceId: z.string(),
+  kind: sessionKindSchema,
+  prompt: z.string(),
+  answer: z.string(),
+  sourceId: z.string(),
+  sourceTitle: z.string(),
+  excerpt: z.object({ text: z.string(), page: z.number().int().nullable() }).nullable(),
+});
+export type SessionActivityDto = z.infer<typeof sessionActivitySchema>;
+
+export const studioSessionSchema = z.object({
+  activities: z.array(sessionActivitySchema),
+});
+export type StudioSessionDto = z.infer<typeof studioSessionSchema>;

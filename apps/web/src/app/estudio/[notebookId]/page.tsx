@@ -9,7 +9,9 @@ import * as React from "react";
 import { ReadMode } from "../../../components/studio/read-mode";
 import type { SheetCache } from "../../../components/studio/source-sheet";
 import { StudioOverview } from "../../../components/studio/studio-overview";
-import { StudioPendingMode } from "../../../components/studio/studio-pending-mode";
+import type { ReadEvent } from "../../../components/studio/read-state";
+import { SessionMode } from "../../../components/studio/session-mode";
+import type { SessionEvent } from "../../../components/studio/session-state";
 import {
   initialStudioState,
   isStudioMode,
@@ -45,6 +47,14 @@ export default function StudioPage() {
   const reduceMotion = useReducedMotion();
   const [sheets, setSheets] = React.useState<SheetCache>({});
   const [overviewStale, setOverviewStale] = React.useState(false);
+  const dispatchRead = React.useCallback(
+    (event: ReadEvent) => dispatch({ type: "read", event }),
+    [],
+  );
+  const dispatchSession = React.useCallback(
+    (event: SessionEvent) => dispatch({ type: "session", event }),
+    [],
+  );
 
   const requestIdRef = React.useRef(0);
 
@@ -91,8 +101,6 @@ export default function StudioPage() {
   }, [loadOverview]);
 
   const sources = load.status === "ready" ? load.overview.sources : [];
-  const titleOf = (sourceId: string) => sources.find((source) => source.id === sourceId)?.title;
-  const sessionTitles = studio.session.sourceIds.map(titleOf).filter(Boolean).join(", ");
 
   const views: Record<StudioMode, React.ReactNode> = {
     overview: (
@@ -107,17 +115,20 @@ export default function StudioPage() {
         notebookId={notebookId}
         sources={sources}
         state={studio.read}
-        dispatch={(event) => dispatch({ type: "read", event })}
+        dispatch={dispatchRead}
         sheets={sheets}
         setSheets={setSheets}
         onPracticeChanged={() => setOverviewStale(true)}
       />
     ),
     session: (
-      <StudioPendingMode
-        title={text.modes.session.label}
-        description={text.sessionEmpty}
-        detail={sessionTitles ? text.sessionPlan(sessionTitles, studio.session.minutes) : null}
+      <SessionMode
+        notebookId={notebookId}
+        sources={sources}
+        state={studio.session}
+        dispatch={dispatchSession}
+        onGoToRead={() => dispatch({ type: "switch", mode: "read" })}
+        onRated={() => setOverviewStale(true)}
       />
     ),
   };
