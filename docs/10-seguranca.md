@@ -60,6 +60,7 @@ Análise de ameaças e controles do Margem. Leia antes de mexer em auth, permiss
   - **Como:** o prefixo do envelope (`v1`) diz com qual chave mestra ele foi feito. Para rodar: (1) gerar a nova chave; (2) a API passa a aceitar as duas, decifrando `v1` com a antiga e cifrando tudo novo como `v2`; (3) um script, rodando no container da API, re-cifra em lote cada `AiCredential` de `v1` para `v2`, linha a linha, numa transação por linha; (4) quando não restar `v1`, tirar a chave antiga do ambiente.
   - `TODO(decisão)`: o suporte a duas chaves (passo 2) e o script (passo 3) ainda não existem; escrever quando a primeira rotação for necessária.
 - [ ] Login do OpenRouter com OAuth PKCE; o token recebido tem o mesmo tratamento de uma chave.
+  - `state` e `code_verifier` aleatórios (32 bytes), no Redis por 10 min com o `userId`, uso único (`GETDEL`); outra pessoa ou `state` repetido → 400 `oauth_state_invalid`. O `code` sai da URL na página de retorno; o front só segue URL de autorização em `https://openrouter.ai`.
 
 ### Busca de links (SSRF) — obrigatório antes de liberar "colar link"
 - [ ] Só `http` e `https`.

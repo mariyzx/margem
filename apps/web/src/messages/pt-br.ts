@@ -196,9 +196,31 @@ export const messages = {
     accountTitle: "Mais rápida com a sua conta",
     accountOptional: "Opcional",
     accountDescription:
-      "Com uma chave do Groq, as respostas chegam em segundos. Nesse caso, o texto passa pelo Groq.",
+      "Com a sua conta grátis do OpenRouter ou do Groq, as respostas chegam em segundos. Nesse caso, o texto passa pelo provedor.",
     groqKeyLabel: "Chave do Groq",
     groqKeyHint: "Crie uma chave grátis no console do Groq, sem cartão.",
+    openRouterTitle: "OpenRouter",
+    openRouterDescription:
+      "Entre com a sua conta do OpenRouter, sem copiar chave. Usamos só modelos gratuitos; o texto passa pelo OpenRouter.",
+    connectOpenRouter: "Entrar com OpenRouter",
+    connectingOpenRouter: "Abrindo o OpenRouter",
+    openRouterConnected: "OpenRouter conectado",
+    openRouterRevokeHint:
+      "Remover tira a chave do Margem. Pra revogar de vez, apague a chave “Margem” no site do OpenRouter.",
+    openRouterSiteLink: "Abrir o OpenRouter",
+    openRouterSaved: "OpenRouter conectado",
+    openRouterRemoved: "OpenRouter removido do Margem",
+    openRouterFinishing: "Concluindo a conexão com o OpenRouter",
+    openRouterErrors: {
+      oauth_state_invalid:
+        "O pedido de conexão expirou ou não é desta sessão. Tente conectar de novo.",
+      oauth_code_invalid: "O OpenRouter não confirmou a conexão. Tente conectar de novo.",
+      provider_unreachable:
+        "Não deu pra falar com o OpenRouter agora. Tente de novo em alguns minutos.",
+      denied: "A conexão foi cancelada no OpenRouter.",
+      unknown: "Não foi possível conectar o OpenRouter. Tente de novo.",
+    },
+    groqTitle: "Groq",
     groqConsoleLink: "Abrir o console do Groq",
     testAndSave: "Testar e salvar",
     testing: "Testando a chave",

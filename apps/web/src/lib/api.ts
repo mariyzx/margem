@@ -37,6 +37,8 @@ import {
   type AiSettings,
   type UpdateAiSettingsInput,
   aiUnavailableErrorSchema,
+  openRouterConnectFailureSchema,
+  type OpenRouterConnectFailure,
   questionSuggestionsSchema,
   type AiUnavailableReason,
   type QuestionSuggestionsDto,
@@ -535,4 +537,41 @@ export async function checkMemoryGapsWithAi(
     gaps: data.gaps.map((item) => aiMemoryGapSchema.parse(item)),
     hasMemoryText: Boolean(data.hasMemoryText),
   };
+}
+
+export type OpenRouterFailure = OpenRouterConnectFailure["code"] | "unknown";
+
+export class OpenRouterConnectError extends Error {
+  constructor(readonly reason: OpenRouterFailure) {
+    super(`Connect OpenRouter failed: ${reason}`);
+    this.name = "OpenRouterConnectError";
+  }
+}
+
+export async function startOpenRouterConnection(): Promise<string> {
+  const res = await apiFetch("/ai/openrouter/connect", { method: "POST" });
+  if (!res.ok) await failed(res, "Start OpenRouter connection");
+  const data = (await res.json()) as { url?: unknown };
+  const url = typeof data.url === "string" ? new URL(data.url) : null;
+  if (!url || url.origin !== "https://openrouter.ai") {
+    throw new OpenRouterConnectError("unknown");
+  }
+  return url.toString();
+}
+
+export async function finishOpenRouterConnection(
+  state: string,
+  code: string,
+): Promise<AiCredentialSummary> {
+  const res = await apiFetch("/ai/openrouter/finish", {
+    method: "POST",
+    body: JSON.stringify({ state, code }),
+  });
+  if (res.status === 401) await failed(res, "Finish OpenRouter connection");
+  if (!res.ok) {
+    const parsed = openRouterConnectFailureSchema.safeParse(await res.json().catch(() => null));
+    throw new OpenRouterConnectError(parsed.success ? parsed.data.code : "unknown");
+  }
+  const data = (await res.json()) as { credential: unknown };
+  return aiCredentialSummarySchema.parse(data.credential);
 }

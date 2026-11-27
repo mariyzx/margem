@@ -2,6 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AiCredentialError,
   ApiError,
+  finishOpenRouterConnection,
+  OpenRouterConnectError,
+  startOpenRouterConnection,
   checkMemoryGapsWithAi,
   explainAnswer,
   gradeAnswers,
@@ -164,5 +167,65 @@ describe("memory gaps with AI client", () => {
 
     const error = await checkMemoryGapsWithAi("n1").catch((e: unknown) => e);
     expect((error as ApiError).aiUnavailable).toBe("quota");
+  });
+});
+
+describe("OpenRouter connection client", () => {
+  const fetchMock = vi.fn<typeof fetch>();
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    fetchMock.mockReset();
+  });
+
+  it("only follows an authorization URL on openrouter.ai", async () => {
+    vi.stubGlobal("fetch", fetchMock);
+    fetchMock.mockResolvedValueOnce(
+      respond(200, { url: "https://openrouter.ai/auth?code_challenge=x&state=y" }),
+    );
+    await expect(startOpenRouterConnection()).resolves.toMatch(/^https:\/\/openrouter\.ai\/auth/);
+
+    fetchMock.mockResolvedValueOnce(respond(200, { url: "https://evil.example/auth" }));
+    await expect(startOpenRouterConnection()).rejects.toBeInstanceOf(OpenRouterConnectError);
+  });
+
+  it("finishes with state and code and gets back only the last 4 characters", async () => {
+    vi.stubGlobal("fetch", fetchMock);
+    fetchMock.mockResolvedValueOnce(
+      respond(201, {
+        credential: {
+          provider: "openrouter",
+          keyLast4: "ZZZZ",
+          createdAt: "2026-11-27T12:00:00.000Z",
+        },
+      }),
+    );
+
+    await expect(finishOpenRouterConnection("state-1", "code-1")).resolves.toMatchObject({
+      keyLast4: "ZZZZ",
+    });
+    expect(JSON.parse(fetchMock.mock.calls[0]![1]!.body as string)).toEqual({
+      state: "state-1",
+      code: "code-1",
+    });
+  });
+
+  it.each([
+    [400, { code: "oauth_state_invalid" }, "oauth_state_invalid"],
+    [400, { code: "oauth_code_invalid" }, "oauth_code_invalid"],
+    [503, { code: "provider_unreachable" }, "provider_unreachable"],
+    [500, { message: "boom" }, "unknown"],
+  ])("maps a %i answer to %s", async (status, body, reason) => {
+    vi.stubGlobal("fetch", fetchMock);
+    fetchMock.mockResolvedValueOnce(respond(status, body));
+    const error = await finishOpenRouterConnection("s", "c").catch((e: unknown) => e);
+    expect((error as OpenRouterConnectError).reason).toBe(reason);
+  });
+
+  it("reports an expired session as a 401 so the page can send the person to sign in", async () => {
+    vi.stubGlobal("fetch", fetchMock);
+    fetchMock.mockResolvedValueOnce(respond(401, { message: "Authentication required" }));
+    const error = await finishOpenRouterConnection("s", "c").catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(401);
   });
 });

@@ -11,7 +11,9 @@ import type { AuthenticatedUser } from "../policies/policy.types";
 import { PrismaService } from "../prisma/prisma.service";
 import { AiSettingsController } from "./ai-settings.controller";
 import { AiSettingsService } from "./ai-settings.service";
-import { AiProviderClient } from "./provider-client";
+import { REDIS_CLIENT } from "../health/redis.health";
+import { OpenRouterOAuthService } from "./openrouter-oauth.service";
+import { AiProviderClient, AiProviderError } from "./provider-client";
 
 type RequestWithUser = Request & { user?: AuthenticatedUser };
 type CredentialRow = {
@@ -23,6 +25,7 @@ type CredentialRow = {
 };
 
 const GROQ_KEY_A = "gsk_user_a_secret_key_AAAA";
+const OPENROUTER_KEY = `sk-or-v1-${"o".repeat(24)}ZZZZ`;
 
 function makeFakePrisma() {
   const settings = new Map<string, Record<string, unknown>>();
@@ -101,6 +104,22 @@ function stripUndefined(data: Record<string, unknown>) {
 describe("AI settings routes", () => {
   let app: INestApplication;
   let store: ReturnType<typeof makeFakePrisma>;
+  const redisData = new Map<string, string>();
+  const redis = {
+    set: async (key: string, value: string) => {
+      redisData.set(key, value);
+      return "OK";
+    },
+    getdel: async (key: string) => {
+      const value = redisData.get(key) ?? null;
+      redisData.delete(key);
+      return value;
+    },
+  };
+  const providers = {
+    testKey: vi.fn(async () => undefined),
+    exchangeOpenRouterCode: vi.fn(async (_code: string, _verifier: string) => OPENROUTER_KEY),
+  };
 
   beforeEach(async () => {
     vi.stubEnv("AI_KEYS_MASTER_KEY", randomBytes(32).toString("base64"));
@@ -110,7 +129,9 @@ describe("AI settings routes", () => {
       providers: [
         AiSettingsService,
         PolicyService,
-        { provide: AiProviderClient, useValue: { testKey: async () => undefined } },
+        OpenRouterOAuthService,
+        { provide: AiProviderClient, useValue: providers },
+        { provide: REDIS_CLIENT, useValue: redis },
         { provide: PrismaService, useValue: store.prisma },
         { provide: APP_GUARD, useClass: PolicyGuard },
       ],
@@ -127,6 +148,9 @@ describe("AI settings routes", () => {
   });
 
   afterEach(async () => {
+    redisData.clear();
+    providers.exchangeOpenRouterCode.mockReset();
+    providers.exchangeOpenRouterCode.mockImplementation(async () => OPENROUTER_KEY);
     await app.close();
     vi.unstubAllEnvs();
   });
@@ -230,5 +254,96 @@ describe("AI settings routes", () => {
 
   it("rejects an unknown provider on delete", async () => {
     await as("user-a").delete("/ai/credentials/google").expect(400);
+  });
+
+  describe("OpenRouter OAuth", () => {
+    async function startAs(userId: string) {
+      const res = await as(userId).post("/ai/openrouter/connect").expect(200);
+      return new URL(res.body.url as string);
+    }
+
+    it("starts PKCE S256 with a state and the settings callback", async () => {
+      const url = await startAs("user-a");
+
+      expect(url.origin + url.pathname).toBe("https://openrouter.ai/auth");
+      expect(url.searchParams.get("code_challenge_method")).toBe("S256");
+      expect(url.searchParams.get("code_challenge")).toMatch(/^[A-Za-z0-9_-]{43}$/);
+      expect(url.searchParams.get("state")).toMatch(/^[A-Za-z0-9_-]{43}$/);
+      expect(url.searchParams.get("callback_url")).toMatch(/\/configuracoes\/ia\/openrouter$/);
+      expect(url.toString()).not.toContain("verifier");
+    });
+
+    it("exchanges the code with the stored verifier and keeps only the last 4 characters", async () => {
+      const url = await startAs("user-a");
+      const state = url.searchParams.get("state")!;
+
+      const res = await as("user-a")
+        .post("/ai/openrouter/finish")
+        .send({ state, code: "code-from-openrouter" })
+        .expect(201);
+
+      expect(res.body.credential).toMatchObject({ provider: "openrouter", keyLast4: "ZZZZ" });
+      expect(JSON.stringify(res.body)).not.toContain(OPENROUTER_KEY);
+      const [code, verifier] = providers.exchangeOpenRouterCode.mock.calls[0]!;
+      expect(code).toBe("code-from-openrouter");
+      const { createHash } = await import("node:crypto");
+      expect(createHash("sha256").update(verifier).digest("base64url")).toBe(
+        url.searchParams.get("code_challenge"),
+      );
+      expect(store.credentials[0]).toMatchObject({ userId: "user-a", provider: "openrouter" });
+      expect(store.credentials[0]!.encryptedKey).not.toContain(OPENROUTER_KEY);
+    });
+
+    it("uses each state only once", async () => {
+      const state = (await startAs("user-a")).searchParams.get("state")!;
+      await as("user-a").post("/ai/openrouter/finish").send({ state, code: "c1" }).expect(201);
+
+      const again = await as("user-a")
+        .post("/ai/openrouter/finish")
+        .send({ state, code: "c2" })
+        .expect(400);
+      expect(again.body).toMatchObject({ code: "oauth_state_invalid" });
+      expect(providers.exchangeOpenRouterCode).toHaveBeenCalledTimes(1);
+    });
+
+    it("user B can't finish a connection started by user A", async () => {
+      const state = (await startAs("user-a")).searchParams.get("state")!;
+
+      await as("user-b").post("/ai/openrouter/finish").send({ state, code: "c1" }).expect(400);
+
+      expect(providers.exchangeOpenRouterCode).not.toHaveBeenCalled();
+      expect(store.credentials).toHaveLength(0);
+    });
+
+    it("stores nothing when OpenRouter refuses the code", async () => {
+      providers.exchangeOpenRouterCode.mockRejectedValueOnce(
+        new AiProviderError("invalid_key", 403),
+      );
+      const state = (await startAs("user-a")).searchParams.get("state")!;
+
+      const res = await as("user-a")
+        .post("/ai/openrouter/finish")
+        .send({ state, code: "expired" })
+        .expect(400);
+
+      expect(res.body).toMatchObject({ code: "oauth_code_invalid" });
+      expect(store.credentials).toHaveLength(0);
+    });
+
+    it("answers 503 when OpenRouter can't be reached", async () => {
+      providers.exchangeOpenRouterCode.mockRejectedValueOnce(new AiProviderError("timeout"));
+      const state = (await startAs("user-a")).searchParams.get("state")!;
+
+      await as("user-a").post("/ai/openrouter/finish").send({ state, code: "c" }).expect(503);
+    });
+
+    it("requires a session to start or finish", async () => {
+      const server = app.getHttpServer();
+      await request(server).post("/ai/openrouter/connect").expect(401);
+      await request(server)
+        .post("/ai/openrouter/finish")
+        .send({ state: "x".repeat(43), code: "c" })
+        .expect(401);
+    });
   });
 });

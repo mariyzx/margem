@@ -84,3 +84,14 @@ export const aiCredentialTestFailureSchema = z.object({
   code: z.enum(["invalid_key", "provider_unreachable"]),
 });
 export type AiCredentialTestFailure = z.infer<typeof aiCredentialTestFailureSchema>;
+
+export const finishOpenRouterSchema = z.strictObject({
+  state: z.string().trim().min(16).max(200),
+  code: z.string().trim().min(1).max(1000),
+});
+export type FinishOpenRouterInput = z.infer<typeof finishOpenRouterSchema>;
+
+export const openRouterConnectFailureSchema = z.object({
+  code: z.enum(["oauth_state_invalid", "oauth_code_invalid", "provider_unreachable"]),
+});
+export type OpenRouterConnectFailure = z.infer<typeof openRouterConnectFailureSchema>;

@@ -76,19 +76,28 @@ export class AiSettingsService {
     userId: string,
     input: CreateAiCredentialInput,
   ): Promise<AiCredentialSummary> {
-    const masterKey = masterKeyOrUnavailable();
+    masterKeyOrUnavailable();
     await this.testKey(input);
+    return this.storeCredential(userId, input.provider, input.apiKey, "pasted");
+  }
+
+  async storeCredential(
+    userId: string,
+    provider: AiCredentialProvider,
+    apiKey: string,
+    via: "pasted" | "oauth",
+  ): Promise<AiCredentialSummary> {
     const encryptedKey = encryptCredential(
-      input.apiKey,
-      credentialContext(userId, input.provider),
-      masterKey,
+      apiKey,
+      credentialContext(userId, provider),
+      masterKeyOrUnavailable(),
     );
-    const last4 = keyLast4(input.apiKey);
+    const last4 = keyLast4(apiKey);
 
     const saved = await this.prisma.$transaction(async (tx) => {
       const row = await tx.aiCredential.upsert({
-        where: { userId_provider: { userId, provider: input.provider } },
-        create: { userId, provider: input.provider, encryptedKey, keyLast4: last4 },
+        where: { userId_provider: { userId, provider } },
+        create: { userId, provider, encryptedKey, keyLast4: last4 },
         update: { encryptedKey, keyLast4: last4, createdAt: new Date() },
         select: CREDENTIAL_SUMMARY_SELECT,
       });
@@ -96,7 +105,7 @@ export class AiSettingsService {
         data: withAuditContext({
           userId,
           action: "ai_credential.saved",
-          metadata: { provider: input.provider },
+          metadata: { provider, via },
         }),
       });
       return row;
