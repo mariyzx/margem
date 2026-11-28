@@ -91,11 +91,6 @@ services:
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-sa-saopaulo-1}
       S3_ENDPOINT: ${S3_ENDPOINT:-}
       S3_BUCKET: ${S3_BUCKET:-}
-      OLLAMA_URL: http://ollama:11434
-      OLLAMA_CHAT_ENABLED: ${OLLAMA_CHAT_ENABLED:-false}
-      OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-qwen2.5:3b}
-      OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-nomic-embed-text}
-      OLLAMA_CONTEXT_TOKENS: ${OLLAMA_CONTEXT_TOKENS:-8192}
       GROQ_CHAT_MODEL: ${GROQ_CHAT_MODEL:-openai/gpt-oss-120b}
       OPENROUTER_CHAT_MODEL: ${OPENROUTER_CHAT_MODEL:-google/gemma-4-31b-it:free}
     depends_on:
@@ -140,56 +135,11 @@ services:
     networks:
       - internal
 
-  ollama:
-    image: ollama/ollama:0.6.5
-    restart: unless-stopped
-    logging: *default-logging
-    environment:
-      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_TOKENS:-8192}
-      OLLAMA_NUM_PARALLEL: "1"
-      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-30m}
-    volumes:
-      - ollama_data:/root/.ollama
-    healthcheck:
-      test: ["CMD", "ollama", "list"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    deploy:
-      resources:
-        limits:
-          cpus: ${OLLAMA_CPUS:-0.5}
-          memory: ${OLLAMA_MEMORY:-1g}
-    networks:
-      - internal
-
-  ollama-models:
-    image: ollama/ollama:0.6.5
-    profiles: ["tools"]
-    environment:
-      OLLAMA_CHAT_ENABLED: ${OLLAMA_CHAT_ENABLED:-false}
-      OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-qwen2.5:3b}
-      OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-nomic-embed-text}
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - >-
-        ollama serve & server=$$!;
-        until ollama list >/dev/null 2>&1; do sleep 1; done;
-        ollama pull "$$OLLAMA_EMBED_MODEL" &&
-        if [ "$$OLLAMA_CHAT_ENABLED" = "true" ]; then ollama pull "$$OLLAMA_CHAT_MODEL";
-        else ollama rm "$$OLLAMA_CHAT_MODEL" >/dev/null 2>&1; true; fi; status=$$?;
-        kill $$server; exit $$status
-    volumes:
-      - ollama_data:/root/.ollama
-    networks:
-      - models_egress
-
 volumes:
   caddy_data:
   caddy_config:
   postgres_data:
   redis_data:
-  ollama_data:
 
 networks:
   edge:
@@ -197,5 +147,3 @@ networks:
   internal:
     driver: bridge
     internal: true
-  models_egress:
-    driver: bridge

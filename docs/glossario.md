@@ -29,5 +29,5 @@ Use estes termos na interface (pt-BR) e os nomes em inglês no código.
 | Quiz ao vivo | `LiveQuiz` | Sessão em tempo real da turma com as perguntas do grupo. |
 | Mapa de memória | `MemoryMap` | Canvas de notas ligadas, com blocos e ligações escondidos pra completar. |
 | Assistente de IA | `AiSettings` | Configuração de IA da pessoa: liga ou desliga a IA e, se quiser, conecta OpenRouter ou Groq. |
-| Modelo local | `local` | Modelo de texto pequeno no Ollama, desligado por padrão (`OLLAMA_CHAT_ENABLED`); ligar só pra testar sem chave. O Ollama fica pros embeddings (ADR-013). |
+| Modelo local | `local` | Modelo de texto pequeno no Ollama, desligado por padrão (`OLLAMA_CHAT_ENABLED`); ligar só pra testar sem chave. Em produção não há Ollama (ADR-013). |
 | Botão de prompt pronto | `prompt handoff` | Reserva quando a IA está desligada ou falha: abre Claude, ChatGPT ou Gemini com o pedido montado; o resultado não volta pro app. |

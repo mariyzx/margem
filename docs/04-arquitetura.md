@@ -89,7 +89,7 @@ O trabalho em segundo plano é fila de jobs (poucos por dia, um consumidor por t
 - **VPS:** Oracle Always Free, ARM (até 4 OCPUs e 24 GB no plano; a instância atual tem 2 CPUs), Ubuntu, região São Paulo. Limites de CPU no compose de produção precisam caber nas CPUs da instância, senão o Docker recusa criar o contêiner.
 - **Containers:** Docker Compose com `web`, `api`, `worker`, `fetcher`, `collab`, `postgres`, `redis`, `elasticsearch` (single node, heap limitado), `ollama` e `caddy`.
 - **Observabilidade:** `otel-collector`, `prometheus`, `loki`, `tempo`, `grafana`, `glitchtip`, `node-exporter` e `cadvisor` numa rede `observability` sem porta pública. Detalhes em `11-observabilidade.md`.
-- **Redes:** `internal` (api, worker, collab, bancos, Ollama, sem porta publicada), `edge` (Caddy, web, api) `egress` (só o `fetcher`, com saída pra internet e sem acesso à `internal`) e `models_egress` (só o `ollama-models`, que baixa os modelos de IA pro volume do Ollama no deploy; sem acesso à `internal`). Só o Caddy publica portas (80 e 443). Detalhes em `10-seguranca.md`.
+- **Redes:** `internal` (api, worker, collab, bancos e, quando houver, Elasticsearch e Ollama, sem porta publicada), `edge` (Caddy, web, api) e `egress` (só o `fetcher`, com saída pra internet e sem acesso à `internal`). Só o Caddy publica portas (80 e 443). Detalhes em `10-seguranca.md`.
 - **Arquivos:** Oracle Object Storage (compatível com S3).
 - **HTTPS e proxy:** Caddy.
 - **CI/CD:** GitHub Actions (lint, typecheck, testes, build de imagens ARM, deploy por SSH).

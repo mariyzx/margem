@@ -27,7 +27,7 @@ export class SearchService {
     });
     this.policy.assertOwner(userId, notebook?.deletedAt ? null : notebook?.ownerId);
 
-    const vectors = await this.embeddings.embed([input.q]);
+    const vectors = this.searchIndex.isConfigured() ? await this.embeddings.embed([input.q]) : null;
     const queryVector = vectors?.[0] ?? null;
 
     const esHits = await this.searchIndex.searchChunks({

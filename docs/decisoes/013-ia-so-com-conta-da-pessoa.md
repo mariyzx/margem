@@ -1,4 +1,4 @@
-# ADR-013: IA só com a conta da pessoa, Ollama só pra embeddings em produção
+# ADR-013: IA só com a conta da pessoa, sem Ollama em produção
 
 - **Status:** Aceita
 - **Data:** 2026-11-28
@@ -18,7 +18,7 @@ Enquanto isso, as contas grátis já integradas funcionam bem: Groq (`openai/gpt
 
 1. **IA dentro do app só com a conta da pessoa** (Groq ou OpenRouter). Em produção não roda modelo de texto local.
 2. **Sem conta conectada, o recurso mostra na hora o convite pra conectar uma conta grátis e o botão de prompt pronto**, sem esperar um modelo lento.
-3. **O Ollama continua em produção só pros embeddings** (ADR-005), com CPU e memória menores. O modelo de texto não é baixado no deploy.
+3. **O Ollama sai de produção.** Os embeddings (ADR-005) só são usados pelo Elasticsearch, que ainda não está no compose de produção; sem ele, os vetores eram gerados e descartados. A API só gera embedding quando o Elasticsearch está configurado, e o Ollama volta junto com ele.
 4. **O modelo local fica desligado por padrão em todo lugar, inclusive em desenvolvimento** (`OLLAMA_CHAT_ENABLED=false`). Dev se comporta como produção: sem conta, convite e botão de prompt pronto. Dá pra ligar à mão pra testar sem chave, e o e2e liga pra usar o provedor simulado.
 5. **IA no navegador (WebGPU) fica no roadmap "Depois"**: um modelo pequeno rodando na máquina da pessoa resolveria o "sem configurar nada" sem pesar na VPS, mas ainda depende de hardware e não roda bem no celular.
 

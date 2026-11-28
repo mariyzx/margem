@@ -16,4 +16,4 @@ Cada arquivo registra uma decisão: contexto, o que foi decidido, alternativas e
 | [010](010-observabilidade-otel-grafana.md) | Observabilidade com OpenTelemetry e stack Grafana auto-hospedada | Aceita |
 | [011](011-estilo-e-motion.md) | Tailwind + Radix/shadcn + Motion como base de interface | Aceita |
 | [012](012-ia-local-openrouter-groq.md) | IA local por padrão, OpenRouter e Groq opcionais | Substituída em parte por 013 |
-| [013](013-ia-so-com-conta-da-pessoa.md) | IA só com a conta da pessoa, Ollama só pra embeddings em produção | Aceita |
+| [013](013-ia-so-com-conta-da-pessoa.md) | IA só com a conta da pessoa, sem Ollama em produção | Aceita |
