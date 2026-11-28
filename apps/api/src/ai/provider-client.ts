@@ -61,6 +61,7 @@ export function estimateTokens(messages: ChatMessage[]): number {
 
 const targetEnvSchema = envSchema.pick({
   OLLAMA_URL: true,
+  OLLAMA_CHAT_ENABLED: true,
   OLLAMA_CHAT_MODEL: true,
   OLLAMA_CONTEXT_TOKENS: true,
   GROQ_CHAT_MODEL: true,
@@ -89,7 +90,7 @@ export function remoteTarget(id: "groq" | "openrouter", apiKey: string): Provide
 
 export function localTarget(): ProviderTarget | null {
   const env = targetEnvSchema.parse(process.env);
-  if (!env.OLLAMA_URL) return null;
+  if (!env.OLLAMA_URL || !env.OLLAMA_CHAT_ENABLED) return null;
   return {
     id: "local",
     baseUrl: `${env.OLLAMA_URL.replace(/\/+$/, "")}/v1`,

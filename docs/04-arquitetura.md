@@ -13,7 +13,7 @@ api (NestJS)
   ├── Redis                      filas (BullMQ), cache, pub/sub do Socket.IO
   ├── Elasticsearch              busca híbrida em notas e trechos de fonte
   ├── Object Storage (S3)        arquivos das fontes
-  ├── Ollama (local)             embeddings e a IA padrão (modelo de texto pequeno)
+  ├── Ollama (local)             embeddings (modelo de texto desligado por padrão)
   └── Provedores de IA do usuário (OpenRouter, Groq), só pela api
 
 worker (mesmo código da api, outro processo)
@@ -63,7 +63,7 @@ docs/
 2. O worker extrai o texto, quebra em `SourceChunk` (por página ou tempo, de 300 a 800 tokens), gera embeddings no Ollama e indexa no Elasticsearch. Falhou três vezes: o job vai pro conjunto de falhas do BullMQ (que não tem DLQ nativa como o RabbitMQ), a fonte fica com status `failed` e motivo, e um handler move o job pra uma fila `ingest-source-failed` pra investigação.
 3. A pessoa escreve de memória. Blocos ganham `origin: memory`.
 4. "Abrir o material" registra `materialOpenedAt` na nota; blocos novos a partir daí ganham `origin: material`.
-5. "O que faltou": a api compara o texto `memory` com os pontos principais da fonte (IA, se houver; senão, similaridade de embeddings entre trechos da fonte e parágrafos da nota) e devolve a lista.
+5. "O que faltou": com IA, a api compara o texto `memory` com os pontos principais da fonte e devolve a lista; sem IA, o front oferece o botão de prompt pronto.
 
 ### Revisão
 1. `GET /review/today` busca `ReviewItem` com `due <= agora`, intercala por tema da mesma matéria e limita a quantidade.
@@ -89,7 +89,7 @@ O trabalho em segundo plano é fila de jobs (poucos por dia, um consumidor por t
 - **VPS:** Oracle Always Free, ARM (até 4 OCPUs e 24 GB no plano; a instância atual tem 2 CPUs), Ubuntu, região São Paulo. Limites de CPU no compose de produção precisam caber nas CPUs da instância, senão o Docker recusa criar o contêiner.
 - **Containers:** Docker Compose com `web`, `api`, `worker`, `fetcher`, `collab`, `postgres`, `redis`, `elasticsearch` (single node, heap limitado), `ollama` e `caddy`.
 - **Observabilidade:** `otel-collector`, `prometheus`, `loki`, `tempo`, `grafana`, `glitchtip`, `node-exporter` e `cadvisor` numa rede `observability` sem porta pública. Detalhes em `11-observabilidade.md`.
-- **Redes:** `internal` (api, worker, collab, bancos, Ollama, sem porta publicada), `edge` (Caddy, web, api) `egress` (só o `fetcher`, com saída pra internet e sem acesso à `internal`) e `models_egress` (só o `ollama-models`, que baixa os modelos de IA pro volume do Ollama no deploy; sem acesso à `internal`). Só o Caddy publica portas (80 e 443). Detalhes em `10-seguranca.md`.
+- **Redes:** `internal` (api, worker, collab, bancos e, quando houver, Elasticsearch e Ollama, sem porta publicada), `edge` (Caddy, web, api) e `egress` (só o `fetcher`, com saída pra internet e sem acesso à `internal`). Só o Caddy publica portas (80 e 443). Detalhes em `10-seguranca.md`.
 - **Arquivos:** Oracle Object Storage (compatível com S3).
 - **HTTPS e proxy:** Caddy.
 - **CI/CD:** GitHub Actions (lint, typecheck, testes, build de imagens ARM, deploy por SSH).

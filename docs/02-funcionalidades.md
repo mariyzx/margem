@@ -27,7 +27,7 @@ Aceite:
 Fluxo em dois passos, numa nota só:
 1. **Material (opcional):** subir arquivo (PDF, slides, documento), colar link (vídeo: transcrição; página: texto) ou colar texto. Vira uma `Source` do caderno.
 2. **Escrever a nota:** o material fica fechado num painel lateral. A pessoa escreve de memória. Quando clica em "Abrir o material", o painel abre e ela **continua na mesma nota**. O editor marca a origem de cada parágrafo: `memory` (barra cinza) antes de abrir, `material` (barra azul) depois. Listas têm uma barra só, à esquerda dos marcadores, com a origem da lista; nada dentro da lista tem barra própria, e linhas vazias ficam sem barra (decisão de 27/11/2026).
-3. Com IA conectada (ou busca semântica, sem IA), o painel mostra **"O que faltou na sua memória"**: pontos principais da fonte que não aparecem no texto escrito de memória. Cada um tem "Virar pergunta da revisão".
+3. Com IA conectada, o painel mostra **"O que faltou na sua memória"**: pontos principais da fonte que não aparecem no texto escrito de memória. Cada um tem "Virar pergunta da revisão". Sem IA, mostra o convite pra conectar uma conta e o botão de prompt pronto. A comparação sem IA (similaridade de embeddings) foi tirada em 28/11/2026: devolvia trechos da fonte cortados no meio, que não ajudavam a ver o que faltou.
 
 Aceite:
 - [ ] Não existe um segundo campo de texto pra completar: é o mesmo editor.
@@ -109,13 +109,13 @@ Ainda não desenhado no protótipo. Ver roadmap.
 
 ## 10. Assistente de IA (configurações)
 
-- Um interruptor **Usar IA** (ligado por padrão): usa a IA do Margem, local, sem configurar nada.
-- **Mais rápida com a sua conta (opcional):** OpenRouter com login ou Groq com chave colada. "Testar e salvar" antes de guardar a chave.
+- Um interruptor **Usar IA** (ligado por padrão).
+- **Conectar uma conta grátis:** OpenRouter com login ou Groq com chave colada. "Testar e salvar" antes de guardar a chave. Sem conta conectada, a IA não roda dentro do app (ADR-013).
 - Sem seletor de modelo: o app escolhe o modelo de cada tarefa.
-- A tela diz pra onde vai o texto: local não sai do servidor; com OpenRouter ou Groq, passa pelo provedor.
+- A tela diz pra onde vai o texto: com OpenRouter ou Groq, passa pelo provedor.
 - Liga/desliga por recurso: sugerir lacunas e perguntas, corrigir respostas abertas, explicar quando errar, conversar com o caderno.
-- Fallback: se a conta da pessoa falhar ou a cota acabar, usar a IA do Margem; se ela também falhar, oferecer o botão de prompt pronto pra aquela tarefa.
-- Recursos pesados (conversar com o caderno) avisam que ficam lentos sem OpenRouter ou Groq.
+- Sem conta conectada: cada recurso de IA convida a conectar uma conta grátis (link pra `/configuracoes/ia`) e oferece na hora o botão de prompt pronto.
+- Fallback: se a conta da pessoa falhar ou a cota acabar, tentar a outra conta conectada; se nenhuma responder, oferecer o botão de prompt pronto pra aquela tarefa.
 
 Aceite:
 - [ ] Chave salva criptografada; o front recebe só os 4 últimos caracteres.

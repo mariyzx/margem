@@ -87,6 +87,7 @@ describe("AiProviderClient", () => {
 
   it("sends no Authorization header to the local model", async () => {
     vi.stubEnv("OLLAMA_URL", "http://ollama:11434/");
+    vi.stubEnv("OLLAMA_CHAT_ENABLED", "true");
     fetchMock.mockResolvedValueOnce(
       jsonResponse(200, { choices: [{ message: { content: "oi" } }] }),
     );
@@ -104,6 +105,14 @@ describe("AiProviderClient", () => {
   it("has no local target when Ollama is not configured", () => {
     vi.stubEnv("OLLAMA_URL", "");
     expect(localTarget()).toBeNull();
+  });
+
+  it("has no local target unless the local chat model is turned on", () => {
+    vi.stubEnv("OLLAMA_URL", "http://ollama:11434");
+    vi.stubEnv("OLLAMA_CHAT_ENABLED", "false");
+    expect(localTarget()).toBeNull();
+    vi.stubEnv("OLLAMA_CHAT_ENABLED", "true");
+    expect(localTarget()).not.toBeNull();
   });
 
   it.each([
@@ -219,8 +228,15 @@ describe("estimateTokens", () => {
 describe("localTarget", () => {
   afterEach(() => vi.unstubAllEnvs());
 
+  it("is off unless the local chat model is turned on", () => {
+    vi.stubEnv("OLLAMA_URL", "http://ollama:11434");
+    vi.stubEnv("OLLAMA_CHAT_ENABLED", undefined);
+    expect(localTarget()).toBeNull();
+  });
+
   it("carries the configured context size, 8192 by default", () => {
     vi.stubEnv("OLLAMA_URL", "http://ollama:11434");
+    vi.stubEnv("OLLAMA_CHAT_ENABLED", "true");
     expect(localTarget()?.contextTokens).toBe(8192);
     vi.stubEnv("OLLAMA_CONTEXT_TOKENS", "4096");
     expect(localTarget()?.contextTokens).toBe(4096);

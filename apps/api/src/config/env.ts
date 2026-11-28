@@ -36,6 +36,10 @@ export const envSchema = z.object({
   ELASTICSEARCH_URL: z.string().url().optional().or(z.literal("")),
   OLLAMA_URL: z.string().url().optional().or(z.literal("")),
   OLLAMA_EMBED_MODEL: z.string().trim().min(1).default("nomic-embed-text"),
+  OLLAMA_CHAT_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
   OLLAMA_CHAT_MODEL: z.string().trim().min(1).default("qwen2.5:3b"),
   OLLAMA_CONTEXT_TOKENS: z.coerce.number().int().min(1024).default(8192),
   GROQ_CHAT_MODEL: z.string().trim().min(1).default("openai/gpt-oss-120b"),

@@ -19,7 +19,7 @@ Proposta de ordem. Ainda **não confirmada pela Mari**: ajuste antes de começar
 ## Fase 2: fontes e busca
 - Upload de PDF (limite, checagem de tipo, bucket privado) e link (worker `fetcher` isolado, com proteção contra SSRF), fila de ingestão com BullMQ e fila de falhas.
 - Elasticsearch + embeddings locais, busca híbrida.
-- "O que faltou na sua memória" sem IA (similaridade).
+- "O que faltou na sua memória" sem IA (similaridade). Tirado em 28/11/2026: o resultado não ajudava (ADR-013).
 
 ## Fase 3: IA do usuário
 - Configurações do assistente, camada de provedores, chaves criptografadas, defesas contra prompt injection.
@@ -35,6 +35,7 @@ Proposta de ordem. Ainda **não confirmada pela Mari**: ajuste antes de começar
 - Edição colaborativa (Yjs), presença, quiz ao vivo.
 
 ## Depois
+- IA no navegador (WebGPU): modelo pequeno rodando na máquina da pessoa, pra ter IA sem conectar conta e sem pesar na VPS (ADR-013).
 - Mapa de memória (canvas com React Flow).
 - Sessão guiada como revisão do dia no celular.
 - Resumo, slides, áudio (consulta).

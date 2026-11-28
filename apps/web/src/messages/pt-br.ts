@@ -144,7 +144,8 @@ export const messages = {
     unavailable: {
       disabled: "A IA está desligada nas suas configurações.",
       feature_disabled: "Sugerir lacunas e perguntas está desligado nas suas configurações.",
-      no_provider: "Nenhuma IA está disponível agora. Tente mais tarde.",
+      no_provider:
+        "Nenhuma conta de IA conectada. Conecte uma conta grátis ou use o pedido pronto.",
       invalid_key: "A IA não respondeu agora. Tente de novo em alguns minutos.",
       quota: "A cota grátis da IA acabou por hoje. Tente amanhã ou use outra conta.",
       timeout: "A IA demorou demais pra responder. Tente de novo em alguns minutos.",
@@ -191,12 +192,11 @@ export const messages = {
     intro:
       "A IA sugere, confere e explica depois do erro. Ela nunca escreve a sua nota, e tudo funciona sem ela.",
     useAi: "Usar IA",
-    useAiDescription:
-      "Usa a IA do Margem, que roda no nosso servidor. O seu texto não sai dele. Pode ser lenta.",
-    accountTitle: "Mais rápida com a sua conta",
-    accountOptional: "Opcional",
+    useAiDescription: "Liga os recursos de IA. Eles usam a conta grátis que você conectar abaixo.",
+    accountTitle: "Conectar uma conta grátis",
+    accountOptional: "Leva um minuto",
     accountDescription:
-      "Com a sua conta grátis do OpenRouter ou do Groq, as respostas chegam em segundos. Nesse caso, o texto passa pelo provedor.",
+      "A IA roda com a sua conta grátis do OpenRouter ou do Groq, e o texto passa pelo provedor. Sem conta, cada recurso oferece o pedido pronto pra usar em outra IA.",
     groqKeyLabel: "Chave do Groq",
     groqKeyHint: "Crie uma chave grátis no console do Groq, sem cartão.",
     openRouterTitle: "OpenRouter",
@@ -299,15 +299,11 @@ export const messages = {
     openLink: "Abrir link",
     removeSource: "Remover material",
     gapsTitle: "O que faltou na sua memória",
-    gapsCheckButton: "Comparar com minha nota",
-    gapsChecking: "Comparando...",
     gapsNoMemory: "Escreva primeiro o que você lembra para comparar com o material.",
-    gapsNoneFound: "Você cobriu os principais pontos deste material!",
     gapsTurnIntoQuestion: "Virar pergunta",
     gapsAiButton: "Conferir com IA",
     gapsAiChecking: "A IA está comparando",
     gapsAiNoneFound: "A IA não achou ponto importante faltando na sua nota.",
-    gapsAiFallback: "Mostrando a comparação sem IA.",
     gapsFromSource: "Trecho da fonte",
   },
   quota: {
@@ -449,7 +445,8 @@ export const messages = {
       aiUnavailable: {
         disabled: "A IA está desligada nas suas configurações.",
         feature_disabled: "Conversar com o caderno está desligado nas suas configurações.",
-        no_provider: "Nenhuma IA está disponível agora. Tente mais tarde.",
+        no_provider:
+          "Nenhuma conta de IA conectada. Conecte uma conta grátis ou use o pedido pronto.",
         invalid_key: "A IA não respondeu agora. Tente de novo em alguns minutos.",
         quota: "A cota grátis da IA acabou por hoje. Tente amanhã ou use outra conta.",
         timeout: "A IA demorou demais pra responder. Tente de novo em alguns minutos.",
@@ -516,6 +513,9 @@ export const messages = {
     },
   },
   handoff: {
+    connectInvite:
+      "Pra ter a IA aqui no Margem, conecte uma conta grátis do OpenRouter ou do Groq. Leva um minuto.",
+    connectAccount: "Conectar uma conta",
     intro:
       "Use a sua IA de fora: o Margem monta o pedido, você cola na conversa. A resposta não volta pra cá.",
     copyAndOpen: (target: string) => `Copiar pedido e abrir o ${target}`,
