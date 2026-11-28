@@ -38,7 +38,7 @@ export const envSchema = z.object({
   OLLAMA_EMBED_MODEL: z.string().trim().min(1).default("nomic-embed-text"),
   OLLAMA_CHAT_ENABLED: z
     .enum(["true", "false"])
-    .default("true")
+    .default("false")
     .transform((value) => value === "true"),
   OLLAMA_CHAT_MODEL: z.string().trim().min(1).default("qwen2.5:3b"),
   OLLAMA_CONTEXT_TOKENS: z.coerce.number().int().min(1024).default(8192),

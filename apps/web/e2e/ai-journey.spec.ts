@@ -27,6 +27,7 @@ test.beforeAll(async () => {
         ...process.env,
         API_PORT: String(AI_API_PORT),
         OLLAMA_URL: fakeAi.url,
+        OLLAMA_CHAT_ENABLED: "true",
         OLLAMA_CHAT_MODEL: "fake-model",
       },
       stdio: "ignore",

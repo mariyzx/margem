@@ -86,6 +86,7 @@ describe("AiService", () => {
   beforeEach(() => {
     vi.stubEnv("AI_KEYS_MASTER_KEY", MASTER_KEY.toString("base64"));
     vi.stubEnv("OLLAMA_URL", "http://ollama:11434");
+    vi.stubEnv("OLLAMA_CHAT_ENABLED", "true");
   });
   afterEach(() => vi.unstubAllEnvs());
 
