@@ -43,3 +43,4 @@ Ordem de uso em produção: provedor conectado pela pessoa → botão de prompt 
 - Some a necessidade da fila BullMQ pra chamadas locais e da escolha do modelo local na VPS (#106), pelo menos em produção.
 - O texto sempre passa por um provedor quando a IA é usada; a tela de configurações já diz isso por provedor.
 - A VPS fica com folga pra Elasticsearch e pra stack de observabilidade.
+- A comparação "o que faltou" sem IA (similaridade de embeddings, ADR-003) sai junto: os trechos da fonte que ela devolvia vinham cortados no meio e não mostravam o que faltou. Sem IA, o painel mostra o convite e o botão de prompt pronto.

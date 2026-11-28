@@ -63,7 +63,7 @@ docs/
 2. O worker extrai o texto, quebra em `SourceChunk` (por página ou tempo, de 300 a 800 tokens), gera embeddings no Ollama e indexa no Elasticsearch. Falhou três vezes: o job vai pro conjunto de falhas do BullMQ (que não tem DLQ nativa como o RabbitMQ), a fonte fica com status `failed` e motivo, e um handler move o job pra uma fila `ingest-source-failed` pra investigação.
 3. A pessoa escreve de memória. Blocos ganham `origin: memory`.
 4. "Abrir o material" registra `materialOpenedAt` na nota; blocos novos a partir daí ganham `origin: material`.
-5. "O que faltou": a api compara o texto `memory` com os pontos principais da fonte (IA, se houver; senão, similaridade de embeddings entre trechos da fonte e parágrafos da nota) e devolve a lista.
+5. "O que faltou": com IA, a api compara o texto `memory` com os pontos principais da fonte e devolve a lista; sem IA, o front oferece o botão de prompt pronto.
 
 ### Revisão
 1. `GET /review/today` busca `ReviewItem` com `due <= agora`, intercala por tema da mesma matéria e limita a quantidade.
