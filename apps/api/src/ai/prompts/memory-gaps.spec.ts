@@ -18,6 +18,8 @@ describe("memory-gaps prompt", () => {
     );
 
     expect(messages).toMatchSnapshot();
+    expect(messages[0]!.content).not.toMatch(/liste até/i);
+    expect(messages[0]!.content).toContain("Uma lista vazia é uma resposta comum e correta.");
     expect(messages[0]!.content).not.toContain("janela deslizante");
     expect(messages[1]!.content).toContain(`<<DADOS-${BOUNDARY} rotulo="nota de memória">>`);
     expect(messages[1]!.content).toContain(
