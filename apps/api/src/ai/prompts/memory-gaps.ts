@@ -20,14 +20,18 @@ export const memoryGapsOutputSchema = z.object({
 
 const INSTRUCTIONS = [
   "A pessoa escreveu de memória o que lembra de um material e só depois abriu a fonte.",
-  `Compare a nota de memória com os trechos da fonte e liste até ${MAX_AI_MEMORY_GAPS} pontos importantes da fonte que não aparecem na nota.`,
+  "Sua tarefa é apontar as ideias centrais da fonte que a nota não menciona de jeito nenhum.",
+  "",
+  "Como decidir:",
+  "- Para cada ideia central da fonte, procure na nota algo que trate dela. Se a nota fala da ideia, mesmo com outras palavras, de forma simples, informal ou com menos detalhe, ela está coberta e não entra.",
+  "- Só entra o que a nota não menciona em nenhuma frase.",
+  "- Não são lacunas: exemplos, nomes de produtos ou ferramentas, listas de casos de uso, termos técnicos de algo que a nota já explica, e perguntas de revisão, exercícios ou gabaritos da fonte.",
+  `- Uma lista vazia é uma resposta comum e correta. Não complete a lista para chegar a um número; devolva no máximo ${MAX_AI_MEMORY_GAPS}.`,
   "",
   "Regras:",
   '- "point": uma frase curta dizendo o que faltou, como um lembrete ("Faltou: ..."), sem explicar o conteúdo inteiro.',
   '- "sourceChunkId": o id do trecho da fonte de onde o ponto saiu, igual ao do marcador.',
-  "- Só pontos centrais. Ignore detalhes, exemplos e o que a nota já cobre com outras palavras.",
   "- Não reescreva nem complete a nota e não traga informação que não está na fonte.",
-  "- Se a nota cobre tudo o que importa, devolva a lista vazia.",
   "",
   'Responda só com JSON: {"gaps":[{"point":"...","sourceChunkId":"..."}]}',
 ].join("\n");

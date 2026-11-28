@@ -93,7 +93,7 @@ export function buildHandoffPrompt(task: HandoffTask): string {
       );
     case "memoryGaps":
       return compose(
-        "Escrevi de memória o que lembro de um material e só depois abri a fonte. Compare e liste até 5 pontos centrais da fonte que não aparecem na minha nota, como lembretes curtos (“Faltou: …”), dizendo de qual trecho saiu cada um.",
+        "Escrevi de memória o que lembro de um material e só depois abri a fonte. Aponte só as ideias centrais da fonte que a minha nota não menciona em nenhuma frase, no máximo 5, como lembretes curtos (“Faltou: …”), dizendo de qual trecho saiu cada uma. Se falei da ideia com outras palavras, de forma simples ou com menos detalhe, ela está coberta. Exemplos, nomes de produtos e perguntas de revisão da fonte não são lacuna. Se não faltar nada, diga isso.",
         [
           material("minha nota de memória", task.memory, Math.floor(budget * 0.3)),
           material("fonte", task.source, Math.floor(budget * 0.7)),
