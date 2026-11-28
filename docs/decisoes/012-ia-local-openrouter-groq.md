@@ -1,6 +1,6 @@
 # ADR-012: IA local por padrão, OpenRouter e Groq opcionais
 
-- **Status:** Aceita
+- **Status:** Substituída em parte por [ADR-013](013-ia-so-com-conta-da-pessoa.md) (camada "IA do Margem" e ordem de uso)
 - **Data:** 2026-11-26
 - **Substitui:** [ADR-002](002-ia-do-usuario-custo-zero.md)
 
