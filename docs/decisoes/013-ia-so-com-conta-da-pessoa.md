@@ -19,7 +19,7 @@ Enquanto isso, as contas grátis já integradas funcionam bem: Groq (`openai/gpt
 1. **IA dentro do app só com a conta da pessoa** (Groq ou OpenRouter). Em produção não roda modelo de texto local.
 2. **Sem conta conectada, o recurso mostra na hora o convite pra conectar uma conta grátis e o botão de prompt pronto**, sem esperar um modelo lento.
 3. **O Ollama continua em produção só pros embeddings** (ADR-005), com CPU e memória menores. O modelo de texto não é baixado no deploy.
-4. **Em desenvolvimento o modelo local continua disponível** (`OLLAMA_CHAT_ENABLED`), pra testar sem chave.
+4. **O modelo local fica desligado por padrão em todo lugar, inclusive em desenvolvimento** (`OLLAMA_CHAT_ENABLED=false`). Dev se comporta como produção: sem conta, convite e botão de prompt pronto. Dá pra ligar à mão pra testar sem chave, e o e2e liga pra usar o provedor simulado.
 5. **IA no navegador (WebGPU) fica no roadmap "Depois"**: um modelo pequeno rodando na máquina da pessoa resolveria o "sem configurar nada" sem pesar na VPS, mas ainda depende de hardware e não roda bem no celular.
 
 Ordem de uso em produção: provedor conectado pela pessoa → botão de prompt pronto.
