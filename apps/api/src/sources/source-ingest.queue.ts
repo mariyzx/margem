@@ -162,7 +162,7 @@ export class SourceIngestQueue implements OnModuleInit, OnModuleDestroy, OnAppli
       });
     });
 
-    if (this.searchIndex) {
+    if (this.searchIndex?.isConfigured()) {
       try {
         const savedChunks = await this.prisma.sourceChunk.findMany({
           where: { sourceId },

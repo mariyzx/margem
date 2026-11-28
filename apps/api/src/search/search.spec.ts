@@ -100,7 +100,10 @@ describe("SearchService", () => {
       prisma,
       new PolicyService(),
       { embed: vi.fn(async () => null) } as unknown as EmbeddingsService,
-      { searchChunks: vi.fn(async () => null) } as unknown as SearchIndexService,
+      {
+        isConfigured: () => false,
+        searchChunks: vi.fn(async () => null),
+      } as unknown as SearchIndexService,
     );
 
     await expect(
@@ -129,11 +132,15 @@ describe("SearchService", () => {
       },
     } as unknown as PrismaService;
 
+    const embeddings = { embed: vi.fn(async () => null) };
     const service = new SearchService(
       prisma,
       new PolicyService(),
-      { embed: vi.fn(async () => null) } as unknown as EmbeddingsService,
-      { searchChunks: vi.fn(async () => null) } as unknown as SearchIndexService,
+      embeddings as unknown as EmbeddingsService,
+      {
+        isConfigured: () => false,
+        searchChunks: vi.fn(async () => null),
+      } as unknown as SearchIndexService,
     );
 
     const hits = await service.search("user-1", { notebookId: "nb-1", q: "Raft", limit: 10 });
@@ -145,5 +152,6 @@ describe("SearchService", () => {
       title: "Aula Raft.pdf",
       page: 2,
     });
+    expect(embeddings.embed).not.toHaveBeenCalled();
   });
 });
