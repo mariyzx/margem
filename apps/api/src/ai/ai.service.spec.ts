@@ -119,7 +119,7 @@ describe("AiService", () => {
     expect(providersCalled()).toEqual([]);
   });
 
-  it("uses the IA do Margem when nothing is connected", async () => {
+  it("uses the local model when nothing is connected", async () => {
     const { service, providers, providersCalled } = setup();
 
     const result = await service.completeJson("user-a", "grade-answer", PROMPT, schema);
@@ -189,6 +189,27 @@ describe("AiService", () => {
       "no_provider",
     );
     expect(providers.complete).not.toHaveBeenCalled();
+  });
+
+  it("answers no_provider right away when the local chat model is turned off", async () => {
+    vi.stubEnv("OLLAMA_CHAT_ENABLED", "false");
+    const { service, providers } = setup();
+
+    expect(await reasonOf(service.completeJson("user-a", "grade-answer", PROMPT, schema))).toBe(
+      "no_provider",
+    );
+    expect(providers.complete).not.toHaveBeenCalled();
+  });
+
+  it("uses only the person's provider when the local chat model is turned off", async () => {
+    vi.stubEnv("OLLAMA_CHAT_ENABLED", "false");
+    const { service, providers, providersCalled } = setup({ groq: true });
+    providers.complete.mockRejectedValueOnce(new AiProviderError("quota"));
+
+    expect(await reasonOf(service.completeJson("user-a", "grade-answer", PROMPT, schema))).toBe(
+      "quota",
+    );
+    expect(providersCalled()).toEqual(["groq"]);
   });
 
   it("calls nothing when AI is off, or this feature is off", async () => {
