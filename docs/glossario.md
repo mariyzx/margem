@@ -29,5 +29,5 @@ Use estes termos na interface (pt-BR) e os nomes em inglês no código.
 | Quiz ao vivo | `LiveQuiz` | Sessão em tempo real da turma com as perguntas do grupo. |
 | Mapa de memória | `MemoryMap` | Canvas de notas ligadas, com blocos e ligações escondidos pra completar. |
 | Assistente de IA | `AiSettings` | Configuração de IA da pessoa: liga ou desliga a IA e, se quiser, conecta OpenRouter ou Groq. |
-| IA do Margem | `local` | Modelo de texto pequeno rodando no Ollama da VPS; a IA padrão, sem custo e sem configurar nada. |
+| Modelo local | `local` | Modelo de texto pequeno no Ollama, só em desenvolvimento, pra testar sem chave. Em produção o Ollama fica só pros embeddings (ADR-013). |
 | Botão de prompt pronto | `prompt handoff` | Reserva quando a IA está desligada ou falha: abre Claude, ChatGPT ou Gemini com o pedido montado; o resultado não volta pro app. |

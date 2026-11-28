@@ -13,7 +13,7 @@ api (NestJS)
   ├── Redis                      filas (BullMQ), cache, pub/sub do Socket.IO
   ├── Elasticsearch              busca híbrida em notas e trechos de fonte
   ├── Object Storage (S3)        arquivos das fontes
-  ├── Ollama (local)             embeddings e a IA padrão (modelo de texto pequeno)
+  ├── Ollama (local)             embeddings (modelo de texto só em desenvolvimento)
   └── Provedores de IA do usuário (OpenRouter, Groq), só pela api
 
 worker (mesmo código da api, outro processo)

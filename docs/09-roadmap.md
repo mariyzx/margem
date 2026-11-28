@@ -35,6 +35,7 @@ Proposta de ordem. Ainda **não confirmada pela Mari**: ajuste antes de começar
 - Edição colaborativa (Yjs), presença, quiz ao vivo.
 
 ## Depois
+- IA no navegador (WebGPU): modelo pequeno rodando na máquina da pessoa, pra ter IA sem conectar conta e sem pesar na VPS (ADR-013).
 - Mapa de memória (canvas com React Flow).
 - Sessão guiada como revisão do dia no celular.
 - Resumo, slides, áudio (consulta).

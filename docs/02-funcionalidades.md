@@ -109,13 +109,13 @@ Ainda não desenhado no protótipo. Ver roadmap.
 
 ## 10. Assistente de IA (configurações)
 
-- Um interruptor **Usar IA** (ligado por padrão): usa a IA do Margem, local, sem configurar nada.
-- **Mais rápida com a sua conta (opcional):** OpenRouter com login ou Groq com chave colada. "Testar e salvar" antes de guardar a chave.
+- Um interruptor **Usar IA** (ligado por padrão).
+- **Conectar uma conta grátis:** OpenRouter com login ou Groq com chave colada. "Testar e salvar" antes de guardar a chave. Sem conta conectada, a IA não roda dentro do app (ADR-013).
 - Sem seletor de modelo: o app escolhe o modelo de cada tarefa.
-- A tela diz pra onde vai o texto: local não sai do servidor; com OpenRouter ou Groq, passa pelo provedor.
+- A tela diz pra onde vai o texto: com OpenRouter ou Groq, passa pelo provedor.
 - Liga/desliga por recurso: sugerir lacunas e perguntas, corrigir respostas abertas, explicar quando errar, conversar com o caderno.
-- Fallback: se a conta da pessoa falhar ou a cota acabar, usar a IA do Margem; se ela também falhar, oferecer o botão de prompt pronto pra aquela tarefa.
-- Recursos pesados (conversar com o caderno) avisam que ficam lentos sem OpenRouter ou Groq.
+- Sem conta conectada: cada recurso de IA convida a conectar uma conta grátis (link pra `/configuracoes/ia`) e oferece na hora o botão de prompt pronto.
+- Fallback: se a conta da pessoa falhar ou a cota acabar, tentar a outra conta conectada; se nenhuma responder, oferecer o botão de prompt pronto pra aquela tarefa.
 
 Aceite:
 - [ ] Chave salva criptografada; o front recebe só os 4 últimos caracteres.
