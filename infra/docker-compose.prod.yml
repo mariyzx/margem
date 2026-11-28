@@ -157,7 +157,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: ${OLLAMA_CPUS:-3}
+          cpus: ${OLLAMA_CPUS:-1.5}
           memory: ${OLLAMA_MEMORY:-6g}
     networks:
       - internal
