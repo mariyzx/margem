@@ -1,4 +1,4 @@
-import type { AiPromptTarget, PracticeKind } from "@margem/shared";
+import type { AiPromptTarget, AiSettings, PracticeKind } from "@margem/shared";
 
 export const HANDOFF_TARGETS: Record<AiPromptTarget, { name: string; url: string }> = {
   claude: { name: "Claude", url: "https://claude.ai/new" },
@@ -7,6 +7,10 @@ export const HANDOFF_TARGETS: Record<AiPromptTarget, { name: string; url: string
 };
 
 export const MAX_HANDOFF_MATERIAL_CHARS = 20_000;
+
+export function needsAccountInvite(settings: Pick<AiSettings, "enabled" | "credentials">): boolean {
+  return settings.enabled && settings.credentials.length === 0;
+}
 
 export type HandoffTask =
   | { kind: "suggest"; note: string[] }
