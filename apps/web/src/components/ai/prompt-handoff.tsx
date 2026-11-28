@@ -6,26 +6,39 @@ import { ExternalLink } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { fetchAiSettings } from "../../lib/api";
-import { HANDOFF_TARGETS } from "../../lib/prompt-handoff";
+import { HANDOFF_TARGETS, needsAccountInvite } from "../../lib/prompt-handoff";
 import { messages } from "../../messages/pt-br";
 
 const text = messages.handoff;
 const DEFAULT_TARGET: AiPromptTarget = "claude";
 
-function usePromptTarget(): AiPromptTarget {
-  const [target, setTarget] = React.useState<AiPromptTarget>(DEFAULT_TARGET);
+interface HandoffSettings {
+  target: AiPromptTarget;
+  inviteToConnect: boolean;
+}
+
+function useHandoffSettings(): HandoffSettings {
+  const [state, setState] = React.useState<HandoffSettings>({
+    target: DEFAULT_TARGET,
+    inviteToConnect: false,
+  });
   React.useEffect(() => {
     let active = true;
     fetchAiSettings()
       .then((settings) => {
-        if (active) setTarget(settings.promptTarget);
+        if (active) {
+          setState({
+            target: settings.promptTarget,
+            inviteToConnect: needsAccountInvite(settings),
+          });
+        }
       })
       .catch(() => undefined);
     return () => {
       active = false;
     };
   }, []);
-  return target;
+  return state;
 }
 
 type CopyState = "idle" | "copied" | "failed";
@@ -35,7 +48,8 @@ interface PromptHandoffProps {
 }
 
 export function PromptHandoff({ prompt }: PromptHandoffProps) {
-  const target = HANDOFF_TARGETS[usePromptTarget()];
+  const settings = useHandoffSettings();
+  const target = HANDOFF_TARGETS[settings.target];
   const [copy, setCopy] = React.useState<CopyState>("idle");
   const fieldId = React.useId();
 
@@ -57,6 +71,17 @@ export function PromptHandoff({ prompt }: PromptHandoffProps) {
 
   return (
     <div className="flex flex-col gap-2 rounded-md border border-margin-rule bg-paper p-3">
+      {settings.inviteToConnect ? (
+        <div className="flex flex-col gap-1 border-b border-margin-rule pb-2">
+          <p className="text-xs leading-relaxed text-ink">{text.connectInvite}</p>
+          <Link
+            href="/configuracoes/ia"
+            className="self-start text-xs font-medium text-bic underline-offset-4 hover:underline"
+          >
+            {text.connectAccount}
+          </Link>
+        </div>
+      ) : null}
       <p className="text-xs leading-relaxed text-ink-muted">{text.intro}</p>
       <Button
         type="button"
@@ -93,12 +118,14 @@ export function PromptHandoff({ prompt }: PromptHandoffProps) {
           />
         </details>
       ) : null}
-      <Link
-        href="/configuracoes/ia"
-        className="self-start text-xs font-medium text-bic underline-offset-4 hover:underline"
-      >
-        {text.changeTarget}
-      </Link>
+      {settings.inviteToConnect ? null : (
+        <Link
+          href="/configuracoes/ia"
+          className="self-start text-xs font-medium text-bic underline-offset-4 hover:underline"
+        >
+          {text.changeTarget}
+        </Link>
+      )}
     </div>
   );
 }

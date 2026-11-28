@@ -1,9 +1,11 @@
+import type { AiCredentialSummary } from "@margem/shared";
 import { describe, expect, it } from "vitest";
 import {
   buildHandoffPrompt,
   HANDOFF_TARGETS,
   type HandoffTask,
   MAX_HANDOFF_MATERIAL_CHARS,
+  needsAccountInvite,
 } from "./prompt-handoff";
 
 const TASKS: HandoffTask[] = [
@@ -60,6 +62,20 @@ describe("buildHandoffPrompt", () => {
         source: [],
       }),
     ).toContain("Pergunta: O que é DLQ?");
+  });
+});
+
+describe("needsAccountInvite", () => {
+  const groq: AiCredentialSummary = {
+    provider: "groq",
+    keyLast4: "abcd",
+    createdAt: "2026-11-28T00:00:00.000Z",
+  };
+
+  it("invites to connect an account only when AI is on and nothing is connected", () => {
+    expect(needsAccountInvite({ enabled: true, credentials: [] })).toBe(true);
+    expect(needsAccountInvite({ enabled: false, credentials: [] })).toBe(false);
+    expect(needsAccountInvite({ enabled: true, credentials: [groq] })).toBe(false);
   });
 });
 
