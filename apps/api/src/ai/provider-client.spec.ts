@@ -106,6 +106,14 @@ describe("AiProviderClient", () => {
     expect(localTarget()).toBeNull();
   });
 
+  it("has no local target when the local chat model is turned off", () => {
+    vi.stubEnv("OLLAMA_URL", "http://ollama:11434");
+    vi.stubEnv("OLLAMA_CHAT_ENABLED", "false");
+    expect(localTarget()).toBeNull();
+    vi.stubEnv("OLLAMA_CHAT_ENABLED", "true");
+    expect(localTarget()).not.toBeNull();
+  });
+
   it.each([
     [401, "invalid_key"],
     [403, "invalid_key"],
