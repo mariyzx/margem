@@ -7,7 +7,6 @@ import {
   HttpCode,
   Param,
   Post,
-  Query,
   Req,
   UploadedFile,
   UseInterceptors,
@@ -85,18 +84,6 @@ export class SourcesController {
       buffer: file.buffer,
     });
     return { source };
-  }
-
-  @Get("memory-gaps")
-  @RequirePolicy("read", "notebook")
-  async getMemoryGaps(
-    @Req() req: AuthenticatedRequest,
-    @Query("noteId") noteId: string | undefined,
-  ) {
-    if (!noteId?.trim()) {
-      throw new BadRequestException("noteId is required");
-    }
-    return this.sourcesService.getMemoryGaps(req.user!.id, noteId.trim());
   }
 
   @Post("memory-gaps/check")

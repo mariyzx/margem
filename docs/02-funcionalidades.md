@@ -27,7 +27,7 @@ Aceite:
 Fluxo em dois passos, numa nota só:
 1. **Material (opcional):** subir arquivo (PDF, slides, documento), colar link (vídeo: transcrição; página: texto) ou colar texto. Vira uma `Source` do caderno.
 2. **Escrever a nota:** o material fica fechado num painel lateral. A pessoa escreve de memória. Quando clica em "Abrir o material", o painel abre e ela **continua na mesma nota**. O editor marca a origem de cada parágrafo: `memory` (barra cinza) antes de abrir, `material` (barra azul) depois. Listas têm uma barra só, à esquerda dos marcadores, com a origem da lista; nada dentro da lista tem barra própria, e linhas vazias ficam sem barra (decisão de 27/11/2026).
-3. Com IA conectada (ou busca semântica, sem IA), o painel mostra **"O que faltou na sua memória"**: pontos principais da fonte que não aparecem no texto escrito de memória. Cada um tem "Virar pergunta da revisão".
+3. Com IA conectada, o painel mostra **"O que faltou na sua memória"**: pontos principais da fonte que não aparecem no texto escrito de memória. Cada um tem "Virar pergunta da revisão". Sem IA, mostra o convite pra conectar uma conta e o botão de prompt pronto. A comparação sem IA (similaridade de embeddings) foi tirada em 28/11/2026: devolvia trechos da fonte cortados no meio, que não ajudavam a ver o que faltou.
 
 Aceite:
 - [ ] Não existe um segundo campo de texto pra completar: é o mesmo editor.

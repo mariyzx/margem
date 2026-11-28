@@ -26,8 +26,6 @@ import {
   type UpdateNoteInput,
   SearchHitDto,
   searchHitSchema,
-  MemoryGapDto,
-  memoryGapSchema,
   aiMemoryGapSchema,
   type AiMemoryGapDto,
   aiCredentialSummarySchema,
@@ -424,20 +422,6 @@ export async function searchNotebook(
   if (!res.ok) await failed(res, "Search notebook");
   const data = (await res.json()) as { hits: unknown[] };
   return data.hits.map((hit) => searchHitSchema.parse(hit));
-}
-
-export async function fetchMemoryGaps(
-  noteId: string,
-): Promise<{ gaps: MemoryGapDto[]; hasMemoryText: boolean }> {
-  const res = await apiFetch(`/sources/memory-gaps?noteId=${encodeURIComponent(noteId)}`, {
-    method: "GET",
-  });
-  if (!res.ok) await failed(res, "Fetch memory gaps");
-  const data = (await res.json()) as { gaps: unknown[]; hasMemoryText: boolean };
-  return {
-    gaps: data.gaps.map((item) => memoryGapSchema.parse(item)),
-    hasMemoryText: Boolean(data.hasMemoryText),
-  };
 }
 
 export type AiCredentialFailure =

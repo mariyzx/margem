@@ -4,7 +4,6 @@ import {
   createLinkSourceSchema,
   createTextSourceSchema,
   extractMemoryParagraphs,
-  MemoryGapDto,
   type AiMemoryGapDto,
   type SourceDto,
 } from "@margem/shared";
@@ -22,7 +21,6 @@ import * as React from "react";
 import {
   ApiError,
   checkMemoryGapsWithAi,
-  fetchMemoryGaps,
   fetchSourceChunks,
   fetchSourceFileUrl,
   isAiUnavailable,
@@ -76,9 +74,7 @@ export function SourcePanel({
   const [openingPdf, setOpeningPdf] = React.useState(false);
   const [removing, setRemoving] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
-  const [gaps, setGaps] = React.useState<MemoryGapDto[] | null>(null);
   const [hasMemoryText, setHasMemoryText] = React.useState(true);
-  const [checkingGaps, setCheckingGaps] = React.useState(false);
   const [aiGaps, setAiGaps] = React.useState<AiMemoryGapDto[] | null>(null);
   const [checkingAiGaps, setCheckingAiGaps] = React.useState(false);
   const [aiNotice, setAiNotice] = React.useState<string | null>(null);
@@ -86,7 +82,6 @@ export function SourcePanel({
   const gapsRequestRef = React.useRef(0);
 
   React.useEffect(() => {
-    setGaps(null);
     setAiGaps(null);
     setAiNotice(null);
     setGapsHandoff(undefined);
@@ -121,33 +116,14 @@ export function SourcePanel({
     try {
       const result = await checkMemoryGapsWithAi(noteId);
       setAiGaps(result.gaps);
-      setGaps(null);
       setHasMemoryText(result.hasMemoryText);
     } catch (err) {
       const reason = err instanceof ApiError ? err.aiUnavailable : undefined;
-      setAiNotice(
-        `${reason ? messages.aiReview.unavailable[reason] : messages.aiReview.genericError} ${messages.source.gapsAiFallback}`,
-      );
+      setAiNotice(reason ? messages.aiReview.unavailable[reason] : messages.aiReview.genericError);
       setAiGaps(null);
       if (isAiUnavailable(err)) void prepareGapsHandoff();
-      await handleCheckGaps();
     } finally {
       setCheckingAiGaps(false);
-    }
-  }
-
-  async function handleCheckGaps() {
-    setCheckingGaps(true);
-    setError(undefined);
-    try {
-      const result = await fetchMemoryGaps(noteId);
-      setGaps(result.gaps);
-      setAiGaps(null);
-      setHasMemoryText(result.hasMemoryText);
-    } catch (err) {
-      setError(createErrorMessage(err, messages.source.loadError));
-    } finally {
-      setCheckingGaps(false);
     }
   }
 
@@ -495,7 +471,6 @@ export function SourcePanel({
                   variant="secondary"
                   size="sm"
                   loading={checkingAiGaps}
-                  disabled={checkingGaps}
                   onClick={() => void handleCheckGapsWithAi()}
                 >
                   {checkingAiGaps ? null : (
@@ -504,16 +479,6 @@ export function SourcePanel({
                   <span>
                     {checkingAiGaps ? messages.source.gapsAiChecking : messages.source.gapsAiButton}
                   </span>
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  loading={checkingGaps}
-                  disabled={checkingAiGaps}
-                  onClick={() => void handleCheckGaps()}
-                >
-                  {checkingGaps ? messages.source.gapsChecking : messages.source.gapsCheckButton}
                 </Button>
               </div>
 
@@ -557,37 +522,6 @@ export function SourcePanel({
                   )
                 ) : null}
               </div>
-
-              {gaps !== null ? (
-                !hasMemoryText ? (
-                  <p className="text-xs text-ink-muted">{messages.source.gapsNoMemory}</p>
-                ) : gaps.length === 0 ? (
-                  <p className="text-xs text-correct">{messages.source.gapsNoneFound}</p>
-                ) : (
-                  <ul className="flex flex-col gap-2">
-                    {gaps.map((gap) => (
-                      <li
-                        key={gap.chunkId}
-                        className="flex flex-col gap-1.5 rounded border border-margin-rule bg-margin p-2"
-                      >
-                        <div className="flex items-center justify-between gap-2 text-[11px] text-ink-muted">
-                          <span>{gap.page ? `p. ${gap.page}` : `#${gap.ord + 1}`}</span>
-                          {onCreateQuestionFromGap ? (
-                            <button
-                              type="button"
-                              onClick={() => onCreateQuestionFromGap(gap.excerpt)}
-                              className="font-medium text-bic hover:underline"
-                            >
-                              {messages.source.gapsTurnIntoQuestion}
-                            </button>
-                          ) : null}
-                        </div>
-                        <p className="text-xs leading-relaxed text-ink">{gap.excerpt}</p>
-                      </li>
-                    ))}
-                  </ul>
-                )
-              ) : null}
             </div>
           ) : null}
           {error ? <p className="text-xs text-danger">{error}</p> : null}
